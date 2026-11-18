@@ -1,0 +1,16 @@
+{
+  "name": "@color-bms/e2e",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "End-to-end tests (Playwright) against the built app, ADR 0002",
+  "scripts": {
+    "test": "playwright test",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@color-bms/core": "*",
+    "@playwright/test": "1.63.0",
+    "better-sqlite3": "^13.2.0"
+  }
+}

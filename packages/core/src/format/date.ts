@@ -34,3 +34,12 @@ export function formatInstant(instant: string | Date): string {
   // Intl's pt-BR output is "18/11/2026, 19:03"; we drop the comma.
   return instantFormatter.format(date).replace(",", "");
 }
+
+/**
+ * The São Paulo wall-clock time of an instant, "HH:mm", e.g. for the list of today's sales.
+ *
+ * @example formatInstantTime("2026-11-18T22:03:00Z") // "19:03"
+ */
+export function formatInstantTime(instant: string | Date): string {
+  return formatInstant(instant).slice(-5);
+}

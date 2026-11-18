@@ -13,6 +13,7 @@ import {
   INITIAL_PAYMENT_METHODS,
   paymentMethodListResponseSchema,
   paymentMethodSchema,
+  saleCategoryListResponseSchema,
 } from "@color-bms/core";
 import { buildApp } from "../src/app";
 import { openDatabase, type DatabaseConnection } from "../src/db/client";
@@ -319,5 +320,48 @@ describe("FR-15: payment methods follow the FR-14 rules", () => {
     expect(response.json()).toEqual({ error: "Uso da maquininha inválido." });
   });
 
-  it.todo("FR-15: blocks deleting a machine or method used by sales (#4)");
+  it("FR-15: blocks deleting a machine or method used by sales", async () => {
+    const pix = await methodId("PIX/Depósito");
+    const pagSeguro = await machineId("PagSeguro");
+    const fee = await app.inject({
+      method: "POST",
+      url: "/api/card-fees",
+      payload: {
+        cardMachineId: pagSeguro,
+        paymentMethodId: pix,
+        installmentsFrom: 1,
+        installmentsTo: 1,
+        ratePpm: 9900,
+        validFrom: "2026-01-01",
+      },
+    });
+    expect(fee.statusCode, fee.body).toBe(201);
+    const tabs = saleCategoryListResponseSchema.parse(
+      (await app.inject({ method: "GET", url: "/api/sale-categories" })).json(),
+    ).categories;
+    const sale = await app.inject({
+      method: "POST",
+      url: "/api/sales",
+      payload: {
+        // A past date, so the real clock never makes it a future date (RN-15).
+        date: "2026-01-10",
+        saleCategoryId: tabs[0]!.id,
+        paymentMethodId: pix,
+        cardMachineId: pagSeguro,
+        grossCents: 1000,
+      },
+    });
+    expect(sale.statusCode, sale.body).toBe(201);
+    // Without the fee row, only the sale keeps them in use.
+    const feeId = (fee.json() as { id: number }).id;
+    expect(
+      (await app.inject({ method: "DELETE", url: `/api/card-fees/${feeId}` })).statusCode,
+    ).toBe(204);
+
+    for (const url of [`${METHODS}/${pix}`, `${MACHINES}/${pagSeguro}`]) {
+      const response = await app.inject({ method: "DELETE", url });
+      expect(response.statusCode, url).toBe(409);
+      expect(response.json()).toMatchObject({ code: CATEGORY_IN_USE_CODE });
+    }
+  });
 });

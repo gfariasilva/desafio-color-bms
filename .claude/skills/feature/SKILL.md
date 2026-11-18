@@ -61,7 +61,7 @@ Present a concise plan (use plan mode when available) with:
 ## 5. Verify
 
 1. Run `npm run check` (lint, format, typecheck, tests). Fix every failure; never skip or weaken a test to get green.
-2. Run `npm run build`, and `npm run e2e` once the E2E suite exists (ADR 0002).
+2. Run `npm run build` and `npm run e2e` (ADR 0002; it builds first and runs the Playwright suite in `e2e/`).
 3. If there is UI: start the app (`npm run dev`), use the feature in the browser, keyboard-only for data entry, and take screenshots for the PR (Playwright, 1440×900).
 4. Check the CLAUDE.md conventions on the diff: cents, civil dates, audit rows in transactions, pt-BR strings, English code.
 
@@ -79,7 +79,7 @@ Finish with:
 
 - what was implemented, per FR;
 - the rules → tests table, with all tests passing;
-- the output summary of `npm run check` and `npm run build`;
+- the output summary of `npm run check`, `npm run build` and `npm run e2e`;
 - screenshots, if there is UI;
 - open questions and follow-ups;
 - a PR description ready to paste, following `.github/pull_request_template.md`.

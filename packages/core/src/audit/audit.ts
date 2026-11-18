@@ -164,6 +164,9 @@ export const AUDIT_FIELD_LABELS: Record<string, string> = {
   installmentsTo: "Parcelas até",
   ratePpm: "Taxa",
   validFrom: "Vigente desde",
+  saleCategory: "Aba",
+  installments: "Parcelas",
+  feeRatePpm: "Percentual da taxa",
 };
 
 /** pt-BR labels for coded values, per field (e.g. an expense category's group). */

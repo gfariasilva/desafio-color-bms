@@ -148,8 +148,12 @@ export function listCardFees(db: AppDatabase): CardFee[] {
  * RN-01: the fee in force for a sale, or null when there is none (FR-01 then blocks it).
  * Rows of an inactive machine or method, or of a method that no longer uses a machine,
  * are kept for history but never apply (RN-02: no machine, no fee).
+ * The sale transaction (#4) calls it with its `tx`.
  */
-export function findCardFeeInForce(db: AppDatabase, query: CardFeeInForceQuery): CardFee | null {
+export function findCardFeeInForce(
+  db: AppDatabase | Tx,
+  query: CardFeeInForceQuery,
+): CardFee | null {
   const machine = db
     .select()
     .from(cardMachines)

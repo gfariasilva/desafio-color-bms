@@ -1,4 +1,13 @@
-import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { sql } from "drizzle-orm";
+import {
+  check,
+  index,
+  integer,
+  sqliteTable,
+  text,
+  uniqueIndex,
+  type AnySQLiteColumn,
+} from "drizzle-orm/sqlite-core";
 
 /**
  * Key/value application settings (spec §6.1 "Configuração", FR-33).
@@ -158,5 +167,83 @@ export const cardFees = sqliteTable(
   (table) => [
     index("card_fees_lookup_idx").on(table.cardMachineId, table.paymentMethodId, table.validFrom),
     index("card_fees_payment_method_idx").on(table.paymentMethodId),
+  ],
+);
+
+/**
+ * Business days, "dias" (spec §6.1 "Dia"). **No row means the day is open**: the cash
+ * closing (#9) inserts or updates the row; its cash fields are added then.
+ * RN-14: nothing can be written with a date of a closed day.
+ */
+export const days = sqliteTable("days", {
+  /** Civil date "YYYY-MM-DD" in São Paulo (RN-15). */
+  date: text("date").primaryKey(),
+  status: text("status", { enum: ["open", "closed"] }).notNull(),
+  /** ISO-8601 UTC instant of the last closing; null while open. */
+  closedAt: text("closed_at"),
+});
+
+/**
+ * Months, "meses" (spec §6.1 "Mês"). **No row means the month is open**: the month closing
+ * (#14) and the fixed-expense generation (#12) write it. RN-14: a closed month locks its days.
+ */
+export const months = sqliteTable("months", {
+  /** "YYYY-MM". */
+  yearMonth: text("year_month").primaryKey(),
+  status: text("status", { enum: ["open", "closed"] }).notNull(),
+  fixedExpensesGenerated: integer("fixed_expenses_generated", { mode: "boolean" })
+    .notNull()
+    .default(false),
+  /** ISO-8601 UTC instant of the last closing; null while open. */
+  closedAt: text("closed_at"),
+});
+
+/**
+ * Sales and refunds, "vendas" (spec §6.1 "Venda", FR-01 to FR-04). The rate, fee and net
+ * value are a **copy** made when the sale is saved (FR-02, spec §6.3): the fee table can
+ * change without touching them. Daily and monthly totals are never stored (spec §6.3).
+ */
+export const sales = sqliteTable(
+  "sales",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    /** Civil date "YYYY-MM-DD" of the sale in São Paulo (RN-15). */
+    date: text("date").notNull(),
+    /** ISO-8601 UTC instant when it was registered. */
+    createdAt: text("created_at").notNull(),
+    /** One of SALE_TYPES from @color-bms/core; refunds come in #6. */
+    type: text("type", { enum: ["sale", "refund"] }).notNull(),
+    saleCategoryId: integer("sale_category_id")
+      .notNull()
+      .references(() => saleCategories.id),
+    paymentMethodId: integer("payment_method_id")
+      .notNull()
+      .references(() => paymentMethods.id),
+    /** Null for methods without a machine (Dinheiro, Boleto) and PIX paid directly. */
+    cardMachineId: integer("card_machine_id").references(() => cardMachines.id),
+    /** 1..12 for methods that allow installments (Crédito); null for the others. */
+    installments: integer("installments"),
+    /** Integer cents; negative for refunds (#6). */
+    grossCents: integer("gross_cents").notNull(),
+    /** Rate copied from the fee table: percent × 10,000 (ADR 0001). 0 without a fee. */
+    feeRatePpm: integer("fee_rate_ppm").notNull(),
+    /** RN-02: round(gross × rate), half-up, per sale. */
+    feeCents: integer("fee_cents").notNull(),
+    /** RN-03: gross − fee. */
+    netCents: integer("net_cents").notNull(),
+    /** The refunded sale (#6). */
+    originalSaleId: integer("original_sale_id").references((): AnySQLiteColumn => sales.id),
+    /** Required on refunds (#6). */
+    reason: text("reason"),
+    note: text("note"),
+  },
+  (table) => [
+    index("sales_date_idx").on(table.date),
+    index("sales_sale_category_idx").on(table.saleCategoryId),
+    index("sales_payment_method_idx").on(table.paymentMethodId),
+    index("sales_card_machine_idx").on(table.cardMachineId),
+    index("sales_original_sale_idx").on(table.originalSaleId),
+    // RN-03 as a last line of defence: a stored sale always adds up.
+    check("sales_net_check", sql`${table.netCents} = ${table.grossCents} - ${table.feeCents}`),
   ],
 );

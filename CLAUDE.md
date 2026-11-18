@@ -27,6 +27,7 @@ npm run typecheck      # tsc --noEmit in every workspace
 npm run format         # Prettier (write); format:check to verify
 npm run check          # lint + format:check + typecheck + test (run before saying "done")
 npm run build          # build web (Vite) and server (tsup)
+npm run e2e            # build, then Playwright E2E tests in e2e/ (ADR 0002; not part of check)
 npm start              # run the built app on http://127.0.0.1:3210
 npm run db:generate -w @color-bms/server -- --name <what_changed>   # new migration from schema.ts
 ```
@@ -48,6 +49,7 @@ apps/web/        Vite + React 18 + Tailwind 3 + shadcn/ui (design system from th
   src/components/layout/  app shell, sidebar
   src/config/navigation.ts  main areas + Alt+N shortcuts
   src/pages/              one page per area
+e2e/             Playwright E2E tests against the built app (one server + temp DB per worker)
 docs/            spec, ADRs, design system
 ```
 
@@ -59,6 +61,7 @@ docs/            spec, ADRs, design system
 - **Business rules live in `packages/core`** as pure functions. Cite the spec ID in code comments and test names, e.g. `// RN-07` and `it("RN-04: refund fee is proportional", …)`.
 - **Validation:** Zod schemas in `packages/core`, used by both the server and the web app.
 - **Database writes:** a business change and its audit row (FR-18) go in **one transaction**: call `recordAudit(tx, { entity, entityId, action, before, after, reason })` from `apps/server/src/modules/audit/audit.repository.ts` inside `db.transaction((tx) => …)`. In `before`/`after`, money keys end in `Cents` (`grossCents: 5000`) so the Auditoria screen shows them as R$.
+- **Time on the server:** never call `new Date()` in business code; use the `Clock` passed to the routes (`apps/server/src/clock.ts`). `COLOR_BMS_NOW` sets it only with `NODE_ENV=test` (ADR 0002). The UI gets today from `GET /api/today`.
 - **UI:** follow `docs/design-system.md` (dense, keyboard-first, rainbow only as an accent).
 
 ## Workflow rules

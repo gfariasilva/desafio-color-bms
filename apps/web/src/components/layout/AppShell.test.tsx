@@ -67,7 +67,7 @@ describe("AppShell", () => {
     renderAt("/");
     fireEvent.keyDown(window, { code: "Digit2", key: "2", altKey: true });
     expect(screen.getByRole("heading", { level: 1, name: "Vendas" })).toBeInTheDocument();
-    expect(screen.getByText(/Em construção/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Valor (R$)")).toBeInTheDocument();
   });
 
   it("ignores Ctrl+Alt+2 so browser/OS shortcuts keep working", () => {

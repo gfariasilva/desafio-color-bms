@@ -43,3 +43,46 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+
+  e2e:
+    # ADR 0002: keyboard-only user flows and the CS-2 budget against the built app.
+    name: E2E (Linux, Chromium)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+        working-directory: e2e
+      - run: npm run e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-linux
+          path: e2e/playwright-report
+          retention-days: 14
+
+  e2e-edge:
+    # The owner's browser (NFR-02): Edge is pre-installed on the Windows runner.
+    name: E2E (Windows, Edge)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    env:
+      PW_CHANNEL: msedge
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-windows
+          path: e2e/playwright-report
+          retention-days: 14

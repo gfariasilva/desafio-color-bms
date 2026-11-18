@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatCivilDate, formatInstant } from "./date";
+import { formatCivilDate, formatInstant, formatInstantTime } from "./date";
 
 describe("formatCivilDate", () => {
   it("formats YYYY-MM-DD as dd/mm/aaaa", () => {
@@ -27,5 +27,12 @@ describe("formatInstant", () => {
 
   it("rejects an invalid instant", () => {
     expect(() => formatInstant("not a date")).toThrow(RangeError);
+  });
+});
+
+describe("formatInstantTime", () => {
+  it("shows the São Paulo time of an instant", () => {
+    expect(formatInstantTime("2026-11-18T22:03:00Z")).toBe("19:03");
+    expect(formatInstantTime("2026-11-19T02:59:00Z")).toBe("23:59");
   });
 });

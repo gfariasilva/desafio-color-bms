@@ -1,4 +1,4 @@
-import { asc, eq, gt, max, sql } from "drizzle-orm";
+import { asc, count, eq, gt, max, sql } from "drizzle-orm";
 import {
   canDeleteCategory,
   CATEGORY_IN_USE_CODE,
@@ -13,7 +13,7 @@ import {
 } from "@color-bms/core";
 import type { AppDatabase } from "../../db/client";
 import { BusinessError } from "../../http/route-helpers";
-import { expenseCategories, saleCategories } from "../../db/schema";
+import { expenseCategories, saleCategories, sales } from "../../db/schema";
 import { recordAudit } from "../audit/audit.repository";
 
 /**
@@ -119,10 +119,12 @@ function closeOrderGap(tx: Tx, kind: CategoryKind, removedOrder: number): void {
 
 /**
  * FR-14: how many sales or expenses use this category. Delete is allowed only at 0.
- * The sales table arrives in #4 and the expenses table in #7; each adds its count here.
+ * Sales count for tabs; the expenses table arrives in #7 and adds its count here.
  */
-function countUsages(_tx: Tx, _kind: CategoryKind, _id: number): number {
-  return 0;
+function countUsages(tx: Tx, kind: CategoryKind, id: number): number {
+  if (kind !== "sale") return 0;
+  const used = tx.select({ value: count() }).from(sales).where(eq(sales.saleCategoryId, id)).get();
+  return used?.value ?? 0;
 }
 
 /** FR-14: blocks a name already used by another category of the same list. */
