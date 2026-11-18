@@ -5,6 +5,7 @@ import type { DatabaseConnection } from "./db/client";
 import { registerHostGuard } from "./http/host-guard";
 import { registerAuditRoutes } from "./modules/audit/audit.routes";
 import { registerCategoryRoutes } from "./modules/categories/categories.routes";
+import { registerPaymentRoutes } from "./modules/payments/payments.routes";
 import { registerHealthRoutes } from "./modules/health/health.routes";
 import packageJson from "../package.json" with { type: "json" };
 
@@ -27,6 +28,7 @@ export async function buildApp({
   registerHealthRoutes(app, connection, packageJson.version);
   registerAuditRoutes(app, connection);
   registerCategoryRoutes(app, connection);
+  registerPaymentRoutes(app, connection);
 
   if (webDistDir && fs.existsSync(webDistDir)) {
     await app.register(fastifyStatic, { root: webDistDir });

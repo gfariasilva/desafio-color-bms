@@ -1,5 +1,4 @@
-import type { FastifyInstance, FastifyReply } from "fastify";
-import type { z } from "zod";
+import type { FastifyInstance } from "fastify";
 import {
   CATEGORY_TEXTS,
   categoryListQuerySchema,
@@ -11,8 +10,8 @@ import {
   type CategoryKind,
 } from "@color-bms/core";
 import type { DatabaseConnection } from "../../db/client";
+import { parseId, parseOr400, sendError } from "../../http/route-helpers";
 import {
-  CategoryError,
   createCategory,
   deleteCategory,
   listCategories,
@@ -33,33 +32,6 @@ const ROUTES = {
     update: updateExpenseCategoryInputSchema,
   },
 } as const;
-
-/** Sends 400 with the first pt-BR validation message, or returns the parsed value. */
-function parseOr400<T>(
-  schema: z.ZodType<T, z.ZodTypeDef, unknown>,
-  value: unknown,
-  reply: FastifyReply,
-) {
-  const parsed = schema.safeParse(value);
-  if (parsed.success) return parsed.data;
-  void reply.code(400).send({ error: parsed.error.issues[0]?.message ?? "Dados inválidos." });
-  return undefined;
-}
-
-/** `:id` must be a positive integer; anything else is "not found". */
-function parseId(raw: string): number | null {
-  return /^[1-9]\d{0,15}$/.test(raw) ? Number(raw) : null;
-}
-
-/** Turns a CategoryError into its HTTP answer; anything else is a real bug (500). */
-function sendError(reply: FastifyReply, error: unknown) {
-  if (error instanceof CategoryError) {
-    return reply
-      .code(error.status)
-      .send(error.code ? { error: error.message, code: error.code } : { error: error.message });
-  }
-  throw error;
-}
 
 function registerKind(app: FastifyInstance, { db }: DatabaseConnection, kind: CategoryKind) {
   const { url, create, update } = ROUTES[kind];

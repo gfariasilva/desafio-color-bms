@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ExpenseCategory, SaleCategory } from "@color-bms/core";
+import type { CardMachine, ExpenseCategory, PaymentMethod, SaleCategory } from "@color-bms/core";
 import { AppRoutes, ROUTER_FUTURE } from "@/App";
 
 function renderAt(path: string) {
@@ -27,6 +27,30 @@ const expenseCategories: ExpenseCategory[] = [
   { id: 2, name: "Kalunga", group: "suppliers", order: 2, active: true },
 ];
 
+const paymentMethods: PaymentMethod[] = [
+  {
+    id: 1,
+    name: "Dinheiro",
+    order: 1,
+    active: true,
+    machineUsage: "not_applicable",
+    allowsInstallments: false,
+  },
+  {
+    id: 3,
+    name: "Cartão de crédito",
+    order: 2,
+    active: true,
+    machineUsage: "required",
+    allowsInstallments: true,
+  },
+];
+
+const cardMachines: CardMachine[] = [
+  { id: 1, name: "PagSeguro", order: 1, active: true },
+  { id: 2, name: "Mercado Pago", order: 2, active: true },
+];
+
 interface Call {
   method: string;
   url: string;
@@ -48,6 +72,12 @@ beforeEach(() => {
     const method = init?.method ?? "GET";
     calls.push({ method, url, body: init?.body ? JSON.parse(String(init.body)) : undefined });
     if (method === "GET") {
+      if (url.startsWith("/api/payment-methods")) {
+        return new Response(JSON.stringify({ paymentMethods }), { status: 200 });
+      }
+      if (url.startsWith("/api/card-machines")) {
+        return new Response(JSON.stringify({ cardMachines }), { status: 200 });
+      }
       const categories = url.startsWith("/api/expense-categories") ? expenseCategories : saleTabs;
       return new Response(JSON.stringify({ categories }), { status: 200 });
     }
@@ -220,6 +250,71 @@ describe("Cadastros (FR-14)", () => {
           body: { name: "Tilibra", group: "suppliers" },
         },
       ]),
+    );
+  });
+});
+
+describe("Formas de pagamento e maquininhas (FR-15)", () => {
+  it("FR-15: lists payment methods with machine usage and installments", async () => {
+    renderAt("/cadastros/formas-pagamento");
+    const row = (await screen.findByText("Cartão de crédito")).closest("tr") as HTMLElement;
+    expect(within(row).getByText("Obrigatória")).toBeInTheDocument();
+    expect(within(row).getByText("Sim")).toBeInTheDocument();
+    const cash = screen.getByText("Dinheiro").closest("tr") as HTMLElement;
+    expect(within(cash).getByText("Não se aplica")).toBeInTheDocument();
+  });
+
+  it("FR-15: Enter creates a payment method with its machine usage and installments", async () => {
+    writeResponse = () => new Response(JSON.stringify(paymentMethods[0]), { status: 201 });
+    renderAt("/cadastros/formas-pagamento");
+    await screen.findByText("Dinheiro");
+    const field = screen.getByLabelText("Nova forma de pagamento");
+    fireEvent.change(field, { target: { value: "Vale-presente" } });
+    fireEvent.change(screen.getByLabelText("Maquininha"), { target: { value: "not_applicable" } });
+    fireEvent.submit(field.closest("form") as HTMLFormElement);
+    await waitFor(() =>
+      expect(writes()).toEqual([
+        {
+          method: "POST",
+          url: "/api/payment-methods",
+          body: {
+            name: "Vale-presente",
+            machineUsage: "not_applicable",
+            allowsInstallments: false,
+          },
+        },
+      ]),
+    );
+    await waitFor(() => expect(field).toHaveFocus());
+  });
+
+  it("FR-15: changes a method's installments inline", async () => {
+    renderAt("/cadastros/formas-pagamento");
+    fireEvent.click(await screen.findByRole("button", { name: "Renomear Dinheiro" }));
+    fireEvent.change(screen.getByLabelText("Parcelas em Dinheiro"), { target: { value: "true" } });
+    fireEvent.submit(
+      screen.getByLabelText("Novo nome de Dinheiro").closest("form") as HTMLFormElement,
+    );
+    await waitFor(() =>
+      expect(writes()).toEqual([
+        { method: "PATCH", url: "/api/payment-methods/1", body: { allowsInstallments: true } },
+      ]),
+    );
+  });
+
+  it("FR-15: blocks a duplicate machine name before calling the server", async () => {
+    renderAt("/cadastros/maquininhas");
+    await screen.findByText("PagSeguro");
+    const field = screen.getByLabelText("Nova maquininha");
+    fireEvent.change(field, { target: { value: "mercado pago" } });
+    fireEvent.submit(field.closest("form") as HTMLFormElement);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Já existe uma maquininha com esse nome.",
+    );
+    expect(writes()).toEqual([]);
+    expect(screen.getByRole("link", { name: /Tabela de taxas/ })).toHaveAttribute(
+      "href",
+      "/cadastros/taxas",
     );
   });
 });

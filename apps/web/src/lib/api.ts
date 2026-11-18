@@ -1,4 +1,20 @@
 import {
+  cardFeeInForceResponseSchema,
+  cardFeeListResponseSchema,
+  cardFeeSchema,
+  cardMachineListResponseSchema,
+  cardMachineSchema,
+  paymentMethodListResponseSchema,
+  paymentMethodSchema,
+  type CardFee,
+  type CardFeeInForceQuery,
+  type CardFeeInput,
+  type CardMachine,
+  type CreateCardMachineInput,
+  type CreatePaymentMethodInput,
+  type PaymentMethod,
+  type UpdateCardMachineInput,
+  type UpdatePaymentMethodInput,
   auditListResponseSchema,
   expenseCategoryListResponseSchema,
   expenseCategorySchema,
@@ -96,6 +112,18 @@ function toQueryString(params: Record<string, string | number | undefined>): str
   return text ? `?${text}` : "";
 }
 
+/**
+ * TanStack Query keys of the lists, shared by every screen that reads them, so a change on
+ * one screen refreshes the others (e.g. a new machine appears in the fee table form).
+ */
+export const QUERY_KEYS = {
+  sale: ["categories", "sale"],
+  expense: ["categories", "expense"],
+  payment_method: ["paymentMethods"],
+  card_machine: ["cardMachines"],
+  card_fees: ["cardFees"],
+} as const;
+
 export const api = {
   health: (): Promise<HealthResponse> => getJson("/api/health", healthResponseSchema),
   /** FR-18: read-only audit log, newest first. */
@@ -140,5 +168,58 @@ export const api = {
       ).then((r) => r.categories),
     remove: (id: number): Promise<void> =>
       requestJson("DELETE", `/api/expense-categories/${id}`, undefined),
+  },
+
+  /** FR-15: payment methods (formas de pagamento), in display order. */
+  paymentMethods: {
+    list: (): Promise<PaymentMethod[]> =>
+      getJson("/api/payment-methods", paymentMethodListResponseSchema).then(
+        (r) => r.paymentMethods,
+      ),
+    create: (input: CreatePaymentMethodInput): Promise<PaymentMethod> =>
+      requestJson("POST", "/api/payment-methods", input, paymentMethodSchema),
+    update: (id: number, changes: UpdatePaymentMethodInput): Promise<PaymentMethod> =>
+      requestJson("PATCH", `/api/payment-methods/${id}`, changes, paymentMethodSchema),
+    reorder: (ids: number[]): Promise<PaymentMethod[]> =>
+      requestJson(
+        "PUT",
+        "/api/payment-methods/order",
+        { ids },
+        paymentMethodListResponseSchema,
+      ).then((r) => r.paymentMethods),
+    remove: (id: number): Promise<void> =>
+      requestJson("DELETE", `/api/payment-methods/${id}`, undefined),
+  },
+
+  /** FR-15: card machines (maquininhas), in display order. */
+  cardMachines: {
+    list: (): Promise<CardMachine[]> =>
+      getJson("/api/card-machines", cardMachineListResponseSchema).then((r) => r.cardMachines),
+    create: (input: CreateCardMachineInput): Promise<CardMachine> =>
+      requestJson("POST", "/api/card-machines", input, cardMachineSchema),
+    update: (id: number, changes: UpdateCardMachineInput): Promise<CardMachine> =>
+      requestJson("PATCH", `/api/card-machines/${id}`, changes, cardMachineSchema),
+    reorder: (ids: number[]): Promise<CardMachine[]> =>
+      requestJson("PUT", "/api/card-machines/order", { ids }, cardMachineListResponseSchema).then(
+        (r) => r.cardMachines,
+      ),
+    remove: (id: number): Promise<void> =>
+      requestJson("DELETE", `/api/card-machines/${id}`, undefined),
+  },
+
+  /** FR-15: the fee table; RN-01 lookup of the fee in force for a sale. */
+  cardFees: {
+    list: (): Promise<CardFee[]> =>
+      getJson("/api/card-fees", cardFeeListResponseSchema).then((r) => r.fees),
+    inForce: (query: CardFeeInForceQuery): Promise<CardFee | null> =>
+      getJson(
+        `/api/card-fees/in-force${toQueryString({ ...query })}`,
+        cardFeeInForceResponseSchema,
+      ).then((r) => r.fee),
+    create: (input: CardFeeInput): Promise<CardFee> =>
+      requestJson("POST", "/api/card-fees", input, cardFeeSchema),
+    update: (id: number, input: CardFeeInput): Promise<CardFee> =>
+      requestJson("PUT", `/api/card-fees/${id}`, input, cardFeeSchema),
+    remove: (id: number): Promise<void> => requestJson("DELETE", `/api/card-fees/${id}`, undefined),
   },
 };

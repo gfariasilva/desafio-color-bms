@@ -8,9 +8,14 @@ import {
   EXPENSE_CATEGORY_GROUP_LABELS,
   EXPENSE_CATEGORY_GROUPS,
   findCategoryWithSameName,
+  MACHINE_USAGE_LABELS,
+  MACHINE_USAGES,
   moveCategory,
+  PAYMENT_LIST_TEXTS,
   type CategoryKind,
   type ExpenseCategoryGroup,
+  type MachineUsage,
+  type PaymentListKind,
 } from "@color-bms/core";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,52 +31,104 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, QUERY_KEYS } from "@/lib/api";
 import { categoryColor } from "@/lib/category-colors";
 import { cn } from "@/lib/utils";
 
-/** A sale tab or an expense category; only expense categories have a group. */
+/** The master-data lists this component manages: FR-14 categories and FR-15 payment lists. */
+export type CatalogListKind = CategoryKind | PaymentListKind;
+
+/**
+ * One item of any list. Only expense categories have a group; only payment methods have
+ * machine usage and installments.
+ */
 interface Category {
   id: number;
   name: string;
   order: number;
   active: boolean;
   group?: ExpenseCategoryGroup;
+  machineUsage?: MachineUsage;
+  allowsInstallments?: boolean;
 }
 
 interface CategoryChanges {
   name?: string;
   active?: boolean;
   group?: ExpenseCategoryGroup;
+  machineUsage?: MachineUsage;
+  allowsInstallments?: boolean;
 }
 
-/** The API calls this screen needs, the same for both lists. */
+/** What creating an item sends: the name plus the fields of its list. */
+type CreateInput = Omit<CategoryChanges, "active"> & { name: string };
+
+/** The API calls this screen needs, the same for every list. */
 interface CategoryClient {
   list(): Promise<Category[]>;
-  create(input: { name: string; group?: ExpenseCategoryGroup }): Promise<unknown>;
-  update(id: number, changes: CategoryChanges): Promise<unknown>;
+  // The server validates the fields of each list with its own Zod schema.
+  create(input: never): Promise<unknown>;
+  update(id: number, changes: never): Promise<unknown>;
   reorder(ids: number[]): Promise<unknown>;
   remove(id: number): Promise<void>;
 }
 
-const CLIENTS: Record<CategoryKind, CategoryClient> = {
+const CLIENTS: Record<CatalogListKind, CategoryClient> = {
   sale: api.saleCategories,
   expense: api.expenseCategories,
+  payment_method: api.paymentMethods,
+  card_machine: api.cardMachines,
 };
 
-/** pt-BR texts that differ between the two lists. */
-const TEXTS: Record<CategoryKind, { newLabel: string; noun: string; empty: string }> = {
+/** Error messages shared with the server, from core. */
+const SERVER_TEXTS: Record<CatalogListKind, { duplicate: string }> = {
+  ...CATEGORY_TEXTS,
+  ...PAYMENT_LIST_TEXTS,
+};
+
+/**
+ * pt-BR texts that differ between the lists. Every noun is feminine (aba, categoria,
+ * forma de pagamento, maquininha), so "a", "Ativa" and "Inativa" fit them all.
+ */
+const TEXTS: Record<
+  CatalogListKind,
+  { newLabel: string; noun: string; empty: string; footer: string }
+> = {
   sale: {
     newLabel: "Nova aba",
     noun: "aba",
     empty: "Nenhuma aba cadastrada. Crie a primeira acima.",
+    footer:
+      "Abas inativas não aparecem nos lançamentos, mas continuam nos relatórios. Só é possível excluir uma aba que nunca foi usada.",
   },
   expense: {
     newLabel: "Nova categoria",
     noun: "categoria",
     empty: "Nenhuma categoria neste grupo.",
+    footer:
+      "Categorias inativas não aparecem nos lançamentos, mas continuam nos relatórios. Só é possível excluir uma categoria que nunca foi usada.",
+  },
+  payment_method: {
+    newLabel: "Nova forma de pagamento",
+    noun: "forma de pagamento",
+    empty: "Nenhuma forma de pagamento cadastrada. Crie a primeira acima.",
+    footer:
+      "Formas inativas não aparecem no lançamento de vendas, mas continuam nos relatórios. Só é possível excluir uma forma que nunca foi usada (sem taxas nem vendas).",
+  },
+  card_machine: {
+    newLabel: "Nova maquininha",
+    noun: "maquininha",
+    empty: "Nenhuma maquininha cadastrada. Crie a primeira acima.",
+    footer:
+      "Maquininhas inativas não aparecem no lançamento de vendas, mas continuam nos relatórios. Só é possível excluir uma maquininha que nunca foi usada (sem taxas nem vendas).",
   },
 };
+
+/** FR-01: "Parcelas" column and select values. */
+const INSTALLMENT_OPTIONS = [
+  { value: "false", label: "Não" },
+  { value: "true", label: "Sim (1 a 12x)" },
+];
 
 /** Validates a name with the same Zod rule as the server (trim, 1–60 characters). */
 function parseName(name: string): { name: string } | { error: string } {
@@ -91,30 +148,36 @@ interface ListError {
 }
 
 /**
- * FR-14: manage one category list (sale tabs or expense categories).
+ * FR-14 / FR-15: manage one master-data list (sale tabs, expense categories, payment
+ * methods or card machines).
  * Create, rename inline, move up/down, deactivate/reactivate and delete (only if never used).
  * Keyboard: Enter submits, Esc cancels a rename, focus returns to the name field after
  * creating so the next one can be typed right away (NFR-05).
  */
-export function CategoryManager({ kind }: { kind: CategoryKind }) {
+export function CatalogListManager({ kind }: { kind: CatalogListKind }) {
   const client = CLIENTS[kind];
   const texts = TEXTS[kind];
+  const isPaymentMethod = kind === "payment_method";
   // Same wording as the server's 409, from core.
-  const duplicateMessage = CATEGORY_TEXTS[kind].duplicate;
+  const duplicateMessage = SERVER_TEXTS[kind].duplicate;
   const queryClient = useQueryClient();
-  const queryKey = ["categories", kind];
+  const queryKey = QUERY_KEYS[kind];
 
   const categories = useQuery({ queryKey, queryFn: () => client.list() });
   const list = categories.data ?? [];
 
   const [newName, setNewName] = useState("");
   const [newGroup, setNewGroup] = useState<ExpenseCategoryGroup>("general");
+  const [newMachineUsage, setNewMachineUsage] = useState<MachineUsage>("required");
+  const [newAllowsInstallments, setNewAllowsInstallments] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [listError, setListError] = useState<ListError | null>(null);
   const [editing, setEditing] = useState<{
     id: number;
     name: string;
     group?: ExpenseCategoryGroup;
+    machineUsage?: MachineUsage;
+    allowsInstallments?: boolean;
   } | null>(null);
   const nameField = useRef<HTMLInputElement>(null);
   const container = useRef<HTMLDivElement>(null);
@@ -137,7 +200,7 @@ export function CategoryManager({ kind }: { kind: CategoryKind }) {
   const refresh = () => queryClient.invalidateQueries({ queryKey });
 
   const create = useMutation({
-    mutationFn: (input: { name: string; group?: ExpenseCategoryGroup }) => client.create(input),
+    mutationFn: (input: CreateInput) => client.create(input as never),
     onSuccess: async () => {
       setNewName("");
       setFormError(null);
@@ -149,7 +212,7 @@ export function CategoryManager({ kind }: { kind: CategoryKind }) {
 
   const update = useMutation({
     mutationFn: ({ id, changes }: { id: number; changes: CategoryChanges }) =>
-      client.update(id, changes),
+      client.update(id, changes as never),
     onSuccess: async (_result, { id }) => {
       if (editing?.id === id) closeRename(id);
       setListError(null);
@@ -191,9 +254,13 @@ export function CategoryManager({ kind }: { kind: CategoryKind }) {
     const parsed = parseName(newName);
     if ("error" in parsed) return setFormError(parsed.error);
     if (findCategoryWithSameName(list, parsed.name)) return setFormError(duplicateMessage);
-    create.mutate(
-      kind === "expense" ? { name: parsed.name, group: newGroup } : { name: parsed.name },
-    );
+    const input: CreateInput = { name: parsed.name };
+    if (kind === "expense") input.group = newGroup;
+    if (isPaymentMethod) {
+      input.machineUsage = newMachineUsage;
+      input.allowsInstallments = newAllowsInstallments;
+    }
+    create.mutate(input);
   }
 
   function submitRename(event: FormEvent, category: Category) {
@@ -207,6 +274,15 @@ export function CategoryManager({ kind }: { kind: CategoryKind }) {
     const changes: CategoryChanges = {};
     if (parsed.name !== category.name) changes.name = parsed.name;
     if (editing.group && editing.group !== category.group) changes.group = editing.group;
+    if (editing.machineUsage && editing.machineUsage !== category.machineUsage) {
+      changes.machineUsage = editing.machineUsage;
+    }
+    if (
+      editing.allowsInstallments !== undefined &&
+      editing.allowsInstallments !== category.allowsInstallments
+    ) {
+      changes.allowsInstallments = editing.allowsInstallments;
+    }
     if (Object.keys(changes).length === 0) return closeRename(category.id);
     update.mutate({ id: category.id, changes });
   }
@@ -291,6 +367,40 @@ export function CategoryManager({ kind }: { kind: CategoryKind }) {
                   ))}
                 </NativeSelect>
               )}
+              {isPaymentMethod && (
+                <>
+                  <NativeSelect
+                    aria-label={`Uso da maquininha em ${category.name}`}
+                    className="h-8 w-40"
+                    value={editing.machineUsage}
+                    onChange={(event) =>
+                      setEditing({ ...editing, machineUsage: event.target.value as MachineUsage })
+                    }
+                    onKeyDown={cancelOnEscape}
+                  >
+                    {MACHINE_USAGES.map((usage) => (
+                      <option key={usage} value={usage}>
+                        {MACHINE_USAGE_LABELS[usage]}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                  <NativeSelect
+                    aria-label={`Parcelas em ${category.name}`}
+                    className="h-8 w-36"
+                    value={String(editing.allowsInstallments)}
+                    onChange={(event) =>
+                      setEditing({ ...editing, allowsInstallments: event.target.value === "true" })
+                    }
+                    onKeyDown={cancelOnEscape}
+                  >
+                    {INSTALLMENT_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                </>
+              )}
               <Button type="submit" size="sm" disabled={update.isPending}>
                 Salvar
               </Button>
@@ -309,6 +419,14 @@ export function CategoryManager({ kind }: { kind: CategoryKind }) {
             </span>
           )}
         </TableCell>
+        {isPaymentMethod && (
+          <>
+            <TableCell className="w-32">
+              {category.machineUsage ? MACHINE_USAGE_LABELS[category.machineUsage] : "—"}
+            </TableCell>
+            <TableCell className="w-24">{category.allowsInstallments ? "Sim" : "Não"}</TableCell>
+          </>
+        )}
         <TableCell className="w-24">
           {category.active ? (
             <Badge variant="secondary">Ativa</Badge>
@@ -327,7 +445,13 @@ export function CategoryManager({ kind }: { kind: CategoryKind }) {
               disabled={isEditing}
               onClick={() => {
                 setListError(null);
-                setEditing({ id: category.id, name: category.name, group: category.group });
+                setEditing({
+                  id: category.id,
+                  name: category.name,
+                  group: category.group,
+                  machineUsage: category.machineUsage,
+                  allowsInstallments: category.allowsInstallments,
+                });
               }}
             >
               <Pencil />
@@ -387,6 +511,12 @@ export function CategoryManager({ kind }: { kind: CategoryKind }) {
             <TableHeader>
               <TableRow>
                 <TableHead>Nome</TableHead>
+                {isPaymentMethod && (
+                  <>
+                    <TableHead>Maquininha</TableHead>
+                    <TableHead>Parcelas</TableHead>
+                  </>
+                )}
                 <TableHead>Situação</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
@@ -394,7 +524,7 @@ export function CategoryManager({ kind }: { kind: CategoryKind }) {
             <TableBody>
               {rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={3} className="text-muted-foreground">
+                  <TableCell colSpan={isPaymentMethod ? 5 : 3} className="text-muted-foreground">
                     {texts.empty}
                   </TableCell>
                 </TableRow>
@@ -438,6 +568,40 @@ export function CategoryManager({ kind }: { kind: CategoryKind }) {
               ))}
             </NativeSelect>
           </div>
+        )}
+        {isPaymentMethod && (
+          <>
+            <div className="grid gap-1.5">
+              <Label htmlFor="new-payment-method-usage">Maquininha</Label>
+              <NativeSelect
+                id="new-payment-method-usage"
+                className="w-40"
+                value={newMachineUsage}
+                onChange={(event) => setNewMachineUsage(event.target.value as MachineUsage)}
+              >
+                {MACHINE_USAGES.map((usage) => (
+                  <option key={usage} value={usage}>
+                    {MACHINE_USAGE_LABELS[usage]}
+                  </option>
+                ))}
+              </NativeSelect>
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="new-payment-method-installments">Parcelas</Label>
+              <NativeSelect
+                id="new-payment-method-installments"
+                className="w-36"
+                value={String(newAllowsInstallments)}
+                onChange={(event) => setNewAllowsInstallments(event.target.value === "true")}
+              >
+                {INSTALLMENT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </NativeSelect>
+            </div>
+          </>
         )}
         <Button type="submit" disabled={create.isPending}>
           Adicionar
@@ -487,10 +651,7 @@ export function CategoryManager({ kind }: { kind: CategoryKind }) {
           renderTable(list)
         ))}
 
-      <p className="mt-3 text-muted-foreground">
-        Categorias inativas não aparecem nos lançamentos, mas continuam nos relatórios. Só é
-        possível excluir uma categoria que nunca foi usada.
-      </p>
+      <p className="mt-3 text-muted-foreground">{texts.footer}</p>
     </div>
   );
 }

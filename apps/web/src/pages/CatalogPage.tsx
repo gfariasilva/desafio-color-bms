@@ -1,5 +1,5 @@
-import { Tags, Wallet } from "lucide-react";
-import { HubLinkCard, UpcomingCard } from "@/components/layout/HubCards";
+import { CreditCard, Percent, Tags, Wallet, WalletCards } from "lucide-react";
+import { HubLinkCard } from "@/components/layout/HubCards";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { NAV_ITEMS } from "@/config/navigation";
 
@@ -18,10 +18,26 @@ const SECTIONS = [
     description: "Categorias das saídas diárias, incluindo os fornecedores de materiais.",
     icon: Wallet,
   },
+  {
+    to: "/cadastros/formas-pagamento",
+    label: "Formas de pagamento",
+    description: "Dinheiro, cartões, PIX, boleto: se usam maquininha e se podem ser parceladas.",
+    icon: WalletCards,
+  },
+  {
+    to: "/cadastros/maquininhas",
+    label: "Maquininhas",
+    description: "Os terminais de cartão (PagSeguro, Mercado Pago…).",
+    icon: CreditCard,
+  },
+  {
+    to: "/cadastros/taxas",
+    label: "Tabela de taxas",
+    description:
+      "A taxa de cada maquininha por forma de pagamento e parcelas, com a data de início.",
+    icon: Percent,
+  },
 ];
-
-/** Sections that later backlog items will build (shown so the owner knows what is coming). */
-const UPCOMING = [{ label: "Maquininhas, formas de pagamento e taxas", requirements: "FR-15" }];
 
 /** Cadastros: entry point to the master-data lists (FR-14, FR-15). */
 export function CatalogPage() {
@@ -34,9 +50,6 @@ export function CatalogPage() {
       <div className="grid max-w-xl gap-2">
         {SECTIONS.map((section) => (
           <HubLinkCard key={section.to} {...section} />
-        ))}
-        {UPCOMING.map((section) => (
-          <UpcomingCard key={section.label} {...section} />
         ))}
       </div>
     </>

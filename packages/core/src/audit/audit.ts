@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { EXPENSE_CATEGORY_GROUP_LABELS } from "../catalog/categories";
 import { formatCents } from "../format/currency";
+import { MACHINE_USAGE_LABELS } from "../payments/payment-methods";
+import { formatRatePercent } from "../payments/rate";
 import { formatCivilDate } from "../format/date";
 import { isCivilDate } from "../time/civil-date";
 
@@ -154,18 +156,38 @@ export const AUDIT_FIELD_LABELS: Record<string, string> = {
   status: "Situação",
   value: "Valor",
   group: "Grupo",
+  machineUsage: "Uso da maquininha",
+  allowsInstallments: "Permite parcelas",
+  cardMachine: "Maquininha",
+  paymentMethod: "Forma de pagamento",
+  installmentsFrom: "Parcelas de",
+  installmentsTo: "Parcelas até",
+  ratePpm: "Taxa",
+  validFrom: "Vigente desde",
 };
 
 /** pt-BR labels for coded values, per field (e.g. an expense category's group). */
 const AUDIT_VALUE_LABELS: Record<string, Record<string, string>> = {
   group: EXPENSE_CATEGORY_GROUP_LABELS,
+  machineUsage: MACHINE_USAGE_LABELS,
 };
 
-/** Formats one stored value for display: R$ for `*Cents`, dd/mm/aaaa for civil dates. */
+/**
+ * Formats one stored value for display: R$ for `*Cents`, a percent for `*Ppm` (fee rates,
+ * percent × 10,000), dd/mm/aaaa for civil dates.
+ */
 function formatAuditValue(field: string, value: unknown): string {
   if (value === null || value === undefined) return "—";
   if (field.endsWith("Cents") && typeof value === "number" && Number.isSafeInteger(value)) {
     return formatCents(value);
+  }
+  if (
+    field.endsWith("Ppm") &&
+    typeof value === "number" &&
+    Number.isSafeInteger(value) &&
+    value >= 0
+  ) {
+    return formatRatePercent(value);
   }
   if (typeof value === "boolean") return value ? "Sim" : "Não";
   const valueLabels = Object.hasOwn(AUDIT_VALUE_LABELS, field) ? AUDIT_VALUE_LABELS[field] : null;

@@ -55,7 +55,10 @@ export const INITIAL_EXPENSE_CATEGORIES: readonly { name: string; group: Expense
 
 export const CATEGORY_NAME_MAX = 60;
 
-/** Error code sent with HTTP 409 when deleting a used category, so the UI offers "Desativar". */
+/**
+ * Error code sent with HTTP 409 when deleting a used category, payment method or card machine
+ * (FR-14, FR-15), so the UI offers "Desativar".
+ */
 export const CATEGORY_IN_USE_CODE = "category_in_use";
 
 /** FR-14: the name as stored: trimmed, inner spaces collapsed, Unicode NFC. */
@@ -128,7 +131,8 @@ export function moveCategory(
 // Zod schemas, shared by the server (request validation) and the web app (forms, responses).
 // ---------------------------------------------------------------------------------------
 
-const categoryNameSchema = z
+/** FR-14: a master-data name (categories, payment methods, card machines). */
+export const categoryNameSchema = z
   .string({ message: "Informe o nome." })
   .transform(normalizeCategoryName)
   .pipe(
@@ -139,8 +143,8 @@ const categoryNameSchema = z
   );
 
 /** pt-BR message for a request body that is missing or not a JSON object. */
-const INVALID_BODY = { message: "Dados inválidos." };
-const activeSchema = z.boolean({ message: "Situação inválida: use verdadeiro ou falso." });
+export const INVALID_BODY = { message: "Dados inválidos." };
+export const activeSchema = z.boolean({ message: "Situação inválida: use verdadeiro ou falso." });
 
 const groupSchema = z.enum(EXPENSE_CATEGORY_GROUPS, {
   errorMap: () => ({ message: "Grupo inválido." }),
@@ -192,7 +196,7 @@ export const createExpenseCategoryInputSchema = z.object(
 );
 export type CreateExpenseCategoryInput = z.infer<typeof createExpenseCategoryInputSchema>;
 
-const somethingToChange = {
+export const somethingToChange = {
   check: (input: object) => Object.values(input).some((value) => value !== undefined),
   message: "Nada para alterar.",
 };
