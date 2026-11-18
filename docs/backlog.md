@@ -42,7 +42,7 @@ Ordered backlog for the MVP (spec §9.1). Each item is one small PR / GitHub iss
 |---|---|---|---|---|---|
 | [x] | M1 | [#1](#1--audit-log-foundation) | Audit log foundation | FR-18 | — |
 | [x] | M1 | [#2](#2--sale-tabs-and-expense-categories) | Sale tabs and expense categories | FR-14; RN-12 | #1 |
-| [ ] | M1 | [#3](#3--payment-methods-card-machines-and-fee-table) | Payment methods, card machines and fee table | FR-15; RN-01, RN-12 | #1, #2 |
+| [x] | M1 | [#3](#3--payment-methods-card-machines-and-fee-table) | Payment methods, card machines and fee table | FR-15; RN-01, RN-12 | #1, #2 |
 | [ ] | M1 | [#4](#4--register-a-sale-with-the-machine-fee) | Register a sale with the machine fee | FR-01, FR-02; RN-01, RN-02, RN-03, RN-14, RN-15 | #3 |
 | [ ] | M1 | [#5](#5--day-view-per-tab-and-editdelete-a-sale) | Day view per tab, and edit/delete a sale | FR-05, FR-03; RN-05, RN-14 | #4 |
 | [ ] | M1 | [#6](#6--refunds-estornos) | Refunds (estornos) | FR-04; RN-04 | #5 |
@@ -198,6 +198,18 @@ O proprietário pode **criar, renomear, desativar, reativar e reordenar** catego
 
 - Store the rate as an integer: percent × 10,000 (3,79% → 37900), as ADR 0001 says.
 - `vigente_desde` is a civil date ("YYYY-MM-DD").
+
+**Done notes (follow-ups)**
+
+- Rates are stored as `ratePpm` (percent × 10,000 = parts per million); `parseRatePercent()` / `formatRatePercent()` in `packages/core/src/payments/rate.ts`. Fields ending in `Ppm` are shown as % in Auditoria.
+- Payment methods carry `machineUsage` (`required` | `optional` | `not_applicable`) and `allowsInstallments`; the sale form must read these flags instead of hard-coding "Crédito"/"Dinheiro". Seeded by `0005_seed_payments.sql` (PIX with an optional machine, Q-03 assumption). No rates are seeded (Q-01).
+- A machine or method with fee rows counts as **used** (delete → 409 `category_in_use`, the screen offers Desativar). **#4** must add its sales to `countUsages()` in `apps/server/src/modules/payments/payment-lists.repository.ts`, and replace the `it.todo` in `apps/server/test/payments.test.ts`.
+- Overlap = same machine, method and "vigente desde" with intersecting ranges; other dates are versions picked per installment count by RN-01 (`findFeeInForce`).
+- **#4** gets the fee with `GET /api/card-fees/in-force?cardMachineId&paymentMethodId&installments&date` (`{ fee }` or `{ fee: null }`), or calls `findCardFeeInForce()` in the server. The "atalho para a tabela de taxas" in the FR-01 error links to `/cadastros/taxas`.
+- Fee rows can be edited and deleted (sales never reference them, spec §6.1). Changing a method's machine usage or installments is allowed; rows that no longer apply simply stop being used.
+- Fee rows of an inactive machine or method, or of a method that no longer uses a machine, never apply: `GET /api/card-fees/in-force` returns `{ fee: null }` and the screen shows them as **Sem uso** (`isCardFeeUsable()` in core).
+- Follow-up: `payment-lists.repository.ts` still repeats the list logic of `categories.repository.ts` (select, reorder, delete, order gap); a shared list engine for the four lists would remove the copy.
+- The list endpoints of all four lists come from `registerOrderedListRoutes()` in `apps/server/src/http/ordered-list-routes.ts`. `parseOr400`, `parseId`, `BusinessError` and `sendError` moved to `apps/server/src/http/route-helpers.ts`; `CategoryManager` became `CatalogListManager` (4 lists) and `CategoriesPage` became `CatalogListPage`.
 
 **Acceptance criteria** _(verbatim from spec §4)_
 

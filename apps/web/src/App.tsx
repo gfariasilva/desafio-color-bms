@@ -4,7 +4,8 @@ import { AppShell } from "@/components/layout/AppShell";
 import { NAV_ITEMS } from "@/config/navigation";
 import { AuditPage } from "@/pages/AuditPage";
 import { CatalogPage } from "@/pages/CatalogPage";
-import { CategoriesPage } from "@/pages/CategoriesPage";
+import { CardFeesPage } from "@/pages/CardFeesPage";
+import { CatalogListPage } from "@/pages/CatalogListPage";
 import { HomePage } from "@/pages/HomePage";
 import { PlaceholderPage } from "@/pages/PlaceholderPage";
 import { SettingsPage } from "@/pages/SettingsPage";
@@ -21,8 +22,14 @@ export function AppRoutes() {
       <Route element={<AppShell />}>
         <Route index element={<HomePage />} />
         <Route path="cadastros" element={<CatalogPage />} />
-        <Route path="cadastros/abas" element={<CategoriesPage kind="sale" />} />
-        <Route path="cadastros/categorias-despesa" element={<CategoriesPage kind="expense" />} />
+        <Route path="cadastros/abas" element={<CatalogListPage kind="sale" />} />
+        <Route path="cadastros/categorias-despesa" element={<CatalogListPage kind="expense" />} />
+        <Route
+          path="cadastros/formas-pagamento"
+          element={<CatalogListPage kind="payment_method" />}
+        />
+        <Route path="cadastros/maquininhas" element={<CatalogListPage kind="card_machine" />} />
+        <Route path="cadastros/taxas" element={<CardFeesPage />} />
         <Route path="configuracoes" element={<SettingsPage />} />
         <Route path="configuracoes/auditoria" element={<AuditPage />} />
         {NAV_ITEMS.filter((item) => !BUILT_AREAS.has(item.path)).map((item) => (

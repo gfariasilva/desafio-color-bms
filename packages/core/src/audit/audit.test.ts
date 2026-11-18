@@ -87,6 +87,24 @@ describe("describeAuditChanges (FR-18: before and after values)", () => {
     ]);
   });
 
+  it("FR-15: shows fee rates as a percent and machine usage in pt-BR", () => {
+    expect(
+      describeAuditChanges(
+        { ratePpm: 49900, machineUsage: "optional", validFrom: "2026-01-01" },
+        { ratePpm: 45900, machineUsage: "not_applicable", validFrom: "2026-12-01" },
+      ),
+    ).toEqual([
+      { field: "ratePpm", label: "Taxa", before: "4,99%", after: "4,59%" },
+      {
+        field: "machineUsage",
+        label: "Uso da maquininha",
+        before: "Opcional",
+        after: "Não se aplica",
+      },
+      { field: "validFrom", label: "Vigente desde", before: "01/01/2026", after: "01/12/2026" },
+    ]);
+  });
+
   it("returns nothing when there are no values", () => {
     expect(describeAuditChanges(null, null)).toEqual([]);
   });

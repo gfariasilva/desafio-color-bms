@@ -12,6 +12,7 @@ import {
   type SaleCategory,
 } from "@color-bms/core";
 import type { AppDatabase } from "../../db/client";
+import { BusinessError } from "../../http/route-helpers";
 import { expenseCategories, saleCategories } from "../../db/schema";
 import { recordAudit } from "../audit/audit.repository";
 
@@ -23,17 +24,8 @@ import { recordAudit } from "../audit/audit.repository";
  * Every write and its audit row (FR-18) run in one transaction.
  */
 
-/** A business error the routes turn into an HTTP answer with a pt-BR message. */
-export class CategoryError extends Error {
-  constructor(
-    readonly status: 400 | 404 | 409,
-    message: string,
-    readonly code?: string,
-  ) {
-    super(message);
-    this.name = "CategoryError";
-  }
-}
+/** A category business error (FR-14); the routes send it with its pt-BR message. */
+export class CategoryError extends BusinessError {}
 
 type Tx = Parameters<Parameters<AppDatabase["transaction"]>[0]>[0];
 

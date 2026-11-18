@@ -4,3 +4,6 @@ export * from "./format/date";
 export * from "./api/health";
 export * from "./audit/audit";
 export * from "./catalog/categories";
+export * from "./payments/rate";
+export * from "./payments/payment-methods";
+export * from "./payments/card-fees";
