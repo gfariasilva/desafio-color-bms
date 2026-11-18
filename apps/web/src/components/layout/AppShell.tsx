@@ -8,7 +8,10 @@ import { ThemeToggle } from "./ThemeToggle";
 export function AppShell() {
   useNavShortcuts();
   const { pathname } = useLocation();
-  const current = NAV_ITEMS.find((item) => item.path === pathname);
+  // The area that owns the current page, also for sub-pages such as /configuracoes/auditoria.
+  const current = NAV_ITEMS.find((item) =>
+    item.path === "/" ? pathname === "/" : pathname.startsWith(item.path),
+  );
 
   return (
     <div className="flex min-h-screen flex-col">

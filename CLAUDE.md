@@ -40,7 +40,7 @@ packages/core/   Pure TypeScript, no I/O: business rules (RN-xx), money, civil d
                  pt-BR formatters, Zod schemas shared by server and web.
 apps/server/     Fastify API + SQLite (better-sqlite3 + Drizzle).
   src/db/          schema.ts, connection + pragmas, migration runner
-  src/modules/     one folder per feature (health, later sales, expenses, …)
+  src/modules/     one folder per feature (health, audit, later sales, expenses, …)
   src/http/        cross-cutting HTTP concerns (host guard)
   migrations/      generated SQL migrations (committed)
 apps/web/        Vite + React 18 + Tailwind 3 + shadcn/ui (design system from the landing page).
@@ -55,10 +55,10 @@ docs/            spec, ADRs, design system
 
 - **Language:** code, comments, commits and docs in **English**. Every user-facing string is **pt-BR**.
 - **Money is always integer cents** (`number`, safe integer) — never floats, never `parseFloat`, never `toFixed` for calculations. Format only at the edge with `formatCents()` from `@color-bms/core`. Rounding is half-up, per sale (spec §5).
-- **Dates:** business dates are civil dates `"YYYY-MM-DD"` in **America/Sao_Paulo** (RN-15). Get today with `todayCivilDate()`. Instants (`created_at`, audit time) are ISO-8601 **UTC** strings. **Never** use `new Date("YYYY-MM-DD")`: it parses as UTC and lands on the previous day in São Paulo. Display with `formatCivilDate()` / `formatInstant()`.
+- **Dates:** business dates are civil dates `"YYYY-MM-DD"` in **America/Sao_Paulo** (RN-15). Get today with `todayCivilDate()`. Instants (`created_at`, audit time) are ISO-8601 **UTC** strings. **Never** use `new Date("YYYY-MM-DD")`: it parses as UTC and lands on the previous day in São Paulo. Display with `formatCivilDate()` / `formatInstant()`. Move between dates with `addDays()`; filter instants by business day with `civilDayStartInstant()` (start of the day in São Paulo, as UTC).
 - **Business rules live in `packages/core`** as pure functions. Cite the spec ID in code comments and test names, e.g. `// RN-07` and `it("RN-04: refund fee is proportional", …)`.
 - **Validation:** Zod schemas in `packages/core`, used by both the server and the web app.
-- **Database writes:** a business change and its audit row (FR-18) go in **one transaction**.
+- **Database writes:** a business change and its audit row (FR-18) go in **one transaction**: call `recordAudit(tx, { entity, entityId, action, before, after, reason })` from `apps/server/src/modules/audit/audit.repository.ts` inside `db.transaction((tx) => …)`. In `before`/`after`, money keys end in `Cents` (`grossCents: 5000`) so the Auditoria screen shows them as R$.
 - **UI:** follow `docs/design-system.md` (dense, keyboard-first, rainbow only as an accent).
 
 ## Workflow rules
