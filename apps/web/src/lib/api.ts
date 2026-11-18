@@ -27,6 +27,11 @@ import {
   type UpdateExpenseCategoryInput,
   type UpdateSaleCategoryInput,
   healthResponseSchema,
+  saleListResponseSchema,
+  saleSchema,
+  todayResponseSchema,
+  type CreateSaleInput,
+  type Sale,
   type AuditListResponse,
   type AuditQuery,
   type HealthResponse,
@@ -122,6 +127,9 @@ export const QUERY_KEYS = {
   payment_method: ["paymentMethods"],
   card_machine: ["cardMachines"],
   card_fees: ["cardFees"],
+  today: ["today"],
+  /** Followed by the civil date: ["sales", "2026-11-18"]. */
+  sales: ["sales"],
 } as const;
 
 export const api = {
@@ -129,6 +137,17 @@ export const api = {
   /** FR-18: read-only audit log, newest first. */
   audit: (query: Partial<AuditQuery>): Promise<AuditListResponse> =>
     getJson(`/api/audit${toQueryString(query)}`, auditListResponseSchema),
+
+  /** RN-15: today's civil date in São Paulo, from the server clock (ADR 0002). */
+  today: (): Promise<string> => getJson("/api/today", todayResponseSchema).then((r) => r.date),
+
+  /** FR-01 / FR-02: sales of a day, and registering a sale. */
+  sales: {
+    list: (date: string): Promise<Sale[]> =>
+      getJson(`/api/sales${toQueryString({ date })}`, saleListResponseSchema).then((r) => r.sales),
+    create: (input: CreateSaleInput): Promise<Sale> =>
+      requestJson("POST", "/api/sales", input, saleSchema),
+  },
 
   /** FR-14: sale tabs (abas), in display order. */
   saleCategories: {

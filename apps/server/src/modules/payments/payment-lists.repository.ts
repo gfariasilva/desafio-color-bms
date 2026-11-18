@@ -11,8 +11,8 @@ import {
   type PaymentListKind,
   type PaymentMethod,
 } from "@color-bms/core";
-import type { AppDatabase } from "../../db/client";
-import { cardFees, cardMachines, paymentMethods } from "../../db/schema";
+import type { AppDatabase, AppTransaction } from "../../db/client";
+import { cardFees, cardMachines, paymentMethods, sales } from "../../db/schema";
 import { BusinessError } from "../../http/route-helpers";
 import { recordAudit } from "../audit/audit.repository";
 
@@ -25,7 +25,7 @@ import { recordAudit } from "../audit/audit.repository";
  * Every write and its audit row (FR-18) run in one transaction.
  */
 
-type Tx = Parameters<Parameters<AppDatabase["transaction"]>[0]>[0];
+type Tx = AppTransaction;
 
 const TABLES = { payment_method: paymentMethods, card_machine: cardMachines } as const;
 
@@ -117,14 +117,16 @@ function closeOrderGap(tx: Tx, kind: PaymentListKind, removedOrder: number): voi
 }
 
 /**
- * FR-15: how many fee rows (and, from #4, sales) use this item. Delete is allowed only at 0.
+ * FR-15: how many fee rows and sales use this item. Delete is allowed only at 0.
  * A machine or method with fee rows counts as used: the owner deletes the rows first, or
- * deactivates it.
+ * deactivates it. Sales keep it for good (history), so then only deactivating is possible.
  */
 function countUsages(tx: Tx, kind: PaymentListKind, id: number): number {
-  const column = kind === "payment_method" ? cardFees.paymentMethodId : cardFees.cardMachineId;
-  const fees = tx.select({ value: count() }).from(cardFees).where(eq(column, id)).get();
-  return fees?.value ?? 0;
+  const feeColumn = kind === "payment_method" ? cardFees.paymentMethodId : cardFees.cardMachineId;
+  const saleColumn = kind === "payment_method" ? sales.paymentMethodId : sales.cardMachineId;
+  const fees = tx.select({ value: count() }).from(cardFees).where(eq(feeColumn, id)).get();
+  const sold = tx.select({ value: count() }).from(sales).where(eq(saleColumn, id)).get();
+  return (fees?.value ?? 0) + (sold?.value ?? 0);
 }
 
 /** FR-15 (as FR-14): blocks a name already used by another item of the same list. */

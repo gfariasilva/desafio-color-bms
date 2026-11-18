@@ -8,10 +8,11 @@ import { CardFeesPage } from "@/pages/CardFeesPage";
 import { CatalogListPage } from "@/pages/CatalogListPage";
 import { HomePage } from "@/pages/HomePage";
 import { PlaceholderPage } from "@/pages/PlaceholderPage";
+import { SalesPage } from "@/pages/SalesPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 
 /** Areas that already have their own page; the others show a placeholder. */
-const BUILT_AREAS = new Set(["/", "/cadastros", "/configuracoes"]);
+const BUILT_AREAS = new Set(["/", "/vendas", "/cadastros", "/configuracoes"]);
 
 /** Opt in to React Router v7 behaviour now, so a future upgrade changes nothing. */
 export const ROUTER_FUTURE = { v7_startTransition: true, v7_relativeSplatPath: true } as const;
@@ -21,6 +22,7 @@ export function AppRoutes() {
     <Routes>
       <Route element={<AppShell />}>
         <Route index element={<HomePage />} />
+        <Route path="vendas" element={<SalesPage />} />
         <Route path="cadastros" element={<CatalogPage />} />
         <Route path="cadastros/abas" element={<CatalogListPage kind="sale" />} />
         <Route path="cadastros/categorias-despesa" element={<CatalogListPage kind="expense" />} />

@@ -11,7 +11,7 @@ import {
   type CardFeeInForceQuery,
   type CardFeeInput,
 } from "@color-bms/core";
-import type { AppDatabase } from "../../db/client";
+import type { AppDatabase, AppTransaction } from "../../db/client";
 import { cardFees, cardMachines, paymentMethods } from "../../db/schema";
 import { BusinessError } from "../../http/route-helpers";
 import { recordAudit } from "../audit/audit.repository";
@@ -23,7 +23,7 @@ import { recordAudit } from "../audit/audit.repository";
  * Every write and its audit row (FR-18) run in one transaction.
  */
 
-type Tx = Parameters<Parameters<AppDatabase["transaction"]>[0]>[0];
+type Tx = AppTransaction;
 type FeeRow = typeof cardFees.$inferSelect;
 
 /** The fields compared and audited, in a stable order. */
@@ -148,8 +148,12 @@ export function listCardFees(db: AppDatabase): CardFee[] {
  * RN-01: the fee in force for a sale, or null when there is none (FR-01 then blocks it).
  * Rows of an inactive machine or method, or of a method that no longer uses a machine,
  * are kept for history but never apply (RN-02: no machine, no fee).
+ * The sale transaction (#4) calls it with its `tx`.
  */
-export function findCardFeeInForce(db: AppDatabase, query: CardFeeInForceQuery): CardFee | null {
+export function findCardFeeInForce(
+  db: AppDatabase | Tx,
+  query: CardFeeInForceQuery,
+): CardFee | null {
   const machine = db
     .select()
     .from(cardMachines)

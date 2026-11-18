@@ -169,13 +169,16 @@ export const CARD_FEE_TEXTS = {
 
 const INSTALLMENTS_MESSAGE = `As parcelas vão de 1 a ${MAX_INSTALLMENTS}.`;
 
-const installmentsSchema = z
+/** FR-01 / FR-15: an installment count, 1..12. Shared by the fee table and sales. */
+export const installmentsSchema = z
   .number({ message: INSTALLMENTS_MESSAGE })
   .int(INSTALLMENTS_MESSAGE)
   .min(1, INSTALLMENTS_MESSAGE)
   .max(MAX_INSTALLMENTS, INSTALLMENTS_MESSAGE);
 
-const civilDateSchema = (message: string) => z.string({ message }).refine(isCivilDate, { message });
+/** A civil date "YYYY-MM-DD" (RN-15) with a pt-BR message. */
+export const civilDateSchema = (message: string) =>
+  z.string({ message }).refine(isCivilDate, { message });
 
 export const cardFeeSchema = z.object({
   id: z.number().int().positive(),

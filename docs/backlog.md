@@ -43,7 +43,7 @@ Ordered backlog for the MVP (spec §9.1). Each item is one small PR / GitHub iss
 | [x] | M1 | [#1](#1--audit-log-foundation) | Audit log foundation | FR-18 | — |
 | [x] | M1 | [#2](#2--sale-tabs-and-expense-categories) | Sale tabs and expense categories | FR-14; RN-12 | #1 |
 | [x] | M1 | [#3](#3--payment-methods-card-machines-and-fee-table) | Payment methods, card machines and fee table | FR-15; RN-01, RN-12 | #1, #2 |
-| [ ] | M1 | [#4](#4--register-a-sale-with-the-machine-fee) | Register a sale with the machine fee | FR-01, FR-02; RN-01, RN-02, RN-03, RN-14, RN-15 | #3 |
+| [x] | M1 | [#4](#4--register-a-sale-with-the-machine-fee) | Register a sale with the machine fee | FR-01, FR-02; RN-01, RN-02, RN-03, RN-14, RN-15 | #3 |
 | [ ] | M1 | [#5](#5--day-view-per-tab-and-editdelete-a-sale) | Day view per tab, and edit/delete a sale | FR-05, FR-03; RN-05, RN-14 | #4 |
 | [ ] | M1 | [#6](#6--refunds-estornos) | Refunds (estornos) | FR-04; RN-04 | #5 |
 | [ ] | M2 | [#7](#7--general-expenses-saídas-diárias) | General expenses (saídas diárias) | FR-06; RN-08, RN-14, RN-15 | #2, #4 |
@@ -280,6 +280,16 @@ O proprietário pode **criar, renomear, desativar, reativar e reordenar** catego
 - Test the RN-03 example exactly: R$ 150,00 at 3,79% → fee R$ 5,69, net R$ 144,31.
 - Error text for a missing fee must match FR-01 and link to the fee table.
 - CS-2 is automated as a budget (ADR 0002): ≤ 12 keystrokes for a typical sale, each save < 1 s (NFR-04), 10 sales at ~250 ms per key in ≤ 100 s. The stopwatch test with the owner happens in #27.
+
+**Done notes (follow-ups)**
+
+- Tables `sales`, `days` and `months` (migration `0006_create_sales_and_periods.sql`). No row in `days`/`months` means **open**; #9 and #14 write the rows. `sales` already has `type`, `original_sale_id` and `reason` for refunds (#6), and a CHECK `net = gross − fee`.
+- Core: `parseMoneyToCents()` (max `MAX_SALE_CENTS` = R$ 999.999,99, owner decision), `calculateSaleAmounts()` (RN-02/03; negatives round half away from zero, so a full refund mirrors its sale — #6 relies on this), and the FR-01 rules in `packages/core/src/sales/sale-rules.ts` (`saleDateError`, `periodLockError`, `saleMachineError`, `resolveInstallments`, `missingFeeMessage`).
+- API: `POST /api/sales` (409 `day_closed` / `card_fee_missing`), `GET /api/sales?date=` (with tab/method/machine names), `GET /api/today`. Sales without installments store `installments: null` and are looked up as 1x.
+- Server time comes from `apps/server/src/clock.ts` (`COLOR_BMS_NOW` only with `NODE_ENV=test`); `buildApp({ now })` takes it. Other modules still default to `new Date()` for their audit time; move them to the clock when touched.
+- Tabs, payment methods and card machines used by sales can no longer be deleted (`countUsages()`), only deactivated.
+- E2E: `npm run e2e` (workspace `e2e/`). Until #9 exists, the closed-day test writes the `days` row straight into the worker's SQLite file (`closeDay()` in `e2e/tests/fixtures.ts`); **#9** should switch it to the API.
+- **#5** builds the per-tab day view on `GET /api/sales?date=`; the Vendas page currently shows a flat list with the day total.
 
 **Acceptance criteria** _(verbatim from spec §4)_
 

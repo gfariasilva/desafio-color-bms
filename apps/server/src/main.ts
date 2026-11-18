@@ -1,4 +1,5 @@
 import { buildApp } from "./app";
+import { createClock } from "./clock";
 import { loadConfig } from "./config";
 import { openDatabase } from "./db/client";
 import { runMigrations } from "./db/migrate";
@@ -8,7 +9,12 @@ async function main(): Promise<void> {
   const connection = openDatabase(config.databaseFile);
   runMigrations(connection.db);
 
-  const app = await buildApp({ connection, webDistDir: config.webDistDir, logger: true });
+  const app = await buildApp({
+    connection,
+    webDistDir: config.webDistDir,
+    logger: true,
+    now: createClock(),
+  });
 
   const shutdown = async (): Promise<void> => {
     await app.close();

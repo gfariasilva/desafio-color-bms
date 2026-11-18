@@ -1,12 +1,14 @@
 import fs from "node:fs";
 import Fastify, { type FastifyInstance } from "fastify";
 import fastifyStatic from "@fastify/static";
+import { systemClock, type Clock } from "./clock";
 import type { DatabaseConnection } from "./db/client";
 import { registerHostGuard } from "./http/host-guard";
 import { registerAuditRoutes } from "./modules/audit/audit.routes";
 import { registerCategoryRoutes } from "./modules/categories/categories.routes";
 import { registerPaymentRoutes } from "./modules/payments/payments.routes";
 import { registerHealthRoutes } from "./modules/health/health.routes";
+import { registerSalesRoutes } from "./modules/sales/sales.routes";
 import packageJson from "../package.json" with { type: "json" };
 
 export interface BuildAppOptions {
@@ -14,6 +16,8 @@ export interface BuildAppOptions {
   /** Built web app to serve. Skipped when missing (dev uses the Vite server instead). */
   webDistDir?: string;
   logger?: boolean;
+  /** The current time (ADR 0002). Tests pass a fixed clock. */
+  now?: Clock;
 }
 
 /** Creates the Fastify app without listening, so tests can call `app.inject()`. */
@@ -21,6 +25,7 @@ export async function buildApp({
   connection,
   webDistDir,
   logger = false,
+  now = systemClock,
 }: BuildAppOptions): Promise<FastifyInstance> {
   const app = Fastify({ logger });
 
@@ -29,6 +34,7 @@ export async function buildApp({
   registerAuditRoutes(app, connection);
   registerCategoryRoutes(app, connection);
   registerPaymentRoutes(app, connection);
+  registerSalesRoutes(app, connection, now);
 
   if (webDistDir && fs.existsSync(webDistDir)) {
     await app.register(fastifyStatic, { root: webDistDir });

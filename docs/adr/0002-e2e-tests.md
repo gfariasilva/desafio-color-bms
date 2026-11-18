@@ -93,6 +93,6 @@ We choose **Option A: Playwright**. Component tests (Option C) stay for UI detai
 - The keystroke budget constrains the sale form design: tab and payment method need type-ahead or digit shortcuts, not mouse-only dropdowns. This is intended (NFR-05).
 
 ### Follow-ups
-- [ ] Backlog #4: set up the `e2e` workspace, fixtures, the `clock` module, the CI steps and the first tests (sale flow + CS-2 budget).
+- [x] Backlog #4: set up the `e2e` workspace, fixtures, the `clock` module, the CI steps and the first tests (sale flow + CS-2 budget).
 - [ ] Backlog #9: add the keyboard-only day-closing test.
-- [ ] Update `CLAUDE.md` (commands) and the `/feature` skill once `npm run e2e` exists.
+- [x] Update `CLAUDE.md` (commands) and the `/feature` skill once `npm run e2e` exists.

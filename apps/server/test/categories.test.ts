@@ -13,6 +13,8 @@ import {
   INITIAL_SALE_CATEGORIES,
   saleCategoryListResponseSchema,
   saleCategorySchema,
+  paymentMethodListResponseSchema,
+  saleListResponseSchema,
 } from "@color-bms/core";
 import { buildApp } from "../src/app";
 import { openDatabase, type DatabaseConnection } from "../src/db/client";
@@ -48,6 +50,27 @@ async function listExpense(query = "") {
   const response = await app.inject({ method: "GET", url: `${EXPENSE}${query}` });
   expect(response.statusCode).toBe(200);
   return expenseCategoryListResponseSchema.parse(response.json()).categories;
+}
+
+/** A past date, so the real clock never makes it a future date (RN-15). */
+const SALE_DATE = "2026-01-10";
+
+/** FR-01: a cash sale in the tab, through the public API. */
+async function registerCashSale(saleCategoryId: number, grossCents: number) {
+  const methods = paymentMethodListResponseSchema.parse(
+    (await app.inject({ method: "GET", url: "/api/payment-methods" })).json(),
+  ).paymentMethods;
+  const response = await app.inject({
+    method: "POST",
+    url: "/api/sales",
+    payload: {
+      date: SALE_DATE,
+      saleCategoryId,
+      paymentMethodId: methods.find((method) => method.name === "Dinheiro")!.id,
+      grossCents,
+    },
+  });
+  expect(response.statusCode, response.body).toBe(201);
 }
 
 async function saleId(name: string): Promise<number> {
@@ -324,9 +347,37 @@ describe("FR-14: sale tabs", () => {
     expect(noBody.json()).toEqual({ error: "Dados inválidos." });
   });
 
-  // Needs the sales table (#4): the in-use check is wired in src/modules/categories, and the
-  // UI already offers "Desativar" when the server answers with CATEGORY_IN_USE_CODE.
-  it.todo(`FR-14: blocks deleting a tab with sales and answers ${CATEGORY_IN_USE_CODE} (#4)`);
+  it(`FR-14: blocks deleting a tab with sales and answers ${CATEGORY_IN_USE_CODE}`, async () => {
+    const id = await saleId("Toner");
+    await registerCashSale(id, 2500);
+
+    const response = await app.inject({ method: "DELETE", url: `${SALE}/${id}` });
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toMatchObject({ code: CATEGORY_IN_USE_CODE });
+    expect((await listSale()).some((category) => category.id === id)).toBe(true);
+  });
+
+  it("FR-14: after renaming a tab, old sales show the new name and their totals do not change", async () => {
+    const id = await saleId("Serviços de copiadora");
+    await registerCashSale(id, 1050);
+    await registerCashSale(id, 2000);
+
+    const rename = await app.inject({
+      method: "PATCH",
+      url: `${SALE}/${id}`,
+      payload: { name: "Cópias e impressões" },
+    });
+    expect(rename.statusCode, rename.body).toBe(200);
+
+    const sales = saleListResponseSchema.parse(
+      (await app.inject({ method: "GET", url: `/api/sales?date=${SALE_DATE}` })).json(),
+    ).sales;
+    expect(sales.map((sale) => sale.saleCategoryName)).toEqual([
+      "Cópias e impressões",
+      "Cópias e impressões",
+    ]);
+    expect(sales.reduce((total, sale) => total + sale.grossCents, 0)).toBe(3050);
+  });
 
   it("FR-14: answers 404 for an unknown tab", async () => {
     for (const request of [
