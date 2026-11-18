@@ -22,6 +22,11 @@ async function addExpense(api: APIRequestContext, input: CreateExpenseInput) {
   expect(response.status(), await response.text()).toBe(201);
 }
 
+/** The expense form ("Nova despesa" / "Editar despesa"); the sangria form is below it (FR-07). */
+function expenseForm(page: Page) {
+  return page.getByRole("form", { name: /despesa$/ });
+}
+
 /** Opens Despesas on `date` (today by default), leaving the focus on Valor. */
 async function openExpenses(page: Page, date = TODAY) {
   await page.goto("/despesas");
@@ -43,7 +48,7 @@ test("FR-06: R$ 45,00 in Abastecimento moto, cash from the till, keyboard only",
   await expect(page.getByLabel("Pago com dinheiro do caixa")).toBeChecked();
   await page.keyboard.press("Enter");
 
-  await expect(page.getByRole("status")).toHaveText("Despesa de R$ 45,00 registrada.");
+  await expect(expenseForm(page).getByRole("status")).toHaveText("Despesa de R$ 45,00 registrada.");
   await expect(page.getByLabel("Valor (R$)")).toBeFocused();
   await expect(page.getByLabel("Valor (R$)")).toHaveValue("");
   await expect(page.getByLabel("Data")).toHaveValue(TODAY);
@@ -76,7 +81,7 @@ test("FR-06: a PIX expense does not count as paid from the till", async ({ page,
   await page.getByLabel("Descrição").fill("papel A4");
   await page.getByLabel("Descrição").press("Enter");
 
-  await expect(page.getByRole("status")).toHaveText("Despesa de R$ 12,50 registrada.");
+  await expect(expenseForm(page).getByRole("status")).toHaveText("Despesa de R$ 12,50 registrada.");
   const table = page.getByRole("table");
   await expect(table.getByRole("row", { name: /papel A4/ })).toContainText("Não");
   await expect(table.getByRole("row", { name: /Pago do caixa/ })).toContainText("R$ 45,00");
@@ -99,14 +104,14 @@ test("FR-06 (as FR-03): edit and delete an expense on an open day", async ({ pag
   await expect(page.getByLabel("Valor (R$)")).toBeFocused();
   await page.getByLabel("Valor (R$)").fill("20");
   await page.keyboard.press("Enter");
-  await expect(page.getByRole("status")).toHaveText("Despesa alterada.");
+  await expect(expenseForm(page).getByRole("status")).toHaveText("Despesa alterada.");
   await expect(page.getByRole("table").getByRole("row", { name: /lanche/ })).toContainText(
     "R$ 20,00",
   );
 
   page.once("dialog", (dialog) => void dialog.accept());
   await page.getByRole("button", { name: /Excluir despesa/ }).click();
-  await expect(page.getByRole("status")).toHaveText("Despesa excluída.");
+  await expect(expenseForm(page).getByRole("status")).toHaveText("Despesa excluída.");
   await expect(
     page.getByText("Nenhuma despesa neste dia. Registre a primeira com Enter."),
   ).toBeVisible();
@@ -136,7 +141,9 @@ test("RN-14: a closed day blocks new expenses, edits and deletes", async ({
   });
   closeDay(server, date);
   await openExpenses(page, date);
-  await expect(page.getByText("Dia fechado")).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: /^Saídas/ }).getByText("Dia fechado"),
+  ).toBeVisible();
 
   await page.getByRole("button", { name: /Editar despesa/ }).click();
   await expect(page.getByRole("alert")).toHaveText(

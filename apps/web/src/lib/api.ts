@@ -27,6 +27,12 @@ import {
   type UpdateExpenseCategoryInput,
   type UpdateSaleCategoryInput,
   healthResponseSchema,
+  cashWithdrawalSchema,
+  dayCashWithdrawalsResponseSchema,
+  type CashWithdrawal,
+  type CreateCashWithdrawalInput,
+  type DayCashWithdrawalsResponse,
+  type UpdateCashWithdrawalInput,
   dayExpensesResponseSchema,
   expenseSchema,
   type CreateExpenseInput,
@@ -145,6 +151,10 @@ export const QUERY_KEYS = {
   expenses: ["expenses"],
   /** FR-06: followed by the civil date: ["expenses", "day", "2026-11-18"]. */
   expensesDay: ["expenses", "day"],
+  /** Prefix of every sangria query; any sangria change invalidates it all. */
+  cashWithdrawals: ["cashWithdrawals"],
+  /** FR-07: followed by the civil date: ["cashWithdrawals", "day", "2026-11-18"]. */
+  cashWithdrawalsDay: ["cashWithdrawals", "day"],
 } as const;
 
 export const api = {
@@ -181,6 +191,21 @@ export const api = {
     update: (id: number, input: UpdateExpenseInput): Promise<Expense> =>
       requestJson("PATCH", `/api/expenses/${id}`, input, expenseSchema),
     remove: (id: number): Promise<void> => requestJson("DELETE", `/api/expenses/${id}`, undefined),
+  },
+
+  /** FR-07: sangrias (cash withdrawals): the day, registering, editing, deleting. */
+  cashWithdrawals: {
+    day: (date: string): Promise<DayCashWithdrawalsResponse> =>
+      getJson(
+        `/api/days/${encodeURIComponent(date)}/cash-withdrawals`,
+        dayCashWithdrawalsResponseSchema,
+      ),
+    create: (input: CreateCashWithdrawalInput): Promise<CashWithdrawal> =>
+      requestJson("POST", "/api/cash-withdrawals", input, cashWithdrawalSchema),
+    update: (id: number, input: UpdateCashWithdrawalInput): Promise<CashWithdrawal> =>
+      requestJson("PATCH", `/api/cash-withdrawals/${id}`, input, cashWithdrawalSchema),
+    remove: (id: number): Promise<void> =>
+      requestJson("DELETE", `/api/cash-withdrawals/${id}`, undefined),
   },
 
   /** FR-14: sale tabs (abas), in display order. */

@@ -16,3 +16,6 @@ export * from "./sales/day-summary";
 export * from "./expenses/expenses";
 export * from "./expenses/expense-rules";
 export * from "./expenses/expense-totals";
+export * from "./cash-withdrawals/cash-withdrawals";
+export * from "./cash-withdrawals/cash-withdrawal-rules";
+export * from "./cash-withdrawals/cash-withdrawal-totals";

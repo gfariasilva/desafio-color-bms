@@ -5,6 +5,7 @@ import { systemClock, type Clock } from "./clock";
 import type { DatabaseConnection } from "./db/client";
 import { registerHostGuard } from "./http/host-guard";
 import { registerAuditRoutes } from "./modules/audit/audit.routes";
+import { registerCashWithdrawalRoutes } from "./modules/cash-withdrawals/cash-withdrawals.routes";
 import { registerCategoryRoutes } from "./modules/categories/categories.routes";
 import { registerExpenseRoutes } from "./modules/expenses/expenses.routes";
 import { registerPaymentRoutes } from "./modules/payments/payments.routes";
@@ -37,6 +38,7 @@ export async function buildApp({
   registerPaymentRoutes(app, connection);
   registerSalesRoutes(app, connection, now);
   registerExpenseRoutes(app, connection, now);
+  registerCashWithdrawalRoutes(app, connection, now);
 
   if (webDistDir && fs.existsSync(webDistDir)) {
     await app.register(fastifyStatic, { root: webDistDir });
