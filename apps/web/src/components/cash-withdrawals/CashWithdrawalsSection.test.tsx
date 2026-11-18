@@ -210,6 +210,45 @@ describe("FR-07: sangrias on the Despesas page", () => {
     expect(confirm).not.toHaveBeenCalled();
   });
 
+  it("FR-07: an edit keeps the sangria's date, even if the page's date is cleared", async () => {
+    withdrawals = [withdrawal()];
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { rerender } = render(
+      <QueryClientProvider client={queryClient}>
+        <CashWithdrawalsSection date={TODAY} today={TODAY} />
+      </QueryClientProvider>,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: /Editar sangria/ }));
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <CashWithdrawalsSection date={null} today={TODAY} />
+      </QueryClientProvider>,
+    );
+    fireEvent.change(value(), { target: { value: "250" } });
+    submit();
+    expect(await screen.findByRole("status")).toHaveTextContent("Sangria alterada.");
+    expect(patches).toHaveLength(1);
+  });
+
+  it("FR-07: a message about one day is cleared when the page moves to another day", async () => {
+    withdrawals = [withdrawal()];
+    dayLock = "O dia 18/11/2026 está fechado. Reabra o dia para alterar ou excluir esta sangria.";
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { rerender } = render(
+      <QueryClientProvider client={queryClient}>
+        <CashWithdrawalsSection date={TODAY} today={TODAY} />
+      </QueryClientProvider>,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: /Editar sangria/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("está fechado");
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <CashWithdrawalsSection date="2026-11-17" today={TODAY} />
+      </QueryClientProvider>,
+    );
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+  });
+
   it("FR-07: without a valid date on the page, nothing is sent", async () => {
     await renderSection(null);
     fireEvent.change(value(), { target: { value: "10" } });

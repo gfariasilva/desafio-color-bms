@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Trash2 } from "lucide-react";
 import {
@@ -28,6 +28,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { api, ApiError, QUERY_KEYS } from "@/lib/api";
+import { describeEntry } from "@/lib/describe-entry";
 import { cn } from "@/lib/utils";
 
 interface FormState {
@@ -38,9 +39,7 @@ interface FormState {
 const EMPTY: FormState = { value: "", note: "" };
 
 /** "das 10:05 de R$ 300,00": how a sangria is named in button labels and the edit banner. */
-function describeWithdrawal(withdrawal: CashWithdrawal): string {
-  return `das ${formatInstantTime(withdrawal.createdAt)} de ${formatCents(withdrawal.amountCents)}`;
-}
+const describeWithdrawal = (withdrawal: CashWithdrawal) => describeEntry(withdrawal);
 
 interface CashWithdrawalsSectionProps {
   /** The day chosen on the page (the expense form's Data); null while it is not a valid date. */
@@ -73,6 +72,12 @@ export function CashWithdrawalsSection({ date, today }: CashWithdrawalsSectionPr
     queryFn: () => api.cashWithdrawals.day(date as string),
     enabled: date !== null,
   });
+
+  // A message about one day never stays on screen once the page shows another day.
+  useEffect(() => {
+    setError(null);
+    setSaved(null);
+  }, [date]);
 
   function fail(message: string) {
     setSaved(null);
@@ -162,13 +167,15 @@ export function CashWithdrawalsSection({ date, today }: CashWithdrawalsSectionPr
   function submit(event: FormEvent) {
     event.preventDefault();
     if (save.isPending) return;
-    if (date === null) return fail("Escolha uma data válida no formulário de despesas.");
+    // An edit keeps the sangria's own date; only a new sangria needs the page's date.
+    const entryDate = editing?.date ?? date;
+    if (entryDate === null) return fail("Escolha uma data válida no formulário de despesas.");
     const amountCents = parseMoneyText(form.value);
     if (amountCents === null) return fail(CASH_WITHDRAWAL_TEXTS.invalidValue);
 
     // The same schema as the server, so its pt-BR messages show before any request.
     const parsed = createCashWithdrawalInputSchema.safeParse({
-      date: editing?.date ?? date,
+      date: entryDate,
       amountCents,
       note: form.note,
     });
@@ -261,6 +268,7 @@ export function CashWithdrawalsSection({ date, today }: CashWithdrawalsSectionPr
         </CardContent>
       </Card>
 
+      {day.isLoading ? <p className="text-sm text-muted-foreground">Carregando…</p> : null}
       {day.isError ? (
         <p role="alert" className="text-sm text-destructive">
           Não foi possível carregar as sangrias do dia. Recarregue a página.

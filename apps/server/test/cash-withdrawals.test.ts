@@ -73,6 +73,20 @@ describe("FR-07: register a sangria (POST /api/cash-withdrawals)", () => {
     expect(await cashWithdrawalAudit(ctx)).toEqual([]);
   });
 
+  it("FR-07: a note over 200 characters or a malformed body is a 400 with a pt-BR message", async () => {
+    const long = await postCashWithdrawal(ctx, {
+      date: TODAY,
+      amountCents: 100,
+      note: "x".repeat(201),
+    });
+    expect(long.statusCode).toBe(400);
+    expect(long.json()).toEqual({ error: "A observação pode ter até 200 caracteres." });
+    const malformed = await postCashWithdrawal(ctx, { date: TODAY, amountCents: "300" });
+    expect(malformed.statusCode).toBe(400);
+    expect(malformed.json()).toEqual({ error: "Informe um valor maior que zero." });
+    expect(await cashWithdrawalAudit(ctx)).toEqual([]);
+  });
+
   it("RN-15: future dates are not accepted", async () => {
     const response = await postCashWithdrawal(ctx, { date: "2026-11-19", amountCents: 100 });
     expect(response.statusCode).toBe(400);
