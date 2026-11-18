@@ -89,3 +89,24 @@ Legend: ✅ decided · ❓ OPEN QUESTION (ask the owner) · 🔮 future phase
 
 **Q15. CHAVEIRO listed twice** ✅
 - It's a typo. There is one "Chaveiro" aba, so the list starts with **9 sales abas**.
+
+## Round 6: OneDrive
+
+**Q16. Direction of sync** ✅
+- **One-way: system → spreadsheets.** The system is the **only source of truth**.
+- The owner's goal is to **stop using Excel for good**. The spreadsheets are only a human-readable backup in case the system fails.
+- Changes made in the spreadsheets are never read back. All corrections are made in the system.
+- No warning note at the top of the sheets.
+- **No import** of past spreadsheets.
+  - Consequence: dashboards and "vs. last month" comparisons start empty. Comparisons work from the second month of use.
+
+**Q17. How files reach OneDrive** ✅
+- The system writes .xlsx files into the PC's **local OneDrive folder**, and the OneDrive desktop app syncs them.
+- The settings screen has a folder path field.
+- There is no Microsoft API integration.
+
+**Q18. When files are generated, and naming** ✅
+- **Daily sheet:** generated when the day is closed, and regenerated whenever a reopened day is closed again.
+- **Monthly sheet:** updated each time a day is closed, and finalised when the month is closed.
+- **Layout:** `<pasta>/AAAA/MM - Mês/Diária AAAA-MM-DD.xlsx` and `<pasta>/AAAA/MM - Mês/Mensal AAAA-MM.xlsx`.
+- **On failure** (file open in Excel, folder missing): the export is queued, a "backup pendente" warning is shown, and the system retries automatically.
