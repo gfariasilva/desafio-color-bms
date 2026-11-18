@@ -11,3 +11,4 @@ export * from "./format/money-input";
 export * from "./sales/sale-amounts";
 export * from "./sales/sale-rules";
 export * from "./sales/sales";
+export * from "./sales/day-summary";

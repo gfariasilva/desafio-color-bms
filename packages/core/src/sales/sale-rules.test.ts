@@ -8,6 +8,7 @@ import {
   needsCardFee,
   periodLockError,
   resolveInstallments,
+  saleChangeLockError,
   saleDateError,
   saleMachineError,
 } from "./sale-rules";
@@ -75,6 +76,19 @@ describe("RN-14: closed days and months block sales", () => {
     // The month message wins: reopening the day alone is not allowed (RN-14).
     expect(periodLockError("2026-10-05", { dayClosed: true, monthClosed: true })).toContain(
       "O mês 10/2026 está fechado",
+    );
+  });
+
+  it("RN-14 / FR-03: a closed day suggests reopening the day or registering a refund", () => {
+    expect(saleChangeLockError("2026-11-10", { dayClosed: false, monthClosed: false })).toBeNull();
+    expect(saleChangeLockError("2026-11-10", { dayClosed: true, monthClosed: false })).toBe(
+      "O dia 10/11/2026 está fechado. Reabra o dia para alterar esta venda ou registre um estorno.",
+    );
+  });
+
+  it("RN-14 / FR-03: a closed month asks to reopen the month and the day, or a refund", () => {
+    expect(saleChangeLockError("2026-10-05", { dayClosed: true, monthClosed: true })).toBe(
+      "O mês 10/2026 está fechado. Reabra o mês e o dia para alterar esta venda ou registre um estorno.",
     );
   });
 

@@ -21,7 +21,9 @@ test("FR-01: keyboard-only cash sale (valor → aba → forma → Enter), ready 
   await expect(page.getByLabel("Data")).toHaveValue(TODAY);
   await expect(page.getByRole("radio", { name: /Toner/ })).toHaveAttribute("aria-checked", "false");
 
-  const row = page.getByRole("row").filter({ hasText: "Toner" }).filter({ hasText: "Dinheiro" });
+  // FR-05: the sale shows in the Toner tab of the day.
+  const toner = page.getByRole("region", { name: /Toner/ });
+  const row = toner.getByRole("row").filter({ hasText: "Dinheiro" });
   await expect(row.first()).toContainText("R$ 25,00");
 });
 
