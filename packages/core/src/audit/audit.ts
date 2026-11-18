@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { EXPENSE_CATEGORY_GROUP_LABELS } from "../catalog/categories";
 import { formatCents } from "../format/currency";
 import { formatCivilDate } from "../format/date";
 import { isCivilDate } from "../time/civil-date";
@@ -152,6 +153,12 @@ export const AUDIT_FIELD_LABELS: Record<string, string> = {
   reason: "Motivo",
   status: "Situação",
   value: "Valor",
+  group: "Grupo",
+};
+
+/** pt-BR labels for coded values, per field (e.g. an expense category's group). */
+const AUDIT_VALUE_LABELS: Record<string, Record<string, string>> = {
+  group: EXPENSE_CATEGORY_GROUP_LABELS,
 };
 
 /** Formats one stored value for display: R$ for `*Cents`, dd/mm/aaaa for civil dates. */
@@ -161,6 +168,10 @@ function formatAuditValue(field: string, value: unknown): string {
     return formatCents(value);
   }
   if (typeof value === "boolean") return value ? "Sim" : "Não";
+  const valueLabels = Object.hasOwn(AUDIT_VALUE_LABELS, field) ? AUDIT_VALUE_LABELS[field] : null;
+  if (typeof value === "string" && valueLabels && Object.hasOwn(valueLabels, value)) {
+    return valueLabels[value] ?? value;
+  }
   if (typeof value === "string") return isCivilDate(value) ? formatCivilDate(value) : value;
   if (typeof value === "number") return String(value);
   return JSON.stringify(value);

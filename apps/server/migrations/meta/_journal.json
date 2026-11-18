@@ -15,6 +15,20 @@
       "when": 1795023778444,
       "tag": "0001_create_audit_log",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1795025341572,
+      "tag": "0002_create_categories",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1795025342074,
+      "tag": "0003_seed_categories",
+      "breakpoints": true
     }
   ]
 }

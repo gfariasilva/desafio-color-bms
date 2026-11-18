@@ -81,6 +81,12 @@ describe("describeAuditChanges (FR-18: before and after values)", () => {
     ]);
   });
 
+  it("FR-14: shows an expense category's group in pt-BR", () => {
+    expect(describeAuditChanges({ group: "suppliers" }, { group: "general" })).toEqual([
+      { field: "group", label: "Grupo", before: "Fornecedores de materiais", after: "Geral" },
+    ]);
+  });
+
   it("returns nothing when there are no values", () => {
     expect(describeAuditChanges(null, null)).toEqual([]);
   });

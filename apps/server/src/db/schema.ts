@@ -1,4 +1,4 @@
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 /**
  * Key/value application settings (spec §6.1 "Configuração", FR-33).
@@ -38,4 +38,44 @@ export const auditLog = sqliteTable(
     index("audit_log_at_idx").on(table.at),
     index("audit_log_entity_at_idx").on(table.entity, table.at),
   ],
+);
+
+/**
+ * Sale tabs, "abas" (spec §6.1 "CategoriaVenda", FR-14). Seeded with RN-12 by the
+ * `seed_categories` migration. Sales reference a tab by id, so renaming keeps the history.
+ */
+export const saleCategories = sqliteTable(
+  "sale_categories",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    name: text("name").notNull(),
+    /** `categoryNameKey(name)` from @color-bms/core: unique, ignoring case and accents. */
+    nameKey: text("name_key").notNull(),
+    /** Display order, 1-based. */
+    sortOrder: integer("sort_order").notNull(),
+    /** Inactive tabs are hidden from the sale form but stay in reports (FR-14). */
+    active: integer("active", { mode: "boolean" }).notNull().default(true),
+  },
+  (table) => [uniqueIndex("sale_categories_name_key_unique").on(table.nameKey)],
+);
+
+/**
+ * General-expense categories (spec §6.1 "CategoriaDespesa", FR-14), in two groups:
+ * `general` (Geral) and `suppliers` (Fornecedores de materiais). Seeded with RN-12.
+ */
+export const expenseCategories = sqliteTable(
+  "expense_categories",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    name: text("name").notNull(),
+    /** `categoryNameKey(name)` from @color-bms/core: unique, ignoring case and accents. */
+    nameKey: text("name_key").notNull(),
+    /** One of EXPENSE_CATEGORY_GROUPS from @color-bms/core. */
+    group: text("category_group", { enum: ["general", "suppliers"] }).notNull(),
+    /** Display order, 1-based, across both groups. */
+    sortOrder: integer("sort_order").notNull(),
+    /** Inactive categories are hidden from the expense form but stay in reports (FR-14). */
+    active: integer("active", { mode: "boolean" }).notNull().default(true),
+  },
+  (table) => [uniqueIndex("expense_categories_name_key_unique").on(table.nameKey)],
 );
