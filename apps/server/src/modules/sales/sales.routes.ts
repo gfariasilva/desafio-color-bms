@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import {
+  createRefundInputSchema,
   createSaleInputSchema,
   daySalesParamsSchema,
   saleListQuerySchema,
@@ -12,13 +13,20 @@ import {
 import type { Clock } from "../../clock";
 import type { DatabaseConnection } from "../../db/client";
 import { parseId, parseOr400, sendError } from "../../http/route-helpers";
-import { createSale, deleteSale, getDaySales, listSales, updateSale } from "./sales.repository";
+import {
+  createRefund,
+  createSale,
+  deleteSale,
+  getDaySales,
+  listSales,
+  updateSale,
+} from "./sales.repository";
 
 const SALE_NOT_FOUND = { error: SALE_TEXTS.notFound };
 
 /**
  * FR-01 / FR-02: register sales and list the sales of a day; FR-03: edit and delete a sale;
- * FR-05: the day per tab; RN-15: today's date.
+ * FR-04: refund a sale; FR-05: the day per tab; RN-15: today's date.
  */
 export function registerSalesRoutes(
   app: FastifyInstance,
@@ -59,6 +67,19 @@ export function registerSalesRoutes(
     if (!input) return reply;
     try {
       return updateSale(db, id, input, clock());
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // FR-04 / RN-04: refund all or part of a sale from an earlier day; the refund is dated today.
+  app.post<{ Params: { id: string } }>("/api/sales/:id/refunds", async (request, reply) => {
+    const id = parseId(request.params.id);
+    if (id === null) return reply.code(404).send(SALE_NOT_FOUND);
+    const input = parseOr400(createRefundInputSchema, request.body, reply);
+    if (!input) return reply;
+    try {
+      return reply.code(201).send(createRefund(db, id, input, clock()));
     } catch (error) {
       return sendError(reply, error);
     }

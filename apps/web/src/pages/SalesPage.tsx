@@ -23,10 +23,12 @@ import {
   type CardFee,
   type CardMachine,
   type CreateSaleInput,
+  type ParsedCreateRefundInput,
   type PaymentMethod,
   type Sale,
 } from "@color-bms/core";
 import { DaySalesView } from "@/components/sales/DaySalesView";
+import { RefundForm } from "@/components/sales/RefundForm";
 import { describeSale } from "@/components/sales/describe-sale";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/badge";
@@ -81,7 +83,7 @@ interface FormError {
 }
 
 /**
- * Vendas (FR-01, FR-02, FR-03, FR-05): the keyboard-first sale form and the chosen day per tab.
+ * Vendas (FR-01 to FR-05): the keyboard-first sale form and the chosen day per tab.
  *
  * Keyboard (NFR-05, CS-2): focus starts on Valor; Tab → Aba (digit or first letters) →
  * Tab → Forma (digit) → Enter saves. Maquininha and Parcelas are enabled only when the
@@ -90,6 +92,9 @@ interface FormError {
  *
  * FR-03: "Editar" on a row loads the sale into the same form (Salvar / Cancelar, Esc cancels);
  * "Excluir" asks for confirmation. On a closed day both only explain how to change it (RN-14).
+ *
+ * FR-04: the Data field also finds sales to refund: "Estornar" on a sale from an earlier day
+ * opens the refund form (valor → motivo → Enter, Esc cancels); the refund is dated today.
  */
 export function SalesPage() {
   const queryClient = useQueryClient();
@@ -111,6 +116,9 @@ export function SalesPage() {
   const [error, setError] = useState<FormError | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const [editing, setEditing] = useState<Sale | null>(null);
+  // FR-04: the sale being refunded, and the server's answer to the last attempt.
+  const [refunding, setRefunding] = useState<Sale | null>(null);
+  const [refundError, setRefundError] = useState<string | null>(null);
   // FR-03: the new sale being typed when "Editar" was pressed, restored after the edit.
   const draft = useRef<FormState | null>(null);
   // Read by the RN-15 effect below, which must not move a sale being edited to a new day.
@@ -194,11 +202,46 @@ export function SalesPage() {
       // Deleting the sale being edited ends the edit; a new sale being typed is kept.
       if (editing?.id === sale.id) return done("Venda excluída.", afterEdit(sale.date));
       setError(null);
-      setSaved("Venda excluída.");
+      setSaved(sale.type === "refund" ? "Estorno excluído." : "Venda excluída.");
       await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.sales });
     },
     onError: showFailure,
   });
+
+  // FR-04: the refund is dated today; the form goes back to the next sale, focus on Valor.
+  const refund = useMutation({
+    mutationFn: ({ sale, input }: { sale: Sale; input: ParsedCreateRefundInput }) =>
+      api.sales.refund(sale.id, input),
+    onSuccess: async (created) => {
+      setRefunding(null);
+      setRefundError(null);
+      setError(null);
+      setSaved(
+        `Estorno de ${formatCents(-created.grossCents)} registrado em ${formatCivilDate(created.date)}.`,
+      );
+      valueField.current?.focus();
+      await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.sales });
+    },
+    onError: (failure) =>
+      setRefundError(
+        failure instanceof ApiError ? failure.message : "Erro inesperado. Tente de novo.",
+      ),
+  });
+
+  function startRefund(sale: Sale) {
+    if (refund.isPending) return;
+    if (editing) cancelEdit();
+    setError(null);
+    setSaved(null);
+    setRefundError(null);
+    setRefunding(sale);
+  }
+
+  function cancelRefund() {
+    setRefunding(null);
+    setRefundError(null);
+    valueField.current?.focus();
+  }
 
   /** RN-14 / FR-03: a closed day cannot change; say how instead of opening the form. */
   function blockedByLock(): boolean {
@@ -211,6 +254,7 @@ export function SalesPage() {
 
   function startEdit(sale: Sale) {
     if (blockedByLock()) return;
+    setRefunding(null);
     setError(null);
     setSaved(null);
     if (!editing) draft.current = form;
@@ -231,7 +275,9 @@ export function SalesPage() {
 
   function confirmDelete(sale: Sale) {
     if (blockedByLock()) return;
-    const question = `Excluir a venda de ${formatCents(sale.grossCents)} (${sale.saleCategoryName}, ${sale.paymentMethodName})? A exclusão fica registrada na auditoria.`;
+    const kind = sale.type === "refund" ? "o estorno" : "a venda";
+    const amount = formatCents(Math.abs(sale.grossCents));
+    const question = `Excluir ${kind} de ${amount} (${sale.saleCategoryName}, ${sale.paymentMethodName})? A exclusão fica registrada na auditoria.`;
     if (window.confirm(question)) remove.mutate(sale);
   }
 
@@ -447,6 +493,18 @@ export function SalesPage() {
         </CardContent>
       </Card>
 
+      {refunding && today.data ? (
+        <RefundForm
+          key={refunding.id}
+          sale={refunding}
+          today={today.data}
+          pending={refund.isPending}
+          serverError={refundError}
+          onSubmit={(input) => refund.mutate({ sale: refunding, input })}
+          onCancel={cancelRefund}
+        />
+      ) : null}
+
       <section aria-labelledby="sales-day-title">
         <div className="mb-2 flex flex-wrap items-center gap-2">
           <h2 id="sales-day-title" className="text-base font-semibold">
@@ -472,9 +530,11 @@ export function SalesPage() {
               key={day.data.date}
               day={day.data}
               editingId={editing?.id ?? null}
-              busy={save.isPending || remove.isPending}
+              today={today.data ?? null}
+              busy={save.isPending || remove.isPending || refund.isPending}
               onEdit={startEdit}
               onDelete={confirmDelete}
+              onRefund={startRefund}
             />
           </>
         ) : null}

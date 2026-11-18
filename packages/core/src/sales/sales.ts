@@ -9,7 +9,7 @@ import { civilDateSchema, installmentsSchema } from "../payments/card-fees";
  * (A-02). The rate, fee and net value in force are **copied onto the sale** when it is saved
  * (FR-02, spec §6.3), so later changes to the fee table never change it.
  *
- * Refunds (#6) are rows of the same table with `type: "refund"` and negative amounts.
+ * Refunds (FR-04, `refunds.ts`) are rows of the same table with `type: "refund"` and negative amounts.
  */
 
 export const SALE_TYPES = ["sale", "refund"] as const;
@@ -32,7 +32,6 @@ export const SALE_TEXTS = {
   inactiveMachine: "Escolha uma maquininha ativa.",
   invalidValue: "Informe o valor da venda, por exemplo 25,00.",
   notFound: "Venda não encontrada.",
-  refundNotEditable: "Estornos não podem ser editados nem excluídos.",
   hasRefunds: "Esta venda tem estornos e não pode ser alterada nem excluída.",
 } as const;
 
@@ -86,6 +85,13 @@ export const saleSchema = z.object({
   feeCents: z.number().int(),
   netCents: z.number().int(),
   note: z.string().nullable(),
+  /** Refunds (FR-04): the refunded sale and its date; null on sales. */
+  originalSaleId: z.number().int().nullable(),
+  originalSaleDate: z.string().nullable(),
+  /** Refunds (FR-04): the required reason; null on sales. */
+  reason: z.string().nullable(),
+  /** Sales: how much was refunded so far, positive cents (RN-04); always 0 on refunds. */
+  refundedCents: z.number().int(),
 });
 export type Sale = z.infer<typeof saleSchema>;
 

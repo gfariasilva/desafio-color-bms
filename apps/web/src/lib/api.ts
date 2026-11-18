@@ -30,6 +30,7 @@ import {
   daySalesResponseSchema,
   saleSchema,
   todayResponseSchema,
+  type CreateRefundInput,
   type CreateSaleInput,
   type DaySalesResponse,
   type Sale,
@@ -145,7 +146,7 @@ export const api = {
   /** RN-15: today's civil date in São Paulo, from the server clock (ADR 0002). */
   today: (): Promise<string> => getJson("/api/today", todayResponseSchema).then((r) => r.date),
 
-  /** FR-01 / FR-02 / FR-03 / FR-05: the day per tab, registering, editing and deleting. */
+  /** FR-01 to FR-05: the day per tab, registering, editing, deleting and refunding. */
   sales: {
     /** FR-05: the day grouped by tab, with subtotals per method and totals (RN-05). */
     day: (date: string): Promise<DaySalesResponse> =>
@@ -154,7 +155,11 @@ export const api = {
       requestJson("POST", "/api/sales", input, saleSchema),
     update: (id: number, input: UpdateSaleInput): Promise<Sale> =>
       requestJson("PATCH", `/api/sales/${id}`, input, saleSchema),
+    /** FR-03: deletes a sale; also a refund on an open day (RN-14). */
     remove: (id: number): Promise<void> => requestJson("DELETE", `/api/sales/${id}`, undefined),
+    /** FR-04: refunds all or part of a sale from an earlier day; the refund is dated today. */
+    refund: (id: number, input: CreateRefundInput): Promise<Sale> =>
+      requestJson("POST", `/api/sales/${id}/refunds`, input, saleSchema),
   },
 
   /** FR-14: sale tabs (abas), in display order. */

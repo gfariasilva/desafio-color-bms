@@ -85,6 +85,10 @@ function sale(overrides: Partial<Sale>): Sale {
     feeCents: 0,
     netCents: 2500,
     note: null,
+    originalSaleId: null,
+    originalSaleDate: null,
+    reason: null,
+    refundedCents: 0,
     ...overrides,
   };
 }
@@ -93,7 +97,9 @@ let sales: Sale[];
 let dayLock: string | null;
 let postResponse: () => Response;
 let patchResponse: () => Response;
+let refundResponse: () => Response;
 const posts: unknown[] = [];
+const refundPosts: { url: string; body: unknown }[] = [];
 const patches: { url: string; body: unknown }[] = [];
 const deletes: string[] = [];
 const fetchMock = vi.fn<typeof fetch>();
@@ -102,6 +108,20 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 
 beforeEach(() => {
   posts.length = 0;
+  refundPosts.length = 0;
+  refundResponse = () =>
+    json(
+      sale({
+        id: 50,
+        type: "refund",
+        grossCents: -8000,
+        netCents: -8000,
+        originalSaleId: 5,
+        originalSaleDate: "2026-11-10",
+        reason: "produto com defeito",
+      }),
+      201,
+    );
   patches.length = 0;
   deletes.length = 0;
   sales = [];
@@ -111,6 +131,10 @@ beforeEach(() => {
   fetchMock.mockReset();
   fetchMock.mockImplementation(async (input, init) => {
     const url = String(input);
+    if (init?.method === "POST" && url.endsWith("/refunds")) {
+      refundPosts.push({ url, body: JSON.parse(String(init.body)) });
+      return refundResponse();
+    }
     if (init?.method === "POST") {
       posts.push(JSON.parse(String(init.body)));
       return postResponse();
@@ -488,5 +512,134 @@ describe("Vendas: the day per tab (FR-05)", () => {
     fireEvent.click(screen.getByRole("button", { name: /Excluir venda/ }));
     expect(confirm).not.toHaveBeenCalled();
     expect(deletes).toEqual([]);
+  });
+});
+
+describe("Estornos (FR-04)", () => {
+  const OLD_DAY = "2026-11-10";
+  const oldSale = () =>
+    sale({
+      id: 5,
+      date: OLD_DAY,
+      paymentMethodId: 3,
+      paymentMethodName: "Cartão de crédito",
+      cardMachineId: 1,
+      cardMachineName: "PagSeguro",
+      installments: 1,
+      grossCents: 8000,
+      feeRatePpm: 19900,
+      feeCents: 159,
+      netCents: 7841,
+    });
+
+  async function openOldDay() {
+    await openPage();
+    fireEvent.change(screen.getByLabelText("Data"), { target: { value: OLD_DAY } });
+    await screen.findByText("Vendas de 10/11/2026");
+  }
+
+  it("FR-04: Estornar shows only on sales from earlier days", async () => {
+    sales = [sale({ id: 1 }), oldSale()];
+    await openPage();
+    await screen.findByRole("button", { name: /Editar venda/ });
+    expect(screen.queryByRole("button", { name: /Estornar venda/ })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Data"), { target: { value: OLD_DAY } });
+    expect(await screen.findByRole("button", { name: /Estornar venda/ })).toBeInTheDocument();
+  });
+
+  it("FR-04: the refund form starts with what is left and previews the negative fee (RN-04)", async () => {
+    sales = [{ ...oldSale(), refundedCents: 5000 }];
+    await openOldDay();
+    fireEvent.click(await screen.findByRole("button", { name: /Estornar venda/ }));
+    const form = screen.getByRole("form", { name: "Estornar venda" });
+    const refundValue = within(form).getByLabelText("Valor do estorno (R$)");
+    expect(refundValue).toHaveValue("30,00");
+    expect(refundValue).toHaveFocus();
+    expect(screen.getByTestId("refund-preview")).toHaveTextContent(
+      /Bruto -R\$\s30,00 · Taxa 1,99% · -R\$\s0,60 · Líquido -R\$\s29,40/,
+    );
+    // A refunded sale is no longer edited or deleted.
+    expect(screen.queryByRole("button", { name: /Editar venda/ })).not.toBeInTheDocument();
+    expect(screen.getByText(/Estornado R\$\s50,00/)).toBeInTheDocument();
+  });
+
+  it("FR-04: the reason is required and the sum cannot pass the sale", async () => {
+    sales = [{ ...oldSale(), refundedCents: 5000 }];
+    await openOldDay();
+    fireEvent.click(await screen.findByRole("button", { name: /Estornar venda/ }));
+    const form = screen.getByRole("form", { name: "Estornar venda" });
+    fireEvent.submit(form);
+    expect(await within(form).findByRole("alert")).toHaveTextContent(
+      "Informe o motivo do estorno.",
+    );
+    fireEvent.change(within(form).getByLabelText("Motivo"), { target: { value: "defeito" } });
+    fireEvent.change(within(form).getByLabelText("Valor do estorno (R$)"), {
+      target: { value: "40" },
+    });
+    fireEvent.submit(form);
+    expect(within(form).getByRole("alert")).toHaveTextContent(
+      /O estorno passa do valor da venda: restam R\$\s30,00 para estornar\./,
+    );
+    expect(refundPosts).toEqual([]);
+  });
+
+  it("FR-04: Enter registers the refund, then focus returns to Valor", async () => {
+    sales = [oldSale()];
+    await openOldDay();
+    fireEvent.click(await screen.findByRole("button", { name: /Estornar venda/ }));
+    const form = screen.getByRole("form", { name: "Estornar venda" });
+    fireEvent.change(within(form).getByLabelText("Motivo"), {
+      target: { value: "produto com defeito" },
+    });
+    fireEvent.submit(form);
+    await screen.findByText(/Estorno de R\$\s80,00 registrado em 18\/11\/2026\./);
+    expect(refundPosts).toEqual([
+      { url: "/api/sales/5/refunds", body: { refundCents: 8000, reason: "produto com defeito" } },
+    ]);
+    expect(screen.queryByRole("form", { name: "Estornar venda" })).not.toBeInTheDocument();
+    expect(value()).toHaveFocus();
+  });
+
+  it("FR-04: shows the server's message (e.g. today closed) and Esc cancels", async () => {
+    sales = [oldSale()];
+    const message =
+      "O dia 18/11/2026 está fechado. Reabra o dia para registrar ou alterar lançamentos nessa data.";
+    refundResponse = () => json({ error: message, code: "day_closed" }, 409);
+    await openOldDay();
+    fireEvent.click(await screen.findByRole("button", { name: /Estornar venda/ }));
+    const form = screen.getByRole("form", { name: "Estornar venda" });
+    fireEvent.change(within(form).getByLabelText("Motivo"), { target: { value: "defeito" } });
+    fireEvent.submit(form);
+    expect(await within(form).findByRole("alert")).toHaveTextContent(message);
+    fireEvent.keyDown(within(form).getByLabelText("Motivo"), { key: "Escape" });
+    expect(screen.queryByRole("form", { name: "Estornar venda" })).not.toBeInTheDocument();
+    expect(value()).toHaveFocus();
+  });
+
+  it("FR-04: refund rows show the badge, the original date and the reason; only Excluir", async () => {
+    sales = [
+      sale({
+        id: 50,
+        type: "refund",
+        grossCents: -8000,
+        netCents: -8000,
+        originalSaleId: 5,
+        originalSaleDate: OLD_DAY,
+        reason: "produto com defeito",
+      }),
+    ];
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    await openPage();
+    expect(await screen.findByText("Estorno")).toBeInTheDocument();
+    expect(screen.getByText("da venda de 10/11/2026")).toBeInTheDocument();
+    expect(screen.getByText("· produto com defeito")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Editar/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Estornar/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Excluir estorno/ }));
+    expect(window.confirm).toHaveBeenCalledWith(
+      expect.stringMatching(/^Excluir o estorno de R\$\s80,00 \(Toner, Dinheiro\)\?/),
+    );
+    await screen.findByText("Estorno excluído.");
+    expect(deletes).toEqual(["/api/sales/50"]);
   });
 });

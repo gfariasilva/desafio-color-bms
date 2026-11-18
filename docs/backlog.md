@@ -45,7 +45,7 @@ Ordered backlog for the MVP (spec §9.1). Each item is one small PR / GitHub iss
 | [x] | M1 | [#3](#3--payment-methods-card-machines-and-fee-table) | Payment methods, card machines and fee table | FR-15; RN-01, RN-12 | #1, #2 |
 | [x] | M1 | [#4](#4--register-a-sale-with-the-machine-fee) | Register a sale with the machine fee | FR-01, FR-02; RN-01, RN-02, RN-03, RN-14, RN-15 | #3 |
 | [x] | M1 | [#5](#5--day-view-per-tab-and-editdelete-a-sale) | Day view per tab, and edit/delete a sale | FR-05, FR-03; RN-05, RN-14 | #4 |
-| [ ] | M1 | [#6](#6--refunds-estornos) | Refunds (estornos) | FR-04; RN-04 | #5 |
+| [x] | M1 | [#6](#6--refunds-estornos) | Refunds (estornos) | FR-04; RN-04 | #5 |
 | [ ] | M2 | [#7](#7--general-expenses-saídas-diárias) | General expenses (saídas diárias) | FR-06; RN-08, RN-14, RN-15 | #2, #4 |
 | [ ] | M2 | [#8](#8--cash-withdrawals-sangrias) | Cash withdrawals (sangrias) | FR-07; RN-14 | #4 |
 | [ ] | M2 | [#9](#9--close-the-day-cash-closing) | Close the day (cash closing) | FR-08; RN-07, RN-14 | #6, #7, #8 |
@@ -440,6 +440,14 @@ O sistema deve exibir, para a data selecionada, cada aba com:
 **Technical notes**
 
 - Round the absolute value, then negate (never `Math.round` on negatives).
+
+**Done notes (follow-ups)**
+
+- No schema change (the columns came with #4). Core `packages/core/src/sales/refunds.ts`: `calculateRefundAmounts()` (RN-04, rounds the absolute value then negates), `refundableCents()`, `refundLimitError()`, `refundDateError()`, `createRefundInputSchema` (`refundCents` + required `reason`, max 200), `REFUND_EXCEEDS_SALE_CODE`, `REFUND_TEXTS`. `Sale` gained `originalSaleId`, `originalSaleDate`, `reason` and `refundedCents` (positive sum refunded so far, computed by the server).
+- API: `POST /api/sales/:id/refunds` → 201 refund row dated **today** with the original's tab, method, machine, installments and rate (even if deactivated since). 404 unknown sale; 400 refund of a refund or a sale from today (owner-approved: "venda de um dia anterior"; today's sales are edited/deleted); 409 `day_closed` when today or its month is closed; 409 `refund_exceeds_sale`. Audit entity `refund` with the reason.
+- Owner-approved: a refund can be **deleted** while its day is open (RN-14; audit `refund`/`delete`), never edited (`PATCH` → 400 "Exclua o estorno e registre outro."). A sale with refunds still cannot be edited or deleted (409 `sale_has_refunds`).
+- UI: on Vendas, the Data field finds the sale; "Estornar" (sales from earlier days with something left) opens `components/sales/RefundForm.tsx` (valor prefilled with what is left → motivo → Enter; Esc cancels; preview of gross/fee/net). Refund rows show an "Estorno" badge, "da venda de dd/mm/aaaa" and the reason; refunded sales show "Estornado R$ …".
+- **#9:** test FR-04's third criterion there: a cash refund (negative Dinheiro row on the closing day) reduces the expected cash (RN-07).
 
 **Acceptance criteria** _(verbatim from spec §4)_
 

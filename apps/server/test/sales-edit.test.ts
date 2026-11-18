@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   CARD_FEE_MISSING_CODE,
   DAY_CLOSED_CODE,
-  SALE_HAS_REFUNDS_CODE,
   saleListResponseSchema,
   saleSchema,
   type UpdateSaleInput,
@@ -326,37 +325,4 @@ describe("FR-03: delete a sale on an open day (DELETE /api/sales/:id)", () => {
   });
 });
 
-describe("FR-03 and refunds (#6)", () => {
-  /** #6 creates refunds through the API; here the row is written directly. */
-  function insertRefund(originalId: number) {
-    const info = ctx.connection.sqlite
-      .prepare(
-        `insert into sales (date, created_at, type, sale_category_id, payment_method_id,
-           gross_cents, fee_rate_ppm, fee_cents, net_cents, original_sale_id, reason)
-         values (?, ?, 'refund', ?, ?, -1000, 0, 0, -1000, ?, 'defeito')`,
-      )
-      .run(TODAY, NOW.toISOString(), ctx.ids.toner, ctx.ids.cash, originalId);
-    return Number(info.lastInsertRowid);
-  }
-
-  it("FR-03: a sale with refunds cannot be edited or deleted", async () => {
-    const sale = await createSale(ctx, { date: "2026-11-17" });
-    insertRefund(sale.id);
-    for (const response of [await patch(sale.id, { grossCents: 100 }), await remove(sale.id)]) {
-      expect(response.statusCode).toBe(409);
-      expect(response.json()).toEqual({
-        error: "Esta venda tem estornos e não pode ser alterada nem excluída.",
-        code: SALE_HAS_REFUNDS_CODE,
-      });
-    }
-  });
-
-  it("FR-03: refund rows are not edited or deleted here", async () => {
-    const sale = await createSale(ctx, { date: "2026-11-17" });
-    const refundId = insertRefund(sale.id);
-    for (const response of [await patch(refundId, { note: "x" }), await remove(refundId)]) {
-      expect(response.statusCode).toBe(400);
-      expect(response.json()).toEqual({ error: "Estornos não podem ser editados nem excluídos." });
-    }
-  });
-});
+// Refunds and refunded sales (#6): see sales-refunds.test.ts.
