@@ -6,6 +6,7 @@ import type { DatabaseConnection } from "./db/client";
 import { registerHostGuard } from "./http/host-guard";
 import { registerAuditRoutes } from "./modules/audit/audit.routes";
 import { registerCategoryRoutes } from "./modules/categories/categories.routes";
+import { registerExpenseRoutes } from "./modules/expenses/expenses.routes";
 import { registerPaymentRoutes } from "./modules/payments/payments.routes";
 import { registerHealthRoutes } from "./modules/health/health.routes";
 import { registerSalesRoutes } from "./modules/sales/sales.routes";
@@ -35,6 +36,7 @@ export async function buildApp({
   registerCategoryRoutes(app, connection);
   registerPaymentRoutes(app, connection);
   registerSalesRoutes(app, connection, now);
+  registerExpenseRoutes(app, connection, now);
 
   if (webDistDir && fs.existsSync(webDistDir)) {
     await app.register(fastifyStatic, { root: webDistDir });

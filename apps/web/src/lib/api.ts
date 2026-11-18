@@ -27,6 +27,12 @@ import {
   type UpdateExpenseCategoryInput,
   type UpdateSaleCategoryInput,
   healthResponseSchema,
+  dayExpensesResponseSchema,
+  expenseSchema,
+  type CreateExpenseInput,
+  type DayExpensesResponse,
+  type Expense,
+  type UpdateExpenseInput,
   daySalesResponseSchema,
   saleSchema,
   todayResponseSchema,
@@ -135,6 +141,10 @@ export const QUERY_KEYS = {
   sales: ["sales"],
   /** FR-05: followed by the civil date: ["sales", "day", "2026-11-18"] (a DaySalesResponse). */
   salesDay: ["sales", "day"],
+  /** Prefix of every expense query; any expense change invalidates it all. */
+  expenses: ["expenses"],
+  /** FR-06: followed by the civil date: ["expenses", "day", "2026-11-18"]. */
+  expensesDay: ["expenses", "day"],
 } as const;
 
 export const api = {
@@ -160,6 +170,17 @@ export const api = {
     /** FR-04: refunds all or part of a sale from an earlier day; the refund is dated today. */
     refund: (id: number, input: CreateRefundInput): Promise<Sale> =>
       requestJson("POST", `/api/sales/${id}/refunds`, input, saleSchema),
+  },
+
+  /** FR-06: general expenses (saídas diárias): the day, registering, editing, deleting. */
+  expenses: {
+    day: (date: string): Promise<DayExpensesResponse> =>
+      getJson(`/api/days/${encodeURIComponent(date)}/expenses`, dayExpensesResponseSchema),
+    create: (input: CreateExpenseInput): Promise<Expense> =>
+      requestJson("POST", "/api/expenses", input, expenseSchema),
+    update: (id: number, input: UpdateExpenseInput): Promise<Expense> =>
+      requestJson("PATCH", `/api/expenses/${id}`, input, expenseSchema),
+    remove: (id: number): Promise<void> => requestJson("DELETE", `/api/expenses/${id}`, undefined),
   },
 
   /** FR-14: sale tabs (abas), in display order. */

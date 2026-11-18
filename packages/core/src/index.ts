@@ -13,3 +13,6 @@ export * from "./sales/sale-rules";
 export * from "./sales/sales";
 export * from "./sales/refunds";
 export * from "./sales/day-summary";
+export * from "./expenses/expenses";
+export * from "./expenses/expense-rules";
+export * from "./expenses/expense-totals";
