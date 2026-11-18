@@ -7,6 +7,7 @@ An ADR records one significant technical decision: the context, the options we w
 | # | Title | Status | Date |
 |---|---|---|---|
 | [0001](0001-tech-stack.md) | Technical stack (Node + Fastify + better-sqlite3 + Drizzle, React shell from the landing page) | Accepted | 2026-11-18 |
+| [0002](0002-e2e-tests.md) | End-to-end tests with Playwright (keyboard-only flows, CS-2 budget, Edge on Windows) | Accepted | 2026-11-18 |
 
 ## When to write one
 

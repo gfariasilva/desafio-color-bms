@@ -9,7 +9,7 @@ disable-model-invocation: true
 
 Implement the backlog item identified by **`$ARGUMENTS`** (an FR ID such as `FR-01`, or a backlog number such as `#4`). Follow every step in order. Do not skip the plan approval or the tests-first step.
 
-If `$ARGUMENTS` is empty, list the first backlog items in `docs/backlog.md` that are not done yet and ask which one to implement.
+If `$ARGUMENTS` is empty, list the next items that are not done yet from the **Index** of `docs/backlog.md`. The index is in implementation (milestone) order. Ask which one to implement.
 
 ## 1. Gather the requirements (read-only)
 
@@ -46,7 +46,8 @@ Present a concise plan (use plan mode when available) with:
 1. Write the failing tests before the implementation:
    - **Business rules** → unit tests in `packages/core/src/**/<name>.test.ts`. Name each test after its ID, e.g. `it("RN-03: net = gross − fee", …)`. Cover the spec's examples exactly (e.g. RN-03: R$ 150,00 at 3,79% → fee R$ 5,69, net R$ 144,31), plus edge cases: rounding at .005, negative values (refunds), zero, the largest allowed amount, and dates around midnight in São Paulo.
    - **Acceptance criteria** → integration tests in `apps/server/test/<feature>.test.ts` using `app.inject()` against a temp-dir database (follow `apps/server/test/health.test.ts`). One test per "Dado / Quando / Então", named after the FR, e.g. `it("FR-01: blocks a sale on a closed day", …)`. Assert the audit rows too.
-   - **UI behaviour** that matters (keyboard flow, validation messages) → component tests in `apps/web/src/**/*.test.tsx`.
+   - **UI behaviour** that matters (validation messages, small interactions) → component tests in `apps/web/src/**/*.test.tsx`.
+   - **User flows** (from backlog #4 on) → Playwright E2E tests in `e2e/`, keyboard-only where the spec asks for it, following [ADR 0002](../../../docs/adr/0002-e2e-tests.md).
 2. Run `npm test` and confirm the new tests **fail for the right reason** (missing code, not a typo).
 
 ## 4. Implement (green), inside-out
@@ -60,7 +61,7 @@ Present a concise plan (use plan mode when available) with:
 ## 5. Verify
 
 1. Run `npm run check` (lint, format, typecheck, tests). Fix every failure; never skip or weaken a test to get green.
-2. Run `npm run build`.
+2. Run `npm run build`, and `npm run e2e` once the E2E suite exists (ADR 0002).
 3. If there is UI: start the app (`npm run dev`), use the feature in the browser, keyboard-only for data entry, and take screenshots for the PR (Playwright, 1440×900).
 4. Check the CLAUDE.md conventions on the diff: cents, civil dates, audit rows in transactions, pt-BR strings, English code.
 
