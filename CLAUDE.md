@@ -3,8 +3,16 @@
 Financial management system for **Color**, a small stationery and copy shop in São Paulo. It is a **local web app**: a Node server on one Windows 11 PC, with the UI in the browser. It replaces the owner's hand-made Excel spreadsheets for sales, expenses, cash closing and reports, and exports `.xlsx` files and database backups to OneDrive.
 
 - Requirements: [`docs/spec.md`](docs/spec.md) (pt-BR). Glossary of domain terms: **§3**.
-- Architecture decisions: [`docs/adr/`](docs/adr/), starting with [`0001-tech-stack.md`](docs/adr/0001-tech-stack.md).
+- Work items: [`docs/backlog.md`](docs/backlog.md), the ordered MVP backlog with acceptance criteria.
+- Architecture decisions: [`docs/adr/`](docs/adr/) (index and how-to in its README), starting with [`0001-tech-stack.md`](docs/adr/0001-tech-stack.md).
 - UI rules: [`docs/design-system.md`](docs/design-system.md).
+
+## Claude Code workflow
+
+- **`/feature #n`** or **`/feature FR-xx`** (`.claude/skills/feature/`) implements one backlog item: requirements → plan (wait for approval) → tests first → implement → `npm run check` → docs.
+- A **PostToolUse hook** (`.claude/hooks/format-lint.mjs`) runs Prettier and `eslint --fix` on every file Claude edits. If lint errors remain, fix them before moving on.
+- PRs follow `.github/pull_request_template.md` (FR/RN IDs, what changed, tests, screenshots).
+- New technical decision → new ADR from `docs/adr/0000-template.md`.
 
 ## Commands
 
