@@ -67,6 +67,10 @@ export function normalizeCategoryName(name: string): string {
  * FR-14: the key used to compare names. Two names with the same key are the same name:
  * case and accents are ignored ("Serviços" = "SERVICOS"), as decided by the owner.
  * NFD splits "ç" into "c" + a combining mark, which we then remove.
+ *
+ * The key is stored in the `name_key` column (unique index). If this rule ever changes,
+ * add a data migration that recomputes `name_key` for every existing row; otherwise old
+ * rows keep keys made with the old rule and duplicates slip through.
  */
 export function categoryNameKey(name: string): string {
   return normalizeCategoryName(name)
@@ -134,6 +138,10 @@ const categoryNameSchema = z
       .max(CATEGORY_NAME_MAX, `O nome deve ter no máximo ${CATEGORY_NAME_MAX} caracteres.`),
   );
 
+/** pt-BR message for a request body that is missing or not a JSON object. */
+const INVALID_BODY = { message: "Dados inválidos." };
+const activeSchema = z.boolean({ message: "Situação inválida: use verdadeiro ou falso." });
+
 const groupSchema = z.enum(EXPENSE_CATEGORY_GROUPS, {
   errorMap: () => ({ message: "Grupo inválido." }),
 });
@@ -164,7 +172,10 @@ export const expenseCategoryListResponseSchema = z.object({
 });
 export type ExpenseCategoryListResponse = z.infer<typeof expenseCategoryListResponseSchema>;
 
-/** Query of GET /api/…-categories: `?active=true` lists only what entry forms may offer. */
+/**
+ * Query of GET /api/…-categories: `?active=true` lists only what entry forms may offer,
+ * `?active=false` only the deactivated categories; no filter lists all of them.
+ */
 export const categoryListQuerySchema = z.object({
   active: z
     .enum(["true", "false"], { errorMap: () => ({ message: "Filtro inválido." }) })
@@ -172,13 +183,13 @@ export const categoryListQuerySchema = z.object({
     .optional(),
 });
 
-export const createSaleCategoryInputSchema = z.object({ name: categoryNameSchema });
+export const createSaleCategoryInputSchema = z.object({ name: categoryNameSchema }, INVALID_BODY);
 export type CreateSaleCategoryInput = z.infer<typeof createSaleCategoryInputSchema>;
 
-export const createExpenseCategoryInputSchema = z.object({
-  name: categoryNameSchema,
-  group: groupSchema,
-});
+export const createExpenseCategoryInputSchema = z.object(
+  { name: categoryNameSchema, group: groupSchema },
+  INVALID_BODY,
+);
 export type CreateExpenseCategoryInput = z.infer<typeof createExpenseCategoryInputSchema>;
 
 const somethingToChange = {
@@ -188,27 +199,36 @@ const somethingToChange = {
 
 /** PATCH body: rename and/or (de)activate. */
 export const updateSaleCategoryInputSchema = z
-  .object({ name: categoryNameSchema.optional(), active: z.boolean().optional() })
+  .object({ name: categoryNameSchema.optional(), active: activeSchema.optional() }, INVALID_BODY)
   .refine(somethingToChange.check, somethingToChange.message);
 export type UpdateSaleCategoryInput = z.infer<typeof updateSaleCategoryInputSchema>;
 
 /** PATCH body: rename, (de)activate and/or move to another group. */
 export const updateExpenseCategoryInputSchema = z
-  .object({
-    name: categoryNameSchema.optional(),
-    active: z.boolean().optional(),
-    group: groupSchema.optional(),
-  })
+  .object(
+    {
+      name: categoryNameSchema.optional(),
+      active: activeSchema.optional(),
+      group: groupSchema.optional(),
+    },
+    INVALID_BODY,
+  )
   .refine(somethingToChange.check, somethingToChange.message);
 export type UpdateExpenseCategoryInput = z.infer<typeof updateExpenseCategoryInputSchema>;
 
 /** PUT …/order body: every category id, in the new display order. */
-export const reorderCategoriesInputSchema = z.object({
-  ids: z
-    .array(z.number().int().positive(), { message: "Ordem inválida." })
-    .min(1, "Ordem inválida.")
-    .refine((ids) => new Set(ids).size === ids.length, "A nova ordem repete uma categoria."),
-});
+export const reorderCategoriesInputSchema = z.object(
+  {
+    ids: z
+      .array(
+        z.number({ message: "Ordem inválida." }).int("Ordem inválida.").positive("Ordem inválida."),
+        { message: "Ordem inválida." },
+      )
+      .min(1, "Ordem inválida.")
+      .refine((ids) => new Set(ids).size === ids.length, "A nova ordem repete uma categoria."),
+  },
+  INVALID_BODY,
+);
 export type ReorderCategoriesInput = z.infer<typeof reorderCategoriesInputSchema>;
 
 /** The two category lists, and their pt-BR texts (error messages, labels). */

@@ -286,6 +286,44 @@ describe("FR-14: sale tabs", () => {
     });
   });
 
+  it("FR-14: a delete closes the gap, so the next move audits only the two swapped tabs", async () => {
+    await app.inject({ method: "DELETE", url: `${SALE}/${await saleId("Recargas")}` });
+    expect((await listSale()).map((category) => category.order)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+
+    const ids = (await listSale()).map((category) => category.id);
+    const lastTwoSwapped = [...ids.slice(0, -2), ids[7], ids[6]] as number[];
+    await app.inject({ method: "PUT", url: `${SALE}/order`, payload: { ids: lastTwoSwapped } });
+
+    const orderChanges = (await audit()).filter((entry) => entry.action === "update");
+    expect(orderChanges).toHaveLength(2);
+  });
+
+  it("FR-14: ?active=false lists only the deactivated tabs", async () => {
+    await app.inject({
+      method: "PATCH",
+      url: `${SALE}/${await saleId("Recargas")}`,
+      payload: { active: false },
+    });
+    expect((await listSale("?active=false")).map((category) => category.name)).toEqual([
+      "Recargas",
+    ]);
+  });
+
+  it("FR-14: a malformed body gets a pt-BR message", async () => {
+    const id = await saleId("Toner");
+    const wrongType = await app.inject({
+      method: "PATCH",
+      url: `${SALE}/${id}`,
+      payload: { active: "sim" },
+    });
+    expect(wrongType.statusCode).toBe(400);
+    expect(wrongType.json()).toEqual({ error: "Situação inválida: use verdadeiro ou falso." });
+
+    const noBody = await app.inject({ method: "POST", url: SALE });
+    expect(noBody.statusCode).toBe(400);
+    expect(noBody.json()).toEqual({ error: "Dados inválidos." });
+  });
+
   // Needs the sales table (#4): the in-use check is wired in src/modules/categories, and the
   // UI already offers "Desativar" when the server answers with CATEGORY_IN_USE_CODE.
   it.todo(`FR-14: blocks deleting a tab with sales and answers ${CATEGORY_IN_USE_CODE} (#4)`);

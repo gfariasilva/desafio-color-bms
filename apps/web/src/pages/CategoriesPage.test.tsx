@@ -58,6 +58,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 function writes(): Call[] {
@@ -141,12 +142,24 @@ describe("Cadastros (FR-14)", () => {
     );
   });
 
-  it("FR-14: Esc cancels a rename", async () => {
+  it("FR-14: Esc cancels a rename and focus returns to its Renomear button", async () => {
     renderAt("/cadastros/abas");
     fireEvent.click(await screen.findByRole("button", { name: "Renomear Toner" }));
     fireEvent.keyDown(screen.getByLabelText("Novo nome de Toner"), { key: "Escape" });
     expect(screen.queryByLabelText("Novo nome de Toner")).not.toBeInTheDocument();
     expect(writes()).toEqual([]);
+    expect(screen.getByRole("button", { name: "Renomear Toner" })).toHaveFocus();
+  });
+
+  it("FR-14: after a rename is saved, focus returns to its Renomear button", async () => {
+    renderAt("/cadastros/abas");
+    fireEvent.click(await screen.findByRole("button", { name: "Renomear Toner" }));
+    const input = screen.getByLabelText("Novo nome de Toner");
+    fireEvent.change(input, { target: { value: "Toners" } });
+    fireEvent.submit(input.closest("form") as HTMLFormElement);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Renomear Toner" })).toHaveFocus(),
+    );
   });
 
   it("FR-14: moving a tab down sends the new order", async () => {

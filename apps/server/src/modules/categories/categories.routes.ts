@@ -65,11 +65,12 @@ function registerKind(app: FastifyInstance, { db }: DatabaseConnection, kind: Ca
   const { url, create, update } = ROUTES[kind];
   const notFound = { error: CATEGORY_TEXTS[kind].notFound };
 
-  // FR-14: the list in display order; ?active=true for the entry forms.
+  // FR-14: the list in display order; ?active=true for the entry forms, ?active=false
+  // for only the deactivated ones.
   app.get(url, async (request, reply) => {
     const query = parseOr400(categoryListQuerySchema, request.query, reply);
     if (!query) return reply;
-    return { categories: listCategories(db, kind, query.active === true) };
+    return { categories: listCategories(db, kind, query.active) };
   });
 
   app.post(url, async (request, reply) => {

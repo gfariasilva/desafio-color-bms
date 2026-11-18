@@ -138,6 +138,22 @@ describe("FR-14: input schemas", () => {
     });
   });
 
+  it("FR-14: type errors and a missing body have pt-BR messages", () => {
+    const message = (
+      schema: { safeParse(v: unknown): { error?: { issues: { message: string }[] } } },
+      value: unknown,
+    ) => schema.safeParse(value).error?.issues[0]?.message;
+    expect(message(createSaleCategoryInputSchema, undefined)).toBe("Dados inválidos.");
+    expect(message(createExpenseCategoryInputSchema, null)).toBe("Dados inválidos.");
+    expect(message(updateSaleCategoryInputSchema, { active: "sim" })).toBe(
+      "Situação inválida: use verdadeiro ou falso.",
+    );
+    expect(message(updateExpenseCategoryInputSchema, "x")).toBe("Dados inválidos.");
+    expect(message(reorderCategoriesInputSchema, undefined)).toBe("Dados inválidos.");
+    expect(message(reorderCategoriesInputSchema, { ids: ["1"] })).toBe("Ordem inválida.");
+    expect(message(reorderCategoriesInputSchema, {})).toBe("Ordem inválida.");
+  });
+
   it("FR-14: a reorder lists each id once", () => {
     expect(reorderCategoriesInputSchema.parse({ ids: [3, 1, 2] })).toEqual({ ids: [3, 1, 2] });
     const result = reorderCategoriesInputSchema.safeParse({ ids: [1, 1] });

@@ -1,4 +1,4 @@
-import { asc, eq, max } from "drizzle-orm";
+import { asc, eq, gt, max, sql } from "drizzle-orm";
 import {
   canDeleteCategory,
   CATEGORY_IN_USE_CODE,
@@ -52,6 +52,11 @@ interface CategoryRow {
 
 export type CategoryOf<K extends CategoryKind> = K extends "sale" ? SaleCategory : ExpenseCategory;
 
+/** What creating a category needs: expense categories also need their group. */
+export type CreateCategoryInput<K extends CategoryKind> = K extends "expense"
+  ? { name: string; group: ExpenseCategoryGroup }
+  : { name: string };
+
 /** Fields the owner can change. `group` only exists for expense categories. */
 export interface CategoryChanges {
   name?: string;
@@ -102,6 +107,25 @@ function updateRow(tx: Tx, kind: CategoryKind, id: number, set: Partial<Category
 }
 
 /**
+ * FR-14: after a delete, moves every later category up by one so the order stays 1..n.
+ * Otherwise the next reorder would renumber them all and fill the audit log with order
+ * changes the owner never made. No audit rows: the delete row already explains the shift.
+ */
+function closeOrderGap(tx: Tx, kind: CategoryKind, removedOrder: number): void {
+  if (kind === "expense") {
+    tx.update(expenseCategories)
+      .set({ sortOrder: sql`${expenseCategories.sortOrder} - 1` })
+      .where(gt(expenseCategories.sortOrder, removedOrder))
+      .run();
+  } else {
+    tx.update(saleCategories)
+      .set({ sortOrder: sql`${saleCategories.sortOrder} - 1` })
+      .where(gt(saleCategories.sortOrder, removedOrder))
+      .run();
+  }
+}
+
+/**
  * FR-14: how many sales or expenses use this category. Delete is allowed only at 0.
  * The sales table arrives in #4 and the expenses table in #7; each adds its count here.
  */
@@ -118,14 +142,17 @@ function assertNameIsFree(tx: Tx, kind: CategoryKind, nameKey: string, exceptId?
   }
 }
 
-/** FR-14: the list in display order. `activeOnly` is what sale/expense forms offer. */
+/**
+ * FR-14: the list in display order. `active: true` is what sale/expense forms offer,
+ * `active: false` only the deactivated ones, and undefined everything.
+ */
 export function listCategories<K extends CategoryKind>(
   db: AppDatabase,
   kind: K,
-  activeOnly = false,
+  active?: boolean,
 ): CategoryOf<K>[] {
   return selectAll(db, kind)
-    .filter((row) => !activeOnly || row.active)
+    .filter((row) => active === undefined || row.active === active)
     .map((row) => toCategory<K>(row));
 }
 
@@ -133,7 +160,7 @@ export function listCategories<K extends CategoryKind>(
 export function createCategory<K extends CategoryKind>(
   db: AppDatabase,
   kind: K,
-  input: { name: string; group?: ExpenseCategoryGroup },
+  input: CreateCategoryInput<K>,
   now: Date = new Date(),
 ): CategoryOf<K> {
   return db.transaction((tx) => {
@@ -145,22 +172,15 @@ export function createCategory<K extends CategoryKind>(
       .select({ value: max(table.sortOrder) })
       .from(table)
       .get();
-    const values = {
-      name: input.name,
-      nameKey,
-      sortOrder: (last?.value ?? 0) + 1,
-      active: true,
-      ...(kind === "expense" ? { group: input.group } : {}),
-    };
-    const row = (
-      kind === "expense"
+    const values = { name: input.name, nameKey, sortOrder: (last?.value ?? 0) + 1, active: true };
+    const row: CategoryRow =
+      "group" in input
         ? tx
             .insert(expenseCategories)
-            .values(values as typeof expenseCategories.$inferInsert)
+            .values({ ...values, group: input.group })
             .returning()
             .get()
-        : tx.insert(saleCategories).values(values).returning().get()
-    ) as CategoryRow;
+        : tx.insert(saleCategories).values(values).returning().get();
 
     recordAudit(
       tx,
@@ -278,6 +298,7 @@ export function deleteCategory(
     }
 
     tx.delete(table).where(eq(table.id, id)).run();
+    closeOrderGap(tx, kind, current.sortOrder);
     recordAudit(
       tx,
       {

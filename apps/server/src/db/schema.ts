@@ -49,7 +49,10 @@ export const saleCategories = sqliteTable(
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
     name: text("name").notNull(),
-    /** `categoryNameKey(name)` from @color-bms/core: unique, ignoring case and accents. */
+    /**
+     * `categoryNameKey(name)` from @color-bms/core: unique, ignoring case and accents.
+     * A stored copy: if that rule changes, a data migration must recompute this column.
+     */
     nameKey: text("name_key").notNull(),
     /** Display order, 1-based. */
     sortOrder: integer("sort_order").notNull(),
@@ -68,7 +71,10 @@ export const expenseCategories = sqliteTable(
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
     name: text("name").notNull(),
-    /** `categoryNameKey(name)` from @color-bms/core: unique, ignoring case and accents. */
+    /**
+     * `categoryNameKey(name)` from @color-bms/core: unique, ignoring case and accents.
+     * A stored copy: if that rule changes, a data migration must recompute this column.
+     */
     nameKey: text("name_key").notNull(),
     /** One of EXPENSE_CATEGORY_GROUPS from @color-bms/core. */
     group: text("category_group", { enum: ["general", "suppliers"] }).notNull(),

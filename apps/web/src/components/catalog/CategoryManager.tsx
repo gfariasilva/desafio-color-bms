@@ -1,8 +1,9 @@
-import { useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowDown, ArrowUp, Pencil, Trash2 } from "lucide-react";
 import {
   CATEGORY_IN_USE_CODE,
+  CATEGORY_TEXTS,
   createSaleCategoryInputSchema,
   EXPENSE_CATEGORY_GROUP_LABELS,
   EXPENSE_CATEGORY_GROUPS,
@@ -59,22 +60,15 @@ const CLIENTS: Record<CategoryKind, CategoryClient> = {
 };
 
 /** pt-BR texts that differ between the two lists. */
-const TEXTS: Record<
-  CategoryKind,
-  { newLabel: string; article: string; noun: string; duplicate: string; empty: string }
-> = {
+const TEXTS: Record<CategoryKind, { newLabel: string; noun: string; empty: string }> = {
   sale: {
     newLabel: "Nova aba",
-    article: "a",
     noun: "aba",
-    duplicate: "Já existe uma aba com esse nome.",
     empty: "Nenhuma aba cadastrada. Crie a primeira acima.",
   },
   expense: {
     newLabel: "Nova categoria",
-    article: "a",
     noun: "categoria",
-    duplicate: "Já existe uma categoria de despesa com esse nome.",
     empty: "Nenhuma categoria neste grupo.",
   },
 };
@@ -105,6 +99,8 @@ interface ListError {
 export function CategoryManager({ kind }: { kind: CategoryKind }) {
   const client = CLIENTS[kind];
   const texts = TEXTS[kind];
+  // Same wording as the server's 409, from core.
+  const duplicateMessage = CATEGORY_TEXTS[kind].duplicate;
   const queryClient = useQueryClient();
   const queryKey = ["categories", kind];
 
@@ -121,6 +117,22 @@ export function CategoryManager({ kind }: { kind: CategoryKind }) {
     group?: ExpenseCategoryGroup;
   } | null>(null);
   const nameField = useRef<HTMLInputElement>(null);
+  const container = useRef<HTMLDivElement>(null);
+  // NFR-05: after a rename is saved or cancelled, the inline form disappears; put focus back
+  // on that row's "Renomear" button so the keyboard user stays in place.
+  const [focusRenameId, setFocusRenameId] = useState<number | null>(null);
+  useEffect(() => {
+    if (focusRenameId === null) return;
+    container.current
+      ?.querySelector<HTMLButtonElement>(`[data-rename-id="${focusRenameId}"]`)
+      ?.focus();
+    setFocusRenameId(null);
+  }, [focusRenameId]);
+
+  function closeRename(id: number) {
+    setEditing(null);
+    setFocusRenameId(id);
+  }
 
   const refresh = () => queryClient.invalidateQueries({ queryKey });
 
@@ -138,8 +150,8 @@ export function CategoryManager({ kind }: { kind: CategoryKind }) {
   const update = useMutation({
     mutationFn: ({ id, changes }: { id: number; changes: CategoryChanges }) =>
       client.update(id, changes),
-    onSuccess: async () => {
-      setEditing(null);
+    onSuccess: async (_result, { id }) => {
+      if (editing?.id === id) closeRename(id);
       setListError(null);
       await refresh();
     },
@@ -160,6 +172,8 @@ export function CategoryManager({ kind }: { kind: CategoryKind }) {
     onSuccess: async () => {
       setListError(null);
       await refresh();
+      // The deleted row (and its focused button) is gone: continue from the name field.
+      nameField.current?.focus();
     },
     // FR-14: a used category cannot be deleted; offer to deactivate it instead.
     onError: (error, category) =>
@@ -176,7 +190,7 @@ export function CategoryManager({ kind }: { kind: CategoryKind }) {
     event.preventDefault();
     const parsed = parseName(newName);
     if ("error" in parsed) return setFormError(parsed.error);
-    if (findCategoryWithSameName(list, parsed.name)) return setFormError(texts.duplicate);
+    if (findCategoryWithSameName(list, parsed.name)) return setFormError(duplicateMessage);
     create.mutate(
       kind === "expense" ? { name: parsed.name, group: newGroup } : { name: parsed.name },
     );
@@ -188,20 +202,24 @@ export function CategoryManager({ kind }: { kind: CategoryKind }) {
     const parsed = parseName(editing.name);
     if ("error" in parsed) return setListError({ message: parsed.error });
     if (findCategoryWithSameName(list, parsed.name, category.id)) {
-      return setListError({ message: texts.duplicate });
+      return setListError({ message: duplicateMessage });
     }
     const changes: CategoryChanges = {};
     if (parsed.name !== category.name) changes.name = parsed.name;
     if (editing.group && editing.group !== category.group) changes.group = editing.group;
-    if (Object.keys(changes).length === 0) return setEditing(null);
+    if (Object.keys(changes).length === 0) return closeRename(category.id);
     update.mutate({ id: category.id, changes });
+  }
+
+  function cancelRename() {
+    if (editing) closeRename(editing.id);
+    setListError(null);
   }
 
   function cancelOnEscape(event: KeyboardEvent) {
     if (event.key === "Escape") {
       event.preventDefault();
-      setEditing(null);
-      setListError(null);
+      cancelRename();
     }
   }
 
@@ -211,7 +229,7 @@ export function CategoryManager({ kind }: { kind: CategoryKind }) {
   }
 
   function confirmDelete(category: Category) {
-    const question = `Excluir ${texts.article} ${texts.noun} "${category.name}"? Esta ação não pode ser desfeita.`;
+    const question = `Excluir a ${texts.noun} "${category.name}"? Esta ação não pode ser desfeita.`;
     if (window.confirm(question)) remove.mutate(category);
   }
 
@@ -223,10 +241,23 @@ export function CategoryManager({ kind }: { kind: CategoryKind }) {
   const colorIndex = new Map(list.map((category, index) => [category.id, index]));
   const busy = update.isPending || reorder.isPending || remove.isPending;
 
+  // First and last id of each group (one group for sale tabs): ↑ is disabled on the first,
+  // ↓ on the last. Computed once per list instead of calling moveCategory for every row.
+  const groupEnds = useMemo(() => {
+    const first = new Map<string, number>();
+    const last = new Map<string, number>();
+    for (const category of categories.data ?? []) {
+      const group = category.group ?? "";
+      if (!first.has(group)) first.set(group, category.id);
+      last.set(group, category.id);
+    }
+    return { first, last };
+  }, [categories.data]);
+
   function renderRow(category: Category) {
     const isEditing = editing?.id === category.id;
-    const canMoveUp = moveCategory(list, category.id, "up") !== null;
-    const canMoveDown = moveCategory(list, category.id, "down") !== null;
+    const canMoveUp = groupEnds.first.get(category.group ?? "") !== category.id;
+    const canMoveDown = groupEnds.last.get(category.group ?? "") !== category.id;
     return (
       <TableRow key={category.id} className={cn(!category.active && "text-muted-foreground")}>
         <TableCell>
@@ -263,15 +294,7 @@ export function CategoryManager({ kind }: { kind: CategoryKind }) {
               <Button type="submit" size="sm" disabled={update.isPending}>
                 Salvar
               </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  setEditing(null);
-                  setListError(null);
-                }}
-              >
+              <Button type="button" size="sm" variant="ghost" onClick={cancelRename}>
                 Cancelar
               </Button>
             </form>
@@ -299,6 +322,7 @@ export function CategoryManager({ kind }: { kind: CategoryKind }) {
               size="sm"
               variant="ghost"
               aria-label={`Renomear ${category.name}`}
+              data-rename-id={category.id}
               title="Renomear"
               disabled={isEditing}
               onClick={() => {
@@ -385,7 +409,7 @@ export function CategoryManager({ kind }: { kind: CategoryKind }) {
   }
 
   return (
-    <div className="max-w-4xl">
+    <div ref={container} className="max-w-4xl">
       <form onSubmit={submitNew} className="mb-4 flex flex-wrap items-end gap-3" noValidate>
         <div className="grid gap-1.5">
           <Label htmlFor={`new-${kind}-category`}>{texts.newLabel}</Label>
