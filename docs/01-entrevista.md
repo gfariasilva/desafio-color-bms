@@ -110,3 +110,21 @@ Legend: ✅ decided · ❓ OPEN QUESTION (ask the owner) · 🔮 future phase
 - **Monthly sheet:** updated each time a day is closed, and finalised when the month is closed.
 - **Layout:** `<pasta>/AAAA/MM - Mês/Diária AAAA-MM-DD.xlsx` and `<pasta>/AAAA/MM - Mês/Mensal AAAA-MM.xlsx`.
 - **On failure** (file open in Excel, folder missing): the export is queued, a "backup pendente" warning is shown, and the system retries automatically.
+
+## Round 7: Non-functional requirements
+
+**Q19. Backing up the system's own database** ✅
+- A copy of the database file is saved to `<pasta>/_backup-sistema/` each time a day is closed, and once a day automatically.
+- **Retention:** the last 30 daily copies, plus one copy per month kept indefinitely.
+- A "Restaurar backup" button in settings.
+
+**Q20. The shop PC** ✅
+- **Windows 11.**
+- The app starts with Windows, and a desktop shortcut opens it in the browser.
+- It works **fully offline**. Only the OneDrive upload needs internet, and it catches up later.
+
+**Q21. Budget, privacy, language** ✅
+- **Budget: R$ 0/month.** No paid hosting, services or libraries.
+- **LGPD:** no customer data is stored (no name or CPF on sales). The only sensitive data is the employee's salary amount.
+- **Language:** the interface is **pt-BR** (R$ 1.234,56, dd/mm/aaaa, timezone America/Sao_Paulo).
+- **Code and code documentation in English.**
