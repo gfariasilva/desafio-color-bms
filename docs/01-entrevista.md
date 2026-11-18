@@ -54,3 +54,22 @@ Legend: ✅ decided · ❓ OPEN QUESTION (ask the owner) · 🔮 future phase
 - The day becomes **fechado**. Reopening it needs the admin password and a reason.
 - Closing a month locks all of its days.
 - Implication: expenses need a "paid from the drawer" flag, and there is a **sangria** record.
+
+## Round 4: Expenses
+
+**Q10. Daily, general and fixed expenses** ✅
+- **One expense table**, with type = *geral* or *fixa*. "Saídas diárias" is the screen for entering general expenses on a given day.
+- **Fixed expenses come from a monthly template**, created automatically each month with a vencimento and status *pendente*.
+- When a bill is paid, the user enters the actual amount, the payment date, the payment method and whether it was paid from the drawer.
+- **Empréstimos** have a set number of installments and stop on their own.
+- The home screen shows a list of bills due soon or overdue.
+
+**Q11. How categories relate** ✅
+- Categories are **totally independent**, and each expense goes into **exactly one** category (e.g. "Kalunga" and "Acessórios" are separate totals). Nothing is counted twice.
+- The person entering the expense picks its category.
+- Consequence: expenses are not linked to sales abas, so **"abas mais lucrativas" = highest revenue**. Profit per aba is out of scope.
+
+**Q12. Which month an expense counts in** ✅
+- The **payment date** decides the month (regime de caixa).
+- The due date is stored too.
+- A pending bill only counts toward the saldo once it is paid.
