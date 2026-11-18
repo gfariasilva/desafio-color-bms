@@ -1,0 +1,17 @@
+{
+  "name": "@color-bms/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Pure business logic, formatting helpers and shared Zod schemas (no I/O)",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^3.25.76"
+  }
+}

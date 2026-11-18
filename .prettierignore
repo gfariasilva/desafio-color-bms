@@ -1,0 +1,8 @@
+node_modules
+dist
+coverage
+package-lock.json
+apps/server/migrations/meta
+
+# Markdown docs are prose (spec, ADRs, interview log); keep them hand-formatted.
+*.md
