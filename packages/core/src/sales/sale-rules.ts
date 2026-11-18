@@ -28,12 +28,13 @@ export function monthOf(date: CivilDate): string {
 /**
  * RN-14: nothing is created, edited or deleted on a closed day or in a closed month.
  * A closed month is reported first: the day can only be reopened after the month (RN-14).
+ * `suffix` says what the owner can do once the period is reopened.
  */
 export function periodLockError(
   date: CivilDate,
   status: { dayClosed: boolean; monthClosed: boolean },
+  suffix = "para registrar ou alterar lançamentos nessa data.",
 ): string | null {
-  const suffix = "para registrar ou alterar lançamentos nessa data.";
   if (status.monthClosed) {
     const [year, month] = date.split("-");
     return `O mês ${month}/${year} está fechado. Reabra o mês e o dia ${suffix}`;
@@ -52,15 +53,7 @@ export function saleChangeLockError(
   date: CivilDate,
   status: { dayClosed: boolean; monthClosed: boolean },
 ): string | null {
-  const suffix = "para alterar esta venda ou registre um estorno.";
-  if (status.monthClosed) {
-    const [year, month] = date.split("-");
-    return `O mês ${month}/${year} está fechado. Reabra o mês e o dia ${suffix}`;
-  }
-  if (status.dayClosed) {
-    return `O dia ${formatCivilDate(date)} está fechado. Reabra o dia ${suffix}`;
-  }
-  return null;
+  return periodLockError(date, status, "para alterar esta venda ou registre um estorno.");
 }
 
 /**

@@ -119,6 +119,20 @@ describe("FR-03: edit a sale on an open day (PATCH /api/sales/:id)", () => {
     });
   });
 
+  it("FR-03: changing only the method drops the machine and installments it does not use", async () => {
+    const { ids } = ctx;
+    await createFee(ctx);
+    const sale = await createSale(ctx, {
+      paymentMethodId: ids.credit,
+      cardMachineId: ids.mercadoPago,
+      installments: 3,
+      grossCents: 10000,
+    });
+    const response = await patch(sale.id, { paymentMethodId: ids.cash });
+    expect(response.statusCode, response.body).toBe(200);
+    expect(response.json()).toMatchObject({ cardMachineId: null, installments: null, feeCents: 0 });
+  });
+
   it("FR-02: an edited October sale takes the rate in force on its date", async () => {
     const { ids } = ctx;
     const card = {

@@ -111,6 +111,11 @@ export function SalesPage() {
   const [error, setError] = useState<FormError | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const [editing, setEditing] = useState<Sale | null>(null);
+  // FR-03: the new sale being typed when "Editar" was pressed, restored after the edit.
+  const draft = useRef<FormState | null>(null);
+  // Read by the RN-15 effect below, which must not move a sale being edited to a new day.
+  const editingRef = useRef(editing);
+  editingRef.current = editing;
   const valueField = useRef<HTMLInputElement>(null);
 
   // RN-15: the date starts as the server's today (never the browser clock). When the day
@@ -122,13 +127,15 @@ export function SalesPage() {
     const oldToday = previousToday.current;
     previousToday.current = newToday;
     setForm((current) =>
-      !current.date || current.date === oldToday ? { ...current, date: newToday } : current,
+      !editingRef.current && (!current.date || current.date === oldToday)
+        ? { ...current, date: newToday }
+        : current,
     );
   }, [today.data]);
 
   const listDate = isCivilDate(form.date) ? form.date : null;
   const day = useQuery({
-    queryKey: [...QUERY_KEYS.sales, listDate],
+    queryKey: [...QUERY_KEYS.salesDay, listDate],
     queryFn: () => api.sales.day(listDate as string),
     enabled: listDate !== null,
   });
@@ -152,24 +159,32 @@ export function SalesPage() {
     );
   }
 
-  /** After a save or delete: back to a new sale on `date`, focus on Valor, fresh totals. */
-  async function done(message: string, date: string) {
+  /** The form after an edit ends: the new sale that was being typed, or an empty one. */
+  function afterEdit(date: string): FormState {
+    return draft.current ?? nextSale(date);
+  }
+
+  /** After a save or delete: show `next` in the form, focus on Valor, fresh totals. */
+  async function done(message: string, next: FormState) {
     setError(null);
     setSaved(message);
     setEditing(null);
-    setForm(nextSale(date));
+    draft.current = null;
+    setForm(next);
     valueField.current?.focus();
     await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.sales });
   }
 
   const save = useMutation({
-    mutationFn: ({ id, input }: { id: number | null; input: CreateSaleInput }) =>
+    mutationFn: ({ id, input }: { id: number | null; input: CreateSaleInput; next: FormState }) =>
       id === null ? api.sales.create(input) : api.sales.update(id, input),
-    onSuccess: (sale, { id, input }) =>
-      // FR-01: ready for the next sale, keeping the date; after an edit, the day being viewed.
-      id === null
-        ? done(`Venda de ${formatCents(sale.grossCents)} registrada.`, input.date)
-        : done("Venda alterada.", editing?.date ?? input.date),
+    // FR-01: ready for the next sale, keeping the date; after an edit, the draft is back.
+    // `next` is decided when saving, so nothing done while the request runs changes it.
+    onSuccess: (sale, { id, next }) =>
+      done(
+        id === null ? `Venda de ${formatCents(sale.grossCents)} registrada.` : "Venda alterada.",
+        next,
+      ),
     onError: showFailure,
   });
 
@@ -177,7 +192,7 @@ export function SalesPage() {
     mutationFn: (sale: Sale) => api.sales.remove(sale.id),
     onSuccess: async (_, sale) => {
       // Deleting the sale being edited ends the edit; a new sale being typed is kept.
-      if (editing?.id === sale.id) return done("Venda excluída.", sale.date);
+      if (editing?.id === sale.id) return done("Venda excluída.", afterEdit(sale.date));
       setError(null);
       setSaved("Venda excluída.");
       await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.sales });
@@ -198,16 +213,19 @@ export function SalesPage() {
     if (blockedByLock()) return;
     setError(null);
     setSaved(null);
+    if (!editing) draft.current = form;
     setEditing(sale);
     setForm(fromSale(sale));
     valueField.current?.focus();
   }
 
   function cancelEdit() {
-    if (!editing) return;
+    // While the edit is being saved, its result decides what the form shows next.
+    if (!editing || save.isPending) return;
     setEditing(null);
     setError(null);
-    setForm(nextSale(editing.date));
+    setForm(afterEdit(editing.date));
+    draft.current = null;
     valueField.current?.focus();
   }
 
@@ -271,7 +289,11 @@ export function SalesPage() {
       if (dateError) return fail(dateError);
     }
     setSaved(null); // the confirmation always refers to the last save
-    save.mutate({ id: editing?.id ?? null, input: parsed.data });
+    save.mutate(
+      editing
+        ? { id: editing.id, input: parsed.data, next: afterEdit(editing.date) }
+        : { id: null, input: parsed.data, next: nextSale(parsed.data.date) },
+    );
   }
 
   return (
@@ -389,7 +411,12 @@ export function SalesPage() {
                 Salvar
               </Button>
               {editing ? (
-                <Button type="button" variant="ghost" onClick={cancelEdit}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={save.isPending}
+                  onClick={cancelEdit}
+                >
                   Cancelar
                 </Button>
               ) : null}
@@ -441,6 +468,8 @@ export function SalesPage() {
               </p>
             ) : null}
             <DaySalesView
+              // FR-05: each date starts with its own open/collapsed tabs.
+              key={day.data.date}
               day={day.data}
               editingId={editing?.id ?? null}
               busy={save.isPending || remove.isPending}

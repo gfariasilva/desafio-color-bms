@@ -1,151 +1,73 @@
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { FastifyInstance } from "fastify";
+import { describe, expect, it } from "vitest";
 import {
-  auditListResponseSchema,
   CARD_FEE_MISSING_CODE,
-  cardFeeSchema,
-  cardMachineListResponseSchema,
   DAY_CLOSED_CODE,
-  paymentMethodListResponseSchema,
-  saleCategoryListResponseSchema,
   saleListResponseSchema,
   saleSchema,
   todayResponseSchema,
   type CardFeeInput,
   type CreateSaleInput,
 } from "@color-bms/core";
+import {
+  closeDay as closeDayRow,
+  closeMonth as closeMonthRow,
+  createFee as createFeeRow,
+  NOW,
+  saleAudit,
+  useSalesApp,
+} from "./sales-fixture";
 import { buildApp } from "../src/app";
-import { openDatabase, type DatabaseConnection } from "../src/db/client";
-import { runMigrations } from "../src/db/migrate";
 
-/** 18/11/2026 at 15:00 in São Paulo (UTC−3). */
-const NOW = new Date("2026-11-18T18:00:00.000Z");
-
-let tempDir: string;
-let connection: DatabaseConnection;
-let app: FastifyInstance;
-let ids: {
-  toner: number;
-  papelaria: number;
-  pagSeguro: number;
-  mercadoPago: number;
-  cash: number;
-  debit: number;
-  credit: number;
-  pix: number;
-};
-
-beforeEach(async () => {
-  tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "color-bms-test-"));
-  connection = openDatabase(path.join(tempDir, "test.db"));
-  runMigrations(connection.db);
-  app = await buildApp({ connection, now: () => NOW });
-
-  const tabs = saleCategoryListResponseSchema.parse(
-    (await app.inject({ method: "GET", url: "/api/sale-categories" })).json(),
-  ).categories;
-  const machines = cardMachineListResponseSchema.parse(
-    (await app.inject({ method: "GET", url: "/api/card-machines" })).json(),
-  ).cardMachines;
-  const methods = paymentMethodListResponseSchema.parse(
-    (await app.inject({ method: "GET", url: "/api/payment-methods" })).json(),
-  ).paymentMethods;
-  const tab = (name: string) => tabs.find((t) => t.name === name)!.id;
-  const machine = (name: string) => machines.find((m) => m.name === name)!.id;
-  const method = (name: string) => methods.find((m) => m.name === name)!.id;
-  ids = {
-    toner: tab("Toner"),
-    papelaria: tab("Papelaria"),
-    pagSeguro: machine("PagSeguro"),
-    mercadoPago: machine("Mercado Pago"),
-    cash: method("Dinheiro"),
-    debit: method("Cartão de débito"),
-    credit: method("Cartão de crédito"),
-    pix: method("PIX/Depósito"),
-  };
-});
-
-afterEach(async () => {
-  await app.close();
-  connection.sqlite.close();
-  fs.rmSync(tempDir, { recursive: true, force: true });
-});
+const ctx = useSalesApp();
 
 const SALES = "/api/sales";
 
-async function createFee(input: Partial<CardFeeInput> = {}) {
-  const response = await app.inject({
-    method: "POST",
-    url: "/api/card-fees",
-    payload: {
-      cardMachineId: ids.mercadoPago,
-      paymentMethodId: ids.credit,
-      installmentsFrom: 2,
-      installmentsTo: 6,
-      ratePpm: 37900,
-      validFrom: "2026-01-01",
-      ...input,
-    },
-  });
-  expect(response.statusCode, response.body).toBe(201);
-  return cardFeeSchema.parse(response.json());
+/** A Mercado Pago / Crédito 2x–6x fee at 3,79%, unless overridden. */
+function createFee(input: Partial<CardFeeInput> = {}) {
+  return createFeeRow(ctx, { installmentsFrom: 2, installmentsTo: 6, ...input });
 }
 
 function cashSale(input: Partial<CreateSaleInput> = {}): CreateSaleInput {
   return {
     date: "2026-11-18",
-    saleCategoryId: ids.toner,
-    paymentMethodId: ids.cash,
+    saleCategoryId: ctx.ids.toner,
+    paymentMethodId: ctx.ids.cash,
     grossCents: 2500,
     ...input,
   };
 }
 
 function post(payload: unknown) {
-  return app.inject({ method: "POST", url: SALES, payload: payload as object });
+  return ctx.app.inject({ method: "POST", url: SALES, payload: payload as object });
 }
 
 async function listSales(date: string) {
-  const response = await app.inject({ method: "GET", url: `${SALES}?date=${date}` });
+  const response = await ctx.app.inject({ method: "GET", url: `${SALES}?date=${date}` });
   expect(response.statusCode, response.body).toBe(200);
   return saleListResponseSchema.parse(response.json()).sales;
 }
 
-async function audit() {
-  const response = await app.inject({ method: "GET", url: "/api/audit?entity=sale" });
-  return auditListResponseSchema.parse(response.json()).entries;
-}
+const audit = () => saleAudit(ctx);
+const closeDay = (date: string) => closeDayRow(ctx, date);
+const closeMonth = (yearMonth: string) => closeMonthRow(ctx, yearMonth);
 
 function salesCount(): number {
-  return connection.sqlite.prepare("select count(*) from sales").pluck().get() as number;
-}
-
-function closeDay(date: string) {
-  // #9 will close days through the API; until then the test writes the row itself.
-  connection.sqlite
-    .prepare("insert into days (date, status, closed_at) values (?, 'closed', ?)")
-    .run(date, NOW.toISOString());
-}
-
-function closeMonth(yearMonth: string) {
-  connection.sqlite
-    .prepare("insert into months (year_month, status, closed_at) values (?, 'closed', ?)")
-    .run(yearMonth, NOW.toISOString());
+  return ctx.connection.sqlite.prepare("select count(*) from sales").pluck().get() as number;
 }
 
 describe("GET /api/today (RN-15)", () => {
   it("RN-15: answers today's civil date in São Paulo from the server clock", async () => {
-    const response = await app.inject({ method: "GET", url: "/api/today" });
+    const response = await ctx.app.inject({ method: "GET", url: "/api/today" });
     expect(todayResponseSchema.parse(response.json())).toEqual({ date: "2026-11-18" });
   });
 
   it("RN-15: after 21:00 in São Paulo it is still the same day (UTC is already tomorrow)", async () => {
-    await app.close();
-    app = await buildApp({ connection, now: () => new Date("2026-11-19T02:59:00Z") });
-    const response = await app.inject({ method: "GET", url: "/api/today" });
+    await ctx.app.close();
+    ctx.app = await buildApp({
+      connection: ctx.connection,
+      now: () => new Date("2026-11-19T02:59:00Z"),
+    });
+    const response = await ctx.app.inject({ method: "GET", url: "/api/today" });
     expect(response.json()).toEqual({ date: "2026-11-18" });
   });
 });
@@ -156,9 +78,9 @@ describe("FR-01: register a sale", () => {
 
     const response = await post({
       date: "2026-11-18",
-      saleCategoryId: ids.toner,
-      paymentMethodId: ids.credit,
-      cardMachineId: ids.mercadoPago,
+      saleCategoryId: ctx.ids.toner,
+      paymentMethodId: ctx.ids.credit,
+      cardMachineId: ctx.ids.mercadoPago,
       installments: 3,
       grossCents: 15000,
     });
@@ -168,7 +90,7 @@ describe("FR-01: register a sale", () => {
       date: "2026-11-18",
       type: "sale",
       createdAt: NOW.toISOString(),
-      saleCategoryId: ids.toner,
+      saleCategoryId: ctx.ids.toner,
       saleCategoryName: "Toner",
       paymentMethodName: "Cartão de crédito",
       cardMachineName: "Mercado Pago",
@@ -192,9 +114,9 @@ describe("FR-01: register a sale", () => {
       (
         await post({
           date: "2026-11-18",
-          saleCategoryId: ids.toner,
-          paymentMethodId: ids.credit,
-          cardMachineId: ids.mercadoPago,
+          saleCategoryId: ctx.ids.toner,
+          paymentMethodId: ctx.ids.credit,
+          cardMachineId: ctx.ids.mercadoPago,
           installments: 3,
           grossCents: 15000,
           note: "cliente da gráfica",
@@ -237,18 +159,22 @@ describe("FR-01: register a sale", () => {
   });
 
   it("RN-02: PIX without a machine has no fee; PIX through a machine uses its fee", async () => {
-    const direct = await post(cashSale({ paymentMethodId: ids.pix }));
+    const direct = await post(cashSale({ paymentMethodId: ctx.ids.pix }));
     expect(direct.json()).toMatchObject({ feeRatePpm: 0, feeCents: 0, netCents: 2500 });
 
     await createFee({
-      cardMachineId: ids.pagSeguro,
-      paymentMethodId: ids.pix,
+      cardMachineId: ctx.ids.pagSeguro,
+      paymentMethodId: ctx.ids.pix,
       installmentsFrom: 1,
       installmentsTo: 1,
       ratePpm: 9900,
     });
     const viaMachine = await post(
-      cashSale({ paymentMethodId: ids.pix, cardMachineId: ids.pagSeguro, grossCents: 10000 }),
+      cashSale({
+        paymentMethodId: ctx.ids.pix,
+        cardMachineId: ctx.ids.pagSeguro,
+        grossCents: 10000,
+      }),
     );
     expect(viaMachine.statusCode, viaMachine.body).toBe(201);
     expect(viaMachine.json()).toMatchObject({ feeRatePpm: 9900, feeCents: 99, netCents: 9901 });
@@ -257,7 +183,7 @@ describe("FR-01: register a sale", () => {
   it("FR-01: credit installments default to 1", async () => {
     await createFee({ installmentsFrom: 1, installmentsTo: 1, ratePpm: 31900 });
     const response = await post(
-      cashSale({ paymentMethodId: ids.credit, cardMachineId: ids.mercadoPago }),
+      cashSale({ paymentMethodId: ctx.ids.credit, cardMachineId: ctx.ids.mercadoPago }),
     );
     expect(response.statusCode, response.body).toBe(201);
     expect(response.json()).toMatchObject({ installments: 1, feeRatePpm: 31900 });
@@ -288,8 +214,8 @@ describe("FR-01: register a sale", () => {
     await createFee({ installmentsFrom: 2, installmentsTo: 6 });
     const response = await post(
       cashSale({
-        paymentMethodId: ids.credit,
-        cardMachineId: ids.mercadoPago,
+        paymentMethodId: ctx.ids.credit,
+        cardMachineId: ctx.ids.mercadoPago,
         installments: 7,
         grossCents: 15000,
       }),
@@ -306,7 +232,11 @@ describe("FR-01: register a sale", () => {
   it("RN-01: a fee that starts after the sale date does not apply", async () => {
     await createFee({ validFrom: "2026-11-19" });
     const response = await post(
-      cashSale({ paymentMethodId: ids.credit, cardMachineId: ids.mercadoPago, installments: 3 }),
+      cashSale({
+        paymentMethodId: ctx.ids.credit,
+        cardMachineId: ctx.ids.mercadoPago,
+        installments: 3,
+      }),
     );
     expect(response.statusCode).toBe(409);
     expect(response.json()).toMatchObject({ code: CARD_FEE_MISSING_CODE });
@@ -327,33 +257,33 @@ describe("FR-01: register a sale", () => {
   });
 
   it("FR-01: only active tabs, methods and machines", async () => {
-    await app.inject({
+    await ctx.app.inject({
       method: "PATCH",
-      url: `/api/sale-categories/${ids.toner}`,
+      url: `/api/sale-categories/${ctx.ids.toner}`,
       payload: { active: false },
     });
     expect((await post(cashSale())).json()).toEqual({ error: "Escolha uma aba ativa." });
 
-    await app.inject({
+    await ctx.app.inject({
       method: "PATCH",
-      url: `/api/payment-methods/${ids.cash}`,
+      url: `/api/payment-methods/${ctx.ids.cash}`,
       payload: { active: false },
     });
-    expect((await post(cashSale({ saleCategoryId: ids.papelaria }))).json()).toEqual({
+    expect((await post(cashSale({ saleCategoryId: ctx.ids.papelaria }))).json()).toEqual({
       error: "Escolha uma forma de pagamento ativa.",
     });
 
     await createFee({ installmentsFrom: 1, installmentsTo: 1 });
-    await app.inject({
+    await ctx.app.inject({
       method: "PATCH",
-      url: `/api/card-machines/${ids.mercadoPago}`,
+      url: `/api/card-machines/${ctx.ids.mercadoPago}`,
       payload: { active: false },
     });
     const inactiveMachine = await post(
       cashSale({
-        saleCategoryId: ids.papelaria,
-        paymentMethodId: ids.credit,
-        cardMachineId: ids.mercadoPago,
+        saleCategoryId: ctx.ids.papelaria,
+        paymentMethodId: ctx.ids.credit,
+        cardMachineId: ctx.ids.mercadoPago,
       }),
     );
     expect(inactiveMachine.statusCode).toBe(400);
@@ -368,18 +298,22 @@ describe("FR-01: register a sale", () => {
   });
 
   it("FR-01: the machine is required for cards and not allowed for cash", async () => {
-    const card = await post(cashSale({ paymentMethodId: ids.debit }));
+    const card = await post(cashSale({ paymentMethodId: ctx.ids.debit }));
     expect(card.statusCode).toBe(400);
     expect(card.json()).toEqual({ error: "Escolha a maquininha." });
 
-    const cash = await post(cashSale({ cardMachineId: ids.pagSeguro }));
+    const cash = await post(cashSale({ cardMachineId: ctx.ids.pagSeguro }));
     expect(cash.statusCode).toBe(400);
     expect(cash.json()).toEqual({ error: "Dinheiro não usa maquininha." });
   });
 
   it("FR-01: installments only for methods that allow them", async () => {
     const response = await post(
-      cashSale({ paymentMethodId: ids.debit, cardMachineId: ids.pagSeguro, installments: 3 }),
+      cashSale({
+        paymentMethodId: ctx.ids.debit,
+        cardMachineId: ctx.ids.pagSeguro,
+        installments: 3,
+      }),
     );
     expect(response.statusCode).toBe(400);
     expect(response.json()).toEqual({ error: "Cartão de débito não permite parcelas." });
@@ -389,13 +323,13 @@ describe("FR-01: register a sale", () => {
     expect((await post(cashSale({ grossCents: 0 }))).json()).toEqual({
       error: "Informe um valor maior que zero.",
     });
-    const noBody = await app.inject({ method: "POST", url: SALES });
+    const noBody = await ctx.app.inject({ method: "POST", url: SALES });
     expect(noBody.statusCode).toBe(400);
     expect(noBody.json()).toEqual({ error: "Dados inválidos." });
   });
 
   it("GET /api/sales needs a valid date", async () => {
-    const response = await app.inject({ method: "GET", url: `${SALES}?date=ontem` });
+    const response = await ctx.app.inject({ method: "GET", url: `${SALES}?date=ontem` });
     expect(response.statusCode).toBe(400);
     expect(response.json()).toEqual({ error: "Data inválida." });
   });
@@ -409,7 +343,7 @@ describe("FR-01: register a sale", () => {
 
 describe("FR-02: the fee is copied onto the sale", () => {
   it("FR-02: a sale of October keeps 1,99% after the rate changes to 1,49% on 01/11", async () => {
-    const debitFee = { cardMachineId: ids.mercadoPago, paymentMethodId: ids.debit };
+    const debitFee = { cardMachineId: ctx.ids.mercadoPago, paymentMethodId: ctx.ids.debit };
     await createFee({ ...debitFee, installmentsFrom: 1, installmentsTo: 1, ratePpm: 19900 });
     await createFee({
       ...debitFee,
@@ -432,19 +366,19 @@ describe("FR-02: the fee is copied onto the sale", () => {
     const fee = await createFee({ ratePpm: 37900 });
     await post(
       cashSale({
-        paymentMethodId: ids.credit,
-        cardMachineId: ids.mercadoPago,
+        paymentMethodId: ctx.ids.credit,
+        cardMachineId: ctx.ids.mercadoPago,
         installments: 3,
         grossCents: 15000,
       }),
     );
 
-    const edit = await app.inject({
+    const edit = await ctx.app.inject({
       method: "PUT",
       url: `/api/card-fees/${fee.id}`,
       payload: {
-        cardMachineId: ids.mercadoPago,
-        paymentMethodId: ids.credit,
+        cardMachineId: ctx.ids.mercadoPago,
+        paymentMethodId: ctx.ids.credit,
         installmentsFrom: 2,
         installmentsTo: 6,
         ratePpm: 50000,
@@ -458,7 +392,7 @@ describe("FR-02: the fee is copied onto the sale", () => {
       netCents: 14431,
     });
 
-    const remove = await app.inject({ method: "DELETE", url: `/api/card-fees/${fee.id}` });
+    const remove = await ctx.app.inject({ method: "DELETE", url: `/api/card-fees/${fee.id}` });
     expect(remove.statusCode).toBe(204);
     expect((await listSales("2026-11-18"))[0]).toMatchObject({ feeRatePpm: 37900 });
   });

@@ -415,6 +415,40 @@ describe("Vendas: the day per tab (FR-05)", () => {
     expect(patches).toEqual([]);
   });
 
+  it("FR-03: a new sale being typed comes back after the edit is cancelled or saved", async () => {
+    sales = [sale({ id: 1 })];
+    await openPage();
+    fireEvent.change(value(), { target: { value: "150" } });
+    pick("Aba", "Acessórios");
+    const edit = await screen.findByRole("button", { name: /Editar venda/ });
+
+    fireEvent.click(edit);
+    expect(value()).toHaveValue("25,00");
+    fireEvent.keyDown(value(), { key: "Escape" });
+    expect(value()).toHaveValue("150");
+    expect(screen.getByRole("radio", { name: /Acessórios/ })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+
+    fireEvent.click(edit);
+    submit();
+    await screen.findByText("Venda alterada.");
+    expect(value()).toHaveValue("150");
+  });
+
+  it("FR-05: a tab collapsed on one day starts open on another day with sales", async () => {
+    sales = [sale({ id: 1 }), sale({ id: 2, date: "2026-11-17" })];
+    await openPage();
+    const toner = () => screen.getByRole("button", { name: /Toner/ });
+    await waitFor(() => expect(toner()).toHaveAttribute("aria-expanded", "true"));
+    fireEvent.click(toner());
+    expect(toner()).toHaveAttribute("aria-expanded", "false");
+    fireEvent.change(screen.getByLabelText("Data"), { target: { value: "2026-11-17" } });
+    await screen.findByText("Vendas de 17/11/2026");
+    await waitFor(() => expect(toner()).toHaveAttribute("aria-expanded", "true"));
+  });
+
   it("FR-03: an inactive tab of the edited sale is offered while editing", async () => {
     sales = [sale({ id: 1, saleCategoryId: 2, saleCategoryName: "Recargas" })];
     await openPage();

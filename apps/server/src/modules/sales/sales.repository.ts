@@ -302,15 +302,24 @@ export function updateSale(
 ): Sale {
   return db.transaction((tx) => {
     const before = changeableSale(tx, id);
+    const paymentMethodId = input.paymentMethodId ?? before.paymentMethodId;
+    // A new method drops the saved machine / installments it does not use (as the form does),
+    // so `{ paymentMethodId }` alone can switch Crédito to Dinheiro.
+    const newMethod =
+      paymentMethodId === before.paymentMethodId
+        ? undefined
+        : tx.select().from(paymentMethods).where(eq(paymentMethods.id, paymentMethodId)).get();
+    const keptMachine = newMethod?.machineUsage === "not_applicable" ? null : before.cardMachineId;
+    const keptInstallments =
+      newMethod && !newMethod.allowsInstallments ? null : before.installments;
     const priced = checkAndPrice(
       tx,
       {
         date: input.date ?? before.date,
         saleCategoryId: input.saleCategoryId ?? before.saleCategoryId,
-        paymentMethodId: input.paymentMethodId ?? before.paymentMethodId,
-        cardMachineId:
-          input.cardMachineId === undefined ? before.cardMachineId : input.cardMachineId,
-        installments: input.installments === undefined ? before.installments : input.installments,
+        paymentMethodId,
+        cardMachineId: input.cardMachineId === undefined ? keptMachine : input.cardMachineId,
+        installments: input.installments === undefined ? keptInstallments : input.installments,
         grossCents: input.grossCents ?? before.grossCents,
         note: input.note === undefined ? before.note : input.note,
       },
