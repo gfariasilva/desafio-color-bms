@@ -3,16 +3,14 @@ import {
   CARD_FEE_TEXTS,
   cardFeeInForceQuerySchema,
   cardFeeInputSchema,
-  categoryListQuerySchema,
   createCardMachineInputSchema,
   createPaymentMethodInputSchema,
   PAYMENT_LIST_TEXTS,
-  reorderCategoriesInputSchema,
   updateCardMachineInputSchema,
   updatePaymentMethodInputSchema,
-  type PaymentListKind,
 } from "@color-bms/core";
 import type { DatabaseConnection } from "../../db/client";
+import { registerOrderedListRoutes } from "../../http/ordered-list-routes";
 import { parseId, parseOr400, sendError } from "../../http/route-helpers";
 import {
   createCardFee,
@@ -29,75 +27,36 @@ import {
   updatePaymentItem,
 } from "./payment-lists.repository";
 
-/** Each list's URL, response key and the Zod schemas that validate its request bodies. */
-const LISTS = {
-  payment_method: {
+/** FR-15: the same endpoints as the categories (FR-14), for both payment lists. */
+function registerPaymentLists(app: FastifyInstance, { db }: DatabaseConnection) {
+  registerOrderedListRoutes(app, {
     url: "/api/payment-methods",
     key: "paymentMethods",
-    create: createPaymentMethodInputSchema,
-    update: updatePaymentMethodInputSchema,
-  },
-  card_machine: {
+    notFound: PAYMENT_LIST_TEXTS.payment_method.notFound,
+    createSchema: createPaymentMethodInputSchema,
+    updateSchema: updatePaymentMethodInputSchema,
+    repository: {
+      list: (active) => listPaymentItems(db, "payment_method", active),
+      create: (input) => createPaymentItem(db, "payment_method", input),
+      update: (id, changes) => updatePaymentItem(db, "payment_method", id, changes),
+      reorder: (ids) => reorderPaymentItems(db, "payment_method", ids),
+      remove: (id) => deletePaymentItem(db, "payment_method", id),
+    },
+  });
+
+  registerOrderedListRoutes(app, {
     url: "/api/card-machines",
     key: "cardMachines",
-    create: createCardMachineInputSchema,
-    update: updateCardMachineInputSchema,
-  },
-} as const;
-
-/** FR-15: the same endpoints as the categories (FR-14), for one list. */
-function registerList(app: FastifyInstance, { db }: DatabaseConnection, kind: PaymentListKind) {
-  const { url, key, create, update } = LISTS[kind];
-  const notFound = { error: PAYMENT_LIST_TEXTS[kind].notFound };
-
-  // ?active=true for the sale form, ?active=false for only the deactivated ones.
-  app.get(url, async (request, reply) => {
-    const query = parseOr400(categoryListQuerySchema, request.query, reply);
-    if (!query) return reply;
-    return { [key]: listPaymentItems(db, kind, query.active) };
-  });
-
-  app.post(url, async (request, reply) => {
-    const input = parseOr400(create, request.body, reply);
-    if (!input) return reply;
-    try {
-      return reply.code(201).send(createPaymentItem(db, kind, input));
-    } catch (error) {
-      return sendError(reply, error);
-    }
-  });
-
-  app.put(`${url}/order`, async (request, reply) => {
-    const input = parseOr400(reorderCategoriesInputSchema, request.body, reply);
-    if (!input) return reply;
-    try {
-      return { [key]: reorderPaymentItems(db, kind, input.ids) };
-    } catch (error) {
-      return sendError(reply, error);
-    }
-  });
-
-  app.patch<{ Params: { id: string } }>(`${url}/:id`, async (request, reply) => {
-    const id = parseId(request.params.id);
-    if (id === null) return reply.code(404).send(notFound);
-    const changes = parseOr400(update, request.body, reply);
-    if (!changes) return reply;
-    try {
-      return updatePaymentItem(db, kind, id, changes);
-    } catch (error) {
-      return sendError(reply, error);
-    }
-  });
-
-  app.delete<{ Params: { id: string } }>(`${url}/:id`, async (request, reply) => {
-    const id = parseId(request.params.id);
-    if (id === null) return reply.code(404).send(notFound);
-    try {
-      deletePaymentItem(db, kind, id);
-      return reply.code(204).send();
-    } catch (error) {
-      return sendError(reply, error);
-    }
+    notFound: PAYMENT_LIST_TEXTS.card_machine.notFound,
+    createSchema: createCardMachineInputSchema,
+    updateSchema: updateCardMachineInputSchema,
+    repository: {
+      list: (active) => listPaymentItems(db, "card_machine", active),
+      create: (input) => createPaymentItem(db, "card_machine", input),
+      update: (id, changes) => updatePaymentItem(db, "card_machine", id, changes),
+      reorder: (ids) => reorderPaymentItems(db, "card_machine", ids),
+      remove: (id) => deletePaymentItem(db, "card_machine", id),
+    },
   });
 }
 
@@ -156,7 +115,6 @@ function registerCardFees(app: FastifyInstance, { db }: DatabaseConnection) {
  * PUT /:id, DELETE /:id).
  */
 export function registerPaymentRoutes(app: FastifyInstance, connection: DatabaseConnection): void {
-  registerList(app, connection, "payment_method");
-  registerList(app, connection, "card_machine");
+  registerPaymentLists(app, connection);
   registerCardFees(app, connection);
 }

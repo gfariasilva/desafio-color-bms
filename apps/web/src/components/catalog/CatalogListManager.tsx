@@ -60,17 +60,58 @@ interface CategoryChanges {
   allowsInstallments?: boolean;
 }
 
-/** What creating an item sends: the name plus the fields of its list. */
-type CreateInput = Omit<CategoryChanges, "active"> & { name: string };
+/** The "Nova …" form: the name plus every list's extra fields; each list sends only its own. */
+interface CreateInput {
+  name: string;
+  group: ExpenseCategoryGroup;
+  machineUsage: MachineUsage;
+  allowsInstallments: boolean;
+}
 
-/** The API calls this screen needs, the same for every list. */
+/** The API calls whose bodies are the same for every list. */
 interface CategoryClient {
   list(): Promise<Category[]>;
-  // The server validates the fields of each list with its own Zod schema.
-  create(input: never): Promise<unknown>;
-  update(id: number, changes: never): Promise<unknown>;
   reorder(ids: number[]): Promise<unknown>;
   remove(id: number): Promise<void>;
+}
+
+/** Creates an item with the typed body of its list's API. */
+function createItem(kind: CatalogListKind, input: CreateInput): Promise<unknown> {
+  const { name } = input;
+  switch (kind) {
+    case "sale":
+      return api.saleCategories.create({ name });
+    case "expense":
+      return api.expenseCategories.create({ name, group: input.group });
+    case "payment_method":
+      return api.paymentMethods.create({
+        name,
+        machineUsage: input.machineUsage,
+        allowsInstallments: input.allowsInstallments,
+      });
+    case "card_machine":
+      return api.cardMachines.create({ name });
+  }
+}
+
+/** Updates an item, sending only the fields its list's API accepts (typed per list). */
+function updateItem(kind: CatalogListKind, id: number, changes: CategoryChanges) {
+  const { name, active } = changes;
+  switch (kind) {
+    case "sale":
+      return api.saleCategories.update(id, { name, active });
+    case "expense":
+      return api.expenseCategories.update(id, { name, active, group: changes.group });
+    case "payment_method":
+      return api.paymentMethods.update(id, {
+        name,
+        active,
+        machineUsage: changes.machineUsage,
+        allowsInstallments: changes.allowsInstallments,
+      });
+    case "card_machine":
+      return api.cardMachines.update(id, { name, active });
+  }
 }
 
 const CLIENTS: Record<CatalogListKind, CategoryClient> = {
@@ -200,7 +241,7 @@ export function CatalogListManager({ kind }: { kind: CatalogListKind }) {
   const refresh = () => queryClient.invalidateQueries({ queryKey });
 
   const create = useMutation({
-    mutationFn: (input: CreateInput) => client.create(input as never),
+    mutationFn: (input: CreateInput) => createItem(kind, input),
     onSuccess: async () => {
       setNewName("");
       setFormError(null);
@@ -212,7 +253,7 @@ export function CatalogListManager({ kind }: { kind: CatalogListKind }) {
 
   const update = useMutation({
     mutationFn: ({ id, changes }: { id: number; changes: CategoryChanges }) =>
-      client.update(id, changes as never),
+      updateItem(kind, id, changes),
     onSuccess: async (_result, { id }) => {
       if (editing?.id === id) closeRename(id);
       setListError(null);
@@ -254,13 +295,12 @@ export function CatalogListManager({ kind }: { kind: CatalogListKind }) {
     const parsed = parseName(newName);
     if ("error" in parsed) return setFormError(parsed.error);
     if (findCategoryWithSameName(list, parsed.name)) return setFormError(duplicateMessage);
-    const input: CreateInput = { name: parsed.name };
-    if (kind === "expense") input.group = newGroup;
-    if (isPaymentMethod) {
-      input.machineUsage = newMachineUsage;
-      input.allowsInstallments = newAllowsInstallments;
-    }
-    create.mutate(input);
+    create.mutate({
+      name: parsed.name,
+      group: newGroup,
+      machineUsage: newMachineUsage,
+      allowsInstallments: newAllowsInstallments,
+    });
   }
 
   function submitRename(event: FormEvent, category: Category) {

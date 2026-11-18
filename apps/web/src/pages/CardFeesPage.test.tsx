@@ -331,4 +331,62 @@ describe("Tabela de taxas (FR-15)", () => {
       expect(writes()).toEqual([{ method: "DELETE", url: "/api/card-fees/10", body: undefined }]),
     );
   });
+
+  it("FR-15: deleting the row being edited leaves edit mode", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    writeResponse = () => new Response(null, { status: 204 });
+    await openPage();
+    const name = "PagSeguro / Cartão de crédito / 2–6x desde 01/01/2020";
+    fireEvent.click(screen.getByRole("button", { name: `Editar ${name}` }));
+    expect(screen.getByRole("button", { name: "Salvar" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: `Excluir ${name}` }));
+    expect(await screen.findByRole("button", { name: "Adicionar" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Taxa (%)")).toHaveValue("");
+  });
+
+  it("FR-15: editing a row keeps its stored range when the method no longer allows installments", async () => {
+    methods[2] = { ...methods[2]!, allowsInstallments: false };
+    try {
+      writeResponse = () =>
+        new Response(
+          JSON.stringify({ error: "Cartão de crédito não permite parcelas: use a faixa 1x." }),
+          {
+            status: 400,
+          },
+        );
+      await openPage();
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Editar PagSeguro / Cartão de crédito / 2–6x desde 01/01/2020",
+        }),
+      );
+      expect(screen.getByLabelText("Parcelas de")).toHaveValue(2);
+      expect(screen.getByLabelText("Parcelas até")).toHaveValue(6);
+      fill("Taxa (%)", "4,89");
+      submit();
+      await waitFor(() => expect(writes()).toHaveLength(1));
+      expect(writes()[0]?.body).toMatchObject({ installmentsFrom: 2, installmentsTo: 6 });
+      expect(await screen.findByRole("alert")).toHaveTextContent("não permite parcelas");
+    } finally {
+      methods[2] = { ...methods[2]!, allowsInstallments: true };
+    }
+  });
+
+  it("RN-01: rows of an inactive machine show as Sem uso", async () => {
+    fees.push({
+      id: 20,
+      cardMachineId: 3,
+      paymentMethodId: 2,
+      installmentsFrom: 1,
+      installmentsTo: 1,
+      ratePpm: 19900,
+      validFrom: "2020-01-01",
+    });
+    await openPage();
+    const section = (await screen.findByRole("heading", { name: /Cielo antiga/ })).closest(
+      "section",
+    ) as HTMLElement;
+    expect(within(section).getByText("Sem uso")).toBeInTheDocument();
+    expect(within(section).queryByText("Em vigor")).toBeNull();
+  });
 });

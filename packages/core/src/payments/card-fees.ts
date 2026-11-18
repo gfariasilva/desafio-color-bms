@@ -98,13 +98,15 @@ export function findOverlappingFee<T extends CardFeeRule>(
   );
 }
 
-export const FEE_STATUSES = ["current", "future", "superseded"] as const;
+/** `unused`: the machine or method is inactive, or the method no longer uses a machine. */
+export const FEE_STATUSES = ["current", "future", "superseded", "unused"] as const;
 export type FeeStatus = (typeof FEE_STATUSES)[number];
 
 export const FEE_STATUS_LABELS: Record<FeeStatus, string> = {
   current: "Em vigor",
   future: "Futura",
   superseded: "Substituída",
+  unused: "Sem uso",
 };
 
 /**

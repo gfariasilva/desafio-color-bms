@@ -207,7 +207,9 @@ O proprietário pode **criar, renomear, desativar, reativar e reordenar** catego
 - Overlap = same machine, method and "vigente desde" with intersecting ranges; other dates are versions picked per installment count by RN-01 (`findFeeInForce`).
 - **#4** gets the fee with `GET /api/card-fees/in-force?cardMachineId&paymentMethodId&installments&date` (`{ fee }` or `{ fee: null }`), or calls `findCardFeeInForce()` in the server. The "atalho para a tabela de taxas" in the FR-01 error links to `/cadastros/taxas`.
 - Fee rows can be edited and deleted (sales never reference them, spec §6.1). Changing a method's machine usage or installments is allowed; rows that no longer apply simply stop being used.
-- `parseOr400`, `parseId`, `BusinessError` and `sendError` moved to `apps/server/src/http/route-helpers.ts`; `CategoryManager` became `CatalogListManager` (4 lists) and `CategoriesPage` became `CatalogListPage`.
+- Fee rows of an inactive machine or method, or of a method that no longer uses a machine, never apply: `GET /api/card-fees/in-force` returns `{ fee: null }` and the screen shows them as **Sem uso** (`isCardFeeUsable()` in core).
+- Follow-up: `payment-lists.repository.ts` still repeats the list logic of `categories.repository.ts` (select, reorder, delete, order gap); a shared list engine for the four lists would remove the copy.
+- The list endpoints of all four lists come from `registerOrderedListRoutes()` in `apps/server/src/http/ordered-list-routes.ts`. `parseOr400`, `parseId`, `BusinessError` and `sendError` moved to `apps/server/src/http/route-helpers.ts`; `CategoryManager` became `CatalogListManager` (4 lists) and `CategoriesPage` became `CatalogListPage`.
 
 **Acceptance criteria** _(verbatim from spec §4)_
 

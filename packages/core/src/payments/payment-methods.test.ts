@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   canHaveCardFee,
+  isCardFeeUsable,
   createCardMachineInputSchema,
   createPaymentMethodInputSchema,
   INITIAL_CARD_MACHINES,
@@ -30,6 +31,15 @@ describe("FR-15: payment method rules", () => {
     expect(canHaveCardFee({ machineUsage: "required" })).toBe(true);
     expect(canHaveCardFee({ machineUsage: "optional" })).toBe(true);
     expect(canHaveCardFee({ machineUsage: "not_applicable" })).toBe(false);
+  });
+
+  it("RN-01: a fee row is only used while machine and method are active and use a machine", () => {
+    const machine = { active: true };
+    const method = { active: true, machineUsage: "required" as const };
+    expect(isCardFeeUsable(machine, method)).toBe(true);
+    expect(isCardFeeUsable({ active: false }, method)).toBe(false);
+    expect(isCardFeeUsable(machine, { ...method, active: false })).toBe(false);
+    expect(isCardFeeUsable(machine, { ...method, machineUsage: "not_applicable" })).toBe(false);
   });
 
   it("FR-15: creating a payment method needs a name, machine usage and installments flag", () => {

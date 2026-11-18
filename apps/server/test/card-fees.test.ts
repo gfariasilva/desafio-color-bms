@@ -238,6 +238,67 @@ describe("FR-15: fee table", () => {
     expect(auditCount()).toBe(count);
   });
 
+  it("FR-15: an unchanged row saves as a no-op even if its method changed since", async () => {
+    const fee = await createFee(
+      creditFee({ paymentMethodId: ids.debit, installmentsFrom: 1, installmentsTo: 1 }),
+    );
+    await app.inject({
+      method: "PATCH",
+      url: `/api/payment-methods/${ids.debit}`,
+      payload: { machineUsage: "not_applicable" },
+    });
+    const count = auditCount();
+    const response = await app.inject({
+      method: "PUT",
+      url: `${FEES}/${fee.id}`,
+      payload: creditFee({ paymentMethodId: ids.debit, installmentsFrom: 1, installmentsTo: 1 }),
+    });
+    expect(response.statusCode).toBe(200);
+    expect(auditCount()).toBe(count);
+  });
+
+  it("RN-01: rows of an inactive machine/method or a method without machine never apply", async () => {
+    await createFee(creditFee());
+    const query = {
+      machine: ids.pagSeguro,
+      method: ids.credit,
+      installments: 3,
+      date: "2026-11-18",
+    };
+    expect(await inForce(query)).not.toBeNull();
+
+    await app.inject({
+      method: "PATCH",
+      url: `/api/card-machines/${ids.pagSeguro}`,
+      payload: { active: false },
+    });
+    expect(await inForce(query)).toBeNull();
+    await app.inject({
+      method: "PATCH",
+      url: `/api/card-machines/${ids.pagSeguro}`,
+      payload: { active: true },
+    });
+
+    await app.inject({
+      method: "PATCH",
+      url: `/api/payment-methods/${ids.credit}`,
+      payload: { active: false },
+    });
+    expect(await inForce(query)).toBeNull();
+    await app.inject({
+      method: "PATCH",
+      url: `/api/payment-methods/${ids.credit}`,
+      payload: { active: true },
+    });
+
+    await app.inject({
+      method: "PATCH",
+      url: `/api/payment-methods/${ids.credit}`,
+      payload: { machineUsage: "not_applicable" },
+    });
+    expect(await inForce(query)).toBeNull();
+  });
+
   it("FR-15: deletes a fee row, audited", async () => {
     const fee = await createFee(creditFee());
     const response = await app.inject({ method: "DELETE", url: `${FEES}/${fee.id}` });

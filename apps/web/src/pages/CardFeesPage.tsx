@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Trash2 } from "lucide-react";
@@ -13,6 +13,7 @@ import {
   formatInstallmentRange,
   formatRateDecimal,
   formatRatePercent,
+  isCardFeeUsable,
   MAX_INSTALLMENTS,
   parseRatePercent,
   todayCivilDate,
@@ -67,6 +68,7 @@ const STATUS_BADGES: Record<FeeStatus, { variant: BadgeProps["variant"]; classNa
   current: { variant: "success" },
   future: { variant: "secondary" },
   superseded: { variant: "outline", className: "text-muted-foreground" },
+  unused: { variant: "outline", className: "text-muted-foreground" },
 };
 
 function errorMessage(error: unknown): string {
@@ -103,9 +105,22 @@ export function CardFeesPage() {
   const methodById = new Map(methodList.map((method) => [method.id, method]));
   const today = todayCivilDate();
 
+  // RN-01 status of every row, computed once per fee list (not on every keystroke).
+  const statusById = useMemo(() => {
+    const list = fees.data ?? [];
+    return new Map(list.map((fee) => [fee.id, feeStatus(list, fee, today)]));
+  }, [fees.data, today]);
+
   const selectedMethod = methodById.get(Number(form.paymentMethodId));
+  // A row being edited keeps its stored range, even if its method no longer allows
+  // installments: the server then explains the problem instead of the range changing silently.
+  const editingStoredRange =
+    editing !== null &&
+    editing.paymentMethodId === selectedMethod?.id &&
+    editing.installmentsTo > 1;
   // FR-01: only credit-like methods have installments; the others use the 1x range.
-  const lockedToOne = selectedMethod !== undefined && !selectedMethod.allowsInstallments;
+  const lockedToOne =
+    selectedMethod !== undefined && !selectedMethod.allowsInstallments && !editingStoredRange;
 
   // The form offers active machines and active methods that use a machine; when editing,
   // also the row's own machine and method, even if they were deactivated since.
@@ -139,8 +154,14 @@ export function CardFeesPage() {
 
   const remove = useMutation({
     mutationFn: (fee: CardFee) => api.cardFees.remove(fee.id),
-    onSuccess: async () => {
+    onSuccess: async (_result, fee) => {
       setListError(null);
+      // The deleted row was loaded in the form: leave edit mode, or Salvar would hit a 404.
+      if (editing?.id === fee.id) {
+        setEditing(null);
+        setFormError(null);
+        setForm(emptyForm());
+      }
       await refresh();
       firstField.current?.focus();
     },
@@ -274,14 +295,20 @@ export function CardFeesPage() {
   }
 
   function renderRow(fee: CardFee) {
-    const status = feeStatus(feeList, fee, today);
+    const machine = machineById.get(fee.cardMachineId);
+    const method = methodById.get(fee.paymentMethodId);
+    // Rows of an inactive machine/method, or of a method without machine, never apply (RN-01).
+    const status: FeeStatus =
+      machine && method && !isCardFeeUsable(machine, method)
+        ? "unused"
+        : (statusById.get(fee.id) ?? "superseded");
     const badge = STATUS_BADGES[status];
     const label = describe(fee);
     return (
       <TableRow
         key={fee.id}
         className={cn(
-          status === "superseded" && "text-muted-foreground",
+          (status === "superseded" || status === "unused") && "text-muted-foreground",
           editing?.id === fee.id && "bg-muted",
         )}
       >
@@ -476,8 +503,9 @@ export function CardFeesPage() {
 
         <p className="mt-3 text-muted-foreground">
           Em vigor: a taxa usada hoje. Futura: começa a valer na data indicada. Substituída: uma
-          taxa mais nova já vale para todas as parcelas da faixa. Faixas de parcelas com a mesma
-          data não podem se sobrepor.
+          taxa mais nova já vale para todas as parcelas da faixa. Sem uso: a maquininha ou a forma
+          está inativa ou não usa maquininha. Faixas de parcelas com a mesma data não podem se
+          sobrepor.
         </p>
       </div>
     </>

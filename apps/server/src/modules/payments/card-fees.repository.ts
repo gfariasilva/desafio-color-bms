@@ -5,6 +5,7 @@ import {
   cardFeeOverlapMessage,
   findFeeInForce,
   findOverlappingFee,
+  isCardFeeUsable,
   type AuditValues,
   type CardFee,
   type CardFeeInForceQuery,
@@ -143,8 +144,24 @@ export function listCardFees(db: AppDatabase): CardFee[] {
     .map(({ fee }) => toFee(fee));
 }
 
-/** RN-01: the fee in force for a sale, or null when there is none (FR-01 then blocks it). */
+/**
+ * RN-01: the fee in force for a sale, or null when there is none (FR-01 then blocks it).
+ * Rows of an inactive machine or method, or of a method that no longer uses a machine,
+ * are kept for history but never apply (RN-02: no machine, no fee).
+ */
 export function findCardFeeInForce(db: AppDatabase, query: CardFeeInForceQuery): CardFee | null {
+  const machine = db
+    .select()
+    .from(cardMachines)
+    .where(eq(cardMachines.id, query.cardMachineId))
+    .get();
+  const method = db
+    .select()
+    .from(paymentMethods)
+    .where(eq(paymentMethods.id, query.paymentMethodId))
+    .get();
+  if (!machine || !method || !isCardFeeUsable(machine, method)) return null;
+
   // Only rows of this machine and method that already started; the core rule picks one.
   const candidates = db
     .select()
@@ -193,6 +210,12 @@ export function updateCardFee(
   return db.transaction((tx) => {
     const current = tx.select().from(cardFees).where(eq(cardFees.id, id)).get();
     if (!current) throw new BusinessError(404, CARD_FEE_TEXTS.notFound);
+    // No change, no checks and no audit row: an unchanged row stays valid even if its
+    // method's settings changed since it was created.
+    const changed = (Object.keys(input) as (keyof CardFeeInput)[]).some(
+      (field) => current[field] !== input[field],
+    );
+    if (!changed) return toFee(current);
     const names = validate(tx, input, id);
     const oldNames = namesOf(tx, current);
 
@@ -212,7 +235,6 @@ export function updateCardFee(
         after[field] = input[field];
       }
     }
-    if (Object.keys(after).length === 0) return toFee(current);
 
     const row = tx.update(cardFees).set(input).where(eq(cardFees.id, id)).returning().get();
     recordAudit(tx, { entity: "card_fee", entityId: id, action: "update", before, after }, now);

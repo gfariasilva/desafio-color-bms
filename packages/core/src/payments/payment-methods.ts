@@ -50,6 +50,17 @@ export function canHaveCardFee(method: { machineUsage: MachineUsage }): boolean 
   return method.machineUsage !== "not_applicable";
 }
 
+/**
+ * FR-15 / RN-01: a fee row only applies to sales while its machine and method are active
+ * and the method still uses a card machine. Otherwise the row is kept (history) but unused.
+ */
+export function isCardFeeUsable(
+  machine: { active: boolean },
+  method: { active: boolean; machineUsage: MachineUsage },
+): boolean {
+  return machine.active && method.active && canHaveCardFee(method);
+}
+
 // ---------------------------------------------------------------------------------------
 // Zod schemas, shared by the server and the web app.
 // ---------------------------------------------------------------------------------------
