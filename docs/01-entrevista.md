@@ -128,3 +128,28 @@ Legend: ✅ decided · ❓ OPEN QUESTION (ask the owner) · 🔮 future phase
 - **LGPD:** no customer data is stored (no name or CPF on sales). The only sensitive data is the employee's salary amount.
 - **Language:** the interface is **pt-BR** (R$ 1.234,56, dd/mm/aaaa, timezone America/Sao_Paulo).
 - **Code and code documentation in English.**
+
+## Round 8: Reports and dashboards
+
+**Q22. Dashboards** ✅
+- The MVP covers only these three questions:
+  1. How is this month going compared to last month? (income, expenses, fees, saldo, % change)
+  2. Which abas sell the most? (revenue ranking for the month, with change vs. last month)
+  3. Daily income × expenses over the last 7 or 30 days.
+- 🔮 Later: fees per machine, breakdown by payment method, profit trends, sales by weekday, projection of the month's saldo.
+  - Fee totals still appear as a line in the Resumo mensal.
+
+**Q23. Report screens** ✅
+- **Dia:** aba × payment method, gross and net, plus the fechamento de caixa.
+- **Mês – Entradas:** a grid of days × abas, plus totals per payment method.
+- **Mês – Despesas gerais:** per category.
+- **Mês – Despesas fixas:** per item, with paid/pending status.
+- **Resumo mensal:** Total despesas, Entrada mensal, Taxas, Saldo.
+- Every screen has a date/month picker. No printing.
+
+**Q24. Home-screen alerts** ✅
+- Fixed bills due within 3 days, or overdue.
+- "Backup pendente".
+- A previous day not closed.
+- A cash difference on the last fechamento above a configurable limit (assumed default: R$ 10,00).
+- Alerts appear only inside the app.
