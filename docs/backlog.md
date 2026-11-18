@@ -1,48 +1,73 @@
 # MVP backlog
 
-Ordered backlog for the MVP (spec §9.1). Each item is one small PR / GitHub issue, and each builds on the ones before it:
-**cadastros → vendas → despesas e caixa → despesas fixas → mês → relatórios → dashboards → OneDrive/backup → instalação.**
+Ordered backlog for the MVP (spec §9.1). Each item is one small PR / GitHub issue. Items are **implemented in milestone order** (below), which puts the owner's daily routine first: the pilot replaces his **daily** spreadsheet (sales + cash closing) before the monthly features are built.
 
-- Implement an item with `/feature #n` (or `/feature FR-xx`).
-- **Acceptance criteria, business rules and other spec excerpts are copied verbatim from [`docs/spec.md`](spec.md)** (pt-BR). If the spec changes, the spec wins. Scope and notes are in English.
+- Implement an item with `/feature #n` (or `/feature FR-xx`). Item numbers are stable IDs; the milestone order is the implementation order.
+- **Acceptance criteria, business rules and other spec excerpts are copied verbatim from [`docs/spec.md`](spec.md)** (pt-BR). If the spec changes, the spec wins. Scope and notes are in English. Items #25–#27 are not in the spec; their acceptance criteria are defined here.
 - Mark an item done in the index (`[x]`) in the PR that completes it.
+- Questions to take to the owner: [`docs/pilot/owner-questions.md`](pilot/owner-questions.md).
 
 ## Definition of done (every item)
 
 - Every RN and acceptance criterion listed has a passing test named after its ID (NFR-11).
 - Business writes and their audit row (FR-18) happen in one transaction.
 - Money in integer cents, dates as civil dates in America/Sao_Paulo, UI text in pt-BR.
-- Keyboard-usable UI following `docs/design-system.md`.
+- Keyboard-usable UI following `docs/design-system.md`; user flows covered by E2E tests from #4 on ([ADR 0002](adr/0002-e2e-tests.md)).
 - `npm run check` and `npm run build` pass; PR uses the template, with screenshots for UI changes.
 
-## Index
+## Milestones
 
-| Done | # | Item | Requirements | Depends on |
-|---|---|---|---|---|
-| [ ] | [#1](#1--audit-log-foundation) | Audit log foundation | FR-18 | — |
-| [ ] | [#2](#2--sale-tabs-and-expense-categories) | Sale tabs and expense categories | FR-14; RN-12 | #1 |
-| [ ] | [#3](#3--payment-methods-card-machines-and-fee-table) | Payment methods, card machines and fee table | FR-15; RN-01, RN-12 | #1, #2 |
-| [ ] | [#4](#4--register-a-sale-with-the-machine-fee) | Register a sale with the machine fee | FR-01, FR-02; RN-01, RN-02, RN-03, RN-14, RN-15 | #3 |
-| [ ] | [#5](#5--day-view-per-tab-and-editdelete-a-sale) | Day view per tab, and edit/delete a sale | FR-05, FR-03; RN-05, RN-14 | #4 |
-| [ ] | [#6](#6--refunds-estornos) | Refunds (estornos) | FR-04; RN-04 | #5 |
-| [ ] | [#7](#7--general-expenses-saídas-diárias) | General expenses (saídas diárias) | FR-06; RN-08, RN-14, RN-15 | #2, #4 |
-| [ ] | [#8](#8--cash-withdrawals-sangrias) | Cash withdrawals (sangrias) | FR-07; RN-14 | #4 |
-| [ ] | [#9](#9--close-the-day-cash-closing) | Close the day (cash closing) | FR-08; RN-07, RN-14 | #6, #7, #8 |
-| [ ] | [#10](#10--reopen-a-day) | Reopen a day | FR-09; RN-14 | #9 |
-| [ ] | [#11](#11--fixed-expense-templates) | Fixed-expense templates | FR-10; RN-12 | #1 |
-| [ ] | [#12](#12--generate-the-months-fixed-expenses) | Generate the month's fixed expenses | FR-11 | #11 |
-| [ ] | [#13](#13--pay-or-dismiss-a-fixed-expense-loan-installments) | Pay or dismiss a fixed expense; loan installments | FR-12, FR-13; RN-09, RN-07, RN-14 | #12, #9 |
-| [ ] | [#14](#14--close-and-reopen-the-month) | Close and reopen the month | FR-16, FR-17; RN-14 | #10, #13 |
-| [ ] | [#15](#15--day-report) | Day report | FR-19; RN-05, RN-07 | #9 |
-| [ ] | [#16](#16--month-reports-income-and-general-expenses) | Month reports: income and general expenses | FR-20, FR-21; RN-06, RN-08 | #6, #7 |
-| [ ] | [#17](#17--month-reports-fixed-expenses-and-monthly-summary) | Month reports: fixed expenses and monthly summary | FR-22, FR-23; RN-09, RN-10 | #13, #16 |
-| [ ] | [#18](#18--dashboard-this-month-vs-the-previous-one) | Dashboard: this month vs the previous one | FR-24; RN-11 | #17 |
-| [ ] | [#19](#19--dashboards-tab-ranking-and-income--expenses) | Dashboards: tab ranking and income × expenses | FR-25, FR-26; RN-11 | #16, #17 |
-| [ ] | [#20](#20--settings) | Settings | FR-33 | #1 |
-| [ ] | [#21](#21--spreadsheet-exports-and-the-retry-queue) | Spreadsheet exports and the retry queue | FR-28, FR-29, FR-30 | #15, #17, #20 |
-| [ ] | [#22](#22--database-backup-and-restore) | Database backup and restore | FR-31, FR-32; RN-13 | #21 |
-| [ ] | [#23](#23--home-screen-alerts) | Home screen alerts | FR-27 | #9, #13, #21, #22 |
-| [ ] | [#24](#24--windows-installer-auto-start-and-deployment-checklist) | Windows installer, auto-start and deployment checklist | FR-34 | #22 |
+| Milestone | Items, in order | Outcome | Exit criterion |
+|---|---|---|---|
+| **M1 Sales** | #1, #2, #3, #4, #5, #6 | The owner can register, correct and refund sales with the keyboard; card fees are calculated. | Owner tries the sale form (usability check). CS-2 budget E2E test green; stopwatch check in the browser. |
+| **M2 Daily cash** | #7, #8, #9, #10, #15 | The full daily cycle: expenses, withdrawals, cash closing, reopening and the day report. | Dress rehearsal: one real day typed in from paper, closed, and the day report matches the paper totals. |
+| **M3 Pilot on the shop PC** | #25, #26, #27 | The system runs on the shop PC with automatic backups; trial days, reset, real start on the 1st of a month with the 2-week parallel period (§9.5). | Installed, owner trained, go-live reset done, first real day closed and backed up. |
+| **M4 Drop the daily Excel** | #20, #21, #11, #12, #13 | Daily .xlsx in OneDrive and fixed expenses (incl. bills paid from the till). **Deadline: end of the 2-week parallel period.** | CS-3 held for 2 weeks and daily .xlsx files arrive in OneDrive → the owner stops his daily Excel. |
+| **M5 First month end** | #14, #16, #17, #28, #22 | Month closing, month reports, monthly .xlsx and full backup/restore. **Deadline: end of the first pilot month.** | Month 1 closed in the system and matching the owner's monthly spreadsheet. |
+| **M6 The rest of the MVP** | #18, #19, #23, #24 | Dashboards, all home alerts and the proper Windows installer. | MVP complete (spec §9.1); restore tested with the installer (NFR-07). |
+
+**Timeline after go-live.** M4 and M5 have deadlines once the pilot starts: M4 before the 2-week parallel period ends, M5 before the first pilot month ends. If either slips, the fallback is to **extend the parallel period**: the owner keeps his Excel until the missing item ships. No data is lost, because the system is already the record of every day since go-live.
+
+**Why this order.**
+
+- #1 (audit log) comes first because every write, including master-data changes, records an audit row in the same transaction.
+- #15 (day report) is in M2 because it is the comparison tool for the parallel period (CS-3).
+- The pilot (M3) gets an automatic backup (#25) instead of manual copies: it runs on every day close, at startup and before every migration. Pilot updates bring migrations every week.
+- The daily `.xlsx` export (#21) was split from the monthly one (#28), because §9.5 step 5 makes the system's spreadsheets the backup once the Excel is dropped (end of M4). The monthly file needs the month reports (M5).
+- Fixed expenses (#11–#13) are in M4 because bills paid from the till affect the cash closing. Until then the pilot uses the interim "CONTA:" sangria rule (#9, #13).
+
+## Index (implementation order)
+
+| Done | Milestone | # | Item | Requirements | Depends on |
+|---|---|---|---|---|---|
+| [ ] | M1 | [#1](#1--audit-log-foundation) | Audit log foundation | FR-18 | — |
+| [ ] | M1 | [#2](#2--sale-tabs-and-expense-categories) | Sale tabs and expense categories | FR-14; RN-12 | #1 |
+| [ ] | M1 | [#3](#3--payment-methods-card-machines-and-fee-table) | Payment methods, card machines and fee table | FR-15; RN-01, RN-12 | #1, #2 |
+| [ ] | M1 | [#4](#4--register-a-sale-with-the-machine-fee) | Register a sale with the machine fee | FR-01, FR-02; RN-01, RN-02, RN-03, RN-14, RN-15 | #3 |
+| [ ] | M1 | [#5](#5--day-view-per-tab-and-editdelete-a-sale) | Day view per tab, and edit/delete a sale | FR-05, FR-03; RN-05, RN-14 | #4 |
+| [ ] | M1 | [#6](#6--refunds-estornos) | Refunds (estornos) | FR-04; RN-04 | #5 |
+| [ ] | M2 | [#7](#7--general-expenses-saídas-diárias) | General expenses (saídas diárias) | FR-06; RN-08, RN-14, RN-15 | #2, #4 |
+| [ ] | M2 | [#8](#8--cash-withdrawals-sangrias) | Cash withdrawals (sangrias) | FR-07; RN-14 | #4 |
+| [ ] | M2 | [#9](#9--close-the-day-cash-closing) | Close the day (cash closing) | FR-08; RN-07, RN-14 | #6, #7, #8 |
+| [ ] | M2 | [#10](#10--reopen-a-day) | Reopen a day | FR-09; RN-14 | #9 |
+| [ ] | M2 | [#15](#15--day-report) | Day report | FR-19; RN-05, RN-07 | #9 |
+| [ ] | M3 | [#25](#25--pilot-database-backup) | Pilot database backup | slice of FR-31 | #9 |
+| [ ] | M3 | [#26](#26--pilot-install-on-the-shop-pc) | Pilot install on the shop PC | slice of FR-34 | #25 |
+| [ ] | M3 | [#27](#27--pilot-go-live-and-the-parallel-period) | Pilot go-live and the parallel period | spec §9.5 | #26, #15 |
+| [ ] | M4 | [#20](#20--settings) | Settings | FR-33 | #1 |
+| [ ] | M4 | [#21](#21--daily-spreadsheet-export-and-the-retry-queue) | Daily spreadsheet export and the retry queue | FR-28, FR-30 | #15, #20 |
+| [ ] | M4 | [#11](#11--fixed-expense-templates) | Fixed-expense templates | FR-10; RN-12 | #1 |
+| [ ] | M4 | [#12](#12--generate-the-months-fixed-expenses) | Generate the month's fixed expenses | FR-11 | #11 |
+| [ ] | M4 | [#13](#13--pay-or-dismiss-a-fixed-expense-loan-installments) | Pay or dismiss a fixed expense; loan installments | FR-12, FR-13; RN-09, RN-07, RN-14 | #12, #9 |
+| [ ] | M5 | [#14](#14--close-and-reopen-the-month) | Close and reopen the month | FR-16, FR-17; RN-14 | #10, #13 |
+| [ ] | M5 | [#16](#16--month-reports-income-and-general-expenses) | Month reports: income and general expenses | FR-20, FR-21; RN-06, RN-08 | #6, #7 |
+| [ ] | M5 | [#17](#17--month-reports-fixed-expenses-and-monthly-summary) | Month reports: fixed expenses and monthly summary | FR-22, FR-23; RN-09, RN-10 | #13, #16 |
+| [ ] | M5 | [#28](#28--monthly-spreadsheet-export) | Monthly spreadsheet export | FR-29 | #17, #21 |
+| [ ] | M5 | [#22](#22--database-backup-and-restore) | Database backup and restore | FR-31, FR-32; RN-13 | #21, #25 |
+| [ ] | M6 | [#18](#18--dashboard-this-month-vs-the-previous-one) | Dashboard: this month vs the previous one | FR-24; RN-11 | #17 |
+| [ ] | M6 | [#19](#19--dashboards-tab-ranking-and-income--expenses) | Dashboards: tab ranking and income × expenses | FR-25, FR-26; RN-11 | #16, #17 |
+| [ ] | M6 | [#23](#23--home-screen-alerts) | Home screen alerts | FR-27 | #9, #13, #21, #22 |
+| [ ] | M6 | [#24](#24--windows-installer-auto-start-and-deployment-checklist) | Windows installer, auto-start and deployment checklist | FR-34 | #22, #26 |
 
 ---
 
@@ -50,7 +75,7 @@ Ordered backlog for the MVP (spec §9.1). Each item is one small PR / GitHub iss
 
 ### #1 — Audit log foundation
 
-**Requirements:** FR-18
+**Milestone:** M1 · **Requirements:** FR-18
 **Depends on:** — · **Labels:** `foundation`, `auditoria`
 
 **Goal:** Every later item writes audit rows, so the audit table, the transactional write helper and the read-only audit screen come first.
@@ -88,7 +113,7 @@ Cada registro tem: data e hora, entidade, ação, valores antes e depois, e moti
 
 ### #2 — Sale tabs and expense categories
 
-**Requirements:** FR-14 · RN-12
+**Milestone:** M1 · **Requirements:** FR-14; RN-12
 **Depends on:** #1 · **Labels:** `cadastros`
 
 **Goal:** The owner can manage sale tabs (abas) and general-expense categories, seeded with the initial lists.
@@ -139,7 +164,7 @@ O proprietário pode **criar, renomear, desativar, reativar e reordenar** catego
 
 ### #3 — Payment methods, card machines and fee table
 
-**Requirements:** FR-15 · RN-01, RN-12
+**Milestone:** M1 · **Requirements:** FR-15; RN-01, RN-12
 **Depends on:** #1, #2 · **Labels:** `cadastros`, `core`
 
 **Goal:** The fee table exists and is valid, so sales can look up the fee in force (RN-01).
@@ -204,7 +229,7 @@ O proprietário pode **criar, renomear, desativar, reativar e reordenar** catego
 
 ### #4 — Register a sale with the machine fee
 
-**Requirements:** FR-01, FR-02 · RN-01, RN-02, RN-03, RN-14, RN-15
+**Milestone:** M1 · **Requirements:** FR-01, FR-02; RN-01, RN-02, RN-03, RN-14, RN-15
 **Depends on:** #3 · **Labels:** `vendas`, `core`
 
 **Goal:** The owner registers a sale in ≤ 10 s with the keyboard, and the fee and net value are calculated and stored on the sale.
@@ -216,6 +241,9 @@ O proprietário pode **criar, renomear, desativar, reativar e reordenar** catego
 - `POST /api/sales` stores the rate percentage, fee and net **copied onto the sale** (FR-02).
 - Page "Vendas": keyboard-first form (valor → aba → forma → Enter), keeps the date, focus back on the value field; today's sales list.
 - Parse "1.234,56" into cents without floats (core helper + tests).
+- Keystroke-efficient choice of tab and payment method (type-ahead or digit shortcuts, never mouse-only dropdowns), so a typical cash sale fits the E2E keystroke budget.
+- **E2E test setup** as described in [ADR 0002](adr/0002-e2e-tests.md): `e2e/` folder, `npm run e2e`, per-worker server with a temp data folder, test clock `COLOR_BMS_NOW` (test mode only), CI steps.
+- E2E tests: keyboard-only sale flow (no clicks after page load), missing-fee / closed-day / future-date errors, and the CS-2 budget test.
 
 **Out of scope**
 
@@ -225,7 +253,7 @@ O proprietário pode **criar, renomear, desativar, reativar e reordenar** catego
 
 - Test the RN-03 example exactly: R$ 150,00 at 3,79% → fee R$ 5,69, net R$ 144,31.
 - Error text for a missing fee must match FR-01 and link to the fee table.
-- Measure CS-2 (≤ 10 s) manually in the browser before closing the item.
+- CS-2 is automated as a budget (ADR 0002): ≤ 12 keystrokes for a typical sale, each save < 1 s (NFR-04), 10 sales at ~250 ms per key in ≤ 100 s. The stopwatch test with the owner happens in #27.
 
 **Acceptance criteria** _(verbatim from spec §4)_
 
@@ -295,7 +323,7 @@ O sistema deve calcular e **gravar na própria venda** o percentual aplicado, o 
 
 ### #5 — Day view per tab, and edit/delete a sale
 
-**Requirements:** FR-05, FR-03 · RN-05, RN-14
+**Milestone:** M1 · **Requirements:** FR-05, FR-03; RN-05, RN-14
 **Depends on:** #4 · **Labels:** `vendas`
 
 **Goal:** The owner sees the day organised by tab with subtotals, and can correct sales while the day is open.
@@ -350,7 +378,7 @@ O sistema deve exibir, para a data selecionada, cada aba com:
 
 ### #6 — Refunds (estornos)
 
-**Requirements:** FR-04 · RN-04
+**Milestone:** M1 · **Requirements:** FR-04; RN-04
 **Depends on:** #5 · **Labels:** `vendas`, `core`
 
 **Goal:** The owner refunds all or part of a sale from an earlier day without changing the closed day.
@@ -406,7 +434,7 @@ O sistema deve permitir estornar, total ou parcialmente, uma venda de um dia ant
 
 ### #7 — General expenses (saídas diárias)
 
-**Requirements:** FR-06 · RN-08, RN-14, RN-15
+**Milestone:** M2 · **Requirements:** FR-06; RN-08, RN-14, RN-15
 **Depends on:** #2, #4 · **Labels:** `despesas`
 
 **Goal:** The owner records day-to-day expenses by category, marking those paid with cash from the till.
@@ -462,7 +490,7 @@ O sistema deve permitir estornar, total ou parcialmente, uma venda de um dia ant
 
 ### #8 — Cash withdrawals (sangrias)
 
-**Requirements:** FR-07 · RN-14
+**Milestone:** M2 · **Requirements:** FR-07; RN-14
 **Depends on:** #4 · **Labels:** `despesas`, `caixa`
 
 **Goal:** The owner records cash taken out of the till; it is not an expense.
@@ -498,7 +526,7 @@ O sistema deve permitir estornar, total ou parcialmente, uma venda de um dia ant
 
 ### #9 — Close the day (cash closing)
 
-**Requirements:** FR-08 · RN-07, RN-14
+**Milestone:** M2 · **Requirements:** FR-08; RN-07, RN-14
 **Depends on:** #6, #7, #8 · **Labels:** `caixa`, `core`
 
 **Goal:** The owner closes the day in ≤ 3 minutes: the system shows the expected cash, records the counted cash and the difference, and locks the day.
@@ -508,14 +536,17 @@ O sistema deve permitir estornar, total ou parcialmente, uma venda de um dia ant
 - Core: expected cash and difference (RN-07), including cash refunds and expenses paid from the till.
 - Closing screen: opening cash (pre-filled from the last count, A-12; empty on the first day), cash sales, expenses from the till, withdrawals, expected, counted, difference highlighted, optional note.
 - `POST /api/days/:date/close` stores expected/counted/difference and locks the day; audit row.
+- Pilot slice of FR-27: Início warns about earlier days left open (spec condition: "Dia anterior a hoje com movimento e status aberto."), with a link to close each one. #23 later folds it into the full alert list.
+- Add the closing to the E2E suite (keyboard-only closing of a day with cash sales, an expense from the till and a withdrawal).
 
 **Out of scope**
 
-- Enqueueing the spreadsheet exports and the DB backup: the closing must call an `onDayClosed` hook point; the exports are wired in #21 and the backups in #22.
+- Enqueueing the spreadsheet exports and the DB backup: the closing calls an `onDayClosed` hook point; the pilot backup is wired in #25, the daily export in #21.
 
 **Technical notes**
 
 - Measure CS-4 (≤ 3 min) manually.
+- Interim rule until #13 ships: a fixed bill paid with cash from the till is recorded as a sangria with an observation starting with "CONTA:" (see #13).
 
 **Acceptance criteria** _(verbatim from spec §4)_
 
@@ -561,7 +592,7 @@ Diferença = Dinheiro contado − Dinheiro esperado   (>0 sobra, <0 falta)
 
 ### #10 — Reopen a day
 
-**Requirements:** FR-09 · RN-14
+**Milestone:** M2 · **Requirements:** FR-09; RN-14
 **Depends on:** #9 · **Labels:** `caixa`
 
 **Goal:** The owner can reopen a closed day (with a reason) while its month is open.
@@ -594,7 +625,7 @@ Diferença = Dinheiro contado − Dinheiro esperado   (>0 sobra, <0 falta)
 
 ### #11 — Fixed-expense templates
 
-**Requirements:** FR-10 · RN-12
+**Milestone:** M4 · **Requirements:** FR-10; RN-12
 **Depends on:** #1 · **Labels:** `despesas-fixas`, `cadastros`
 
 **Goal:** The owner maintains the list of monthly bills (templates) with due day and expected amount.
@@ -652,7 +683,7 @@ Carga inicial (ver RN-12):
 
 ### #12 — Generate the month's fixed expenses
 
-**Requirements:** FR-11
+**Milestone:** M4 · **Requirements:** FR-11
 **Depends on:** #11 · **Labels:** `despesas-fixas`, `core`
 
 **Goal:** Each month's bills are created automatically, once, from the active templates.
@@ -692,7 +723,7 @@ Carga inicial (ver RN-12):
 
 ### #13 — Pay or dismiss a fixed expense; loan installments
 
-**Requirements:** FR-12, FR-13 · RN-09, RN-07, RN-14
+**Milestone:** M4 · **Requirements:** FR-12, FR-13; RN-09, RN-07, RN-14
 **Depends on:** #12, #9 · **Labels:** `despesas-fixas`, `caixa`
 
 **Goal:** The owner marks bills as paid (cash basis) or dismissed, and loan installments count down.
@@ -703,10 +734,12 @@ Carga inicial (ver RN-12):
 - Dismiss: status `dispensado`, excluded from alerts and totals.
 - Paid from the till reduces the expected cash of that day (RN-07): extend #9's calculation and its tests.
 - Loans: remaining installments decrease on payment; show "parcela n de N".
+- One-off conversion of the pilot's interim records: sangrias whose observation starts with "CONTA:" become paid fixed expenses (same date and amount, paid in cash from the till), with an audit row each. The owner confirms each one on screen.
 
 **Technical notes**
 
 - Payment date cannot fall on a closed day (A-16).
+- RN-14 still applies to the conversion: the screen reopens the day (FR-09, reason pre-filled "Conversão CONTA: piloto"), converts, and closes it again. Expected cash is unchanged (a till withdrawal becomes a till payment), so the re-closing keeps the same counted cash and difference; test that.
 
 **Acceptance criteria** _(verbatim from spec §4)_
 
@@ -754,7 +787,7 @@ Diferença = Dinheiro contado − Dinheiro esperado   (>0 sobra, <0 falta)
 
 ### #14 — Close and reopen the month
 
-**Requirements:** FR-16, FR-17 · RN-14
+**Milestone:** M5 · **Requirements:** FR-16, FR-17; RN-14
 **Depends on:** #10, #13 · **Labels:** `caixa`
 
 **Goal:** The owner closes the month when every day with activity is closed, locking it for edits.
@@ -767,7 +800,7 @@ Diferença = Dinheiro contado − Dinheiro esperado   (>0 sobra, <0 falta)
 
 **Out of scope**
 
-- Final monthly spreadsheet and backup on close: hook point `onMonthClosed`, wired in #21/#22.
+- Final monthly spreadsheet and backup on close: hook point `onMonthClosed`, wired in #28 (spreadsheet) and #22 (backup).
 
 **Acceptance criteria** _(verbatim from spec §4)_
 
@@ -803,7 +836,7 @@ Diferença = Dinheiro contado − Dinheiro esperado   (>0 sobra, <0 falta)
 
 ### #15 — Day report
 
-**Requirements:** FR-19 · RN-05, RN-07
+**Milestone:** M2 · **Requirements:** FR-19; RN-05, RN-07
 **Depends on:** #9 · **Labels:** `relatorios`
 
 **Goal:** One screen with everything about a day: tab × payment matrix, expenses, withdrawals and the cash closing.
@@ -812,6 +845,7 @@ Diferença = Dinheiro contado − Dinheiro esperado   (>0 sobra, <0 falta)
 
 - Report query module in the server (reused later by the xlsx export in #21).
 - Page "Relatórios" › Dia with a date picker.
+- Tabs listed in the same order as the owner's daily Excel, so the 2-week comparison (#27, CS-3) is a line-by-line check.
 
 **Out of scope**
 
@@ -820,6 +854,7 @@ Diferença = Dinheiro contado − Dinheiro esperado   (>0 sobra, <0 falta)
 **Technical notes**
 
 - NFR-04: < 2 s with 5 years of data; add indexes on dates if needed (seed a large test DB).
+- This is the comparison tool of the parallel period, so it is part of milestone M2 (before the pilot).
 
 **Acceptance criteria** _(verbatim from spec §4)_
 
@@ -851,7 +886,7 @@ Diferença = Dinheiro contado − Dinheiro esperado   (>0 sobra, <0 falta)
 
 ### #16 — Month reports: income and general expenses
 
-**Requirements:** FR-20, FR-21 · RN-06, RN-08
+**Milestone:** M5 · **Requirements:** FR-20, FR-21; RN-06, RN-08
 **Depends on:** #6, #7 · **Labels:** `relatorios`, `core`
 
 **Goal:** Monthly income by day × tab and general expenses by category, with totals that add up.
@@ -892,7 +927,7 @@ Mostra o total de cada categoria no mês (por data de pagamento), com os fornece
 
 ### #17 — Month reports: fixed expenses and monthly summary
 
-**Requirements:** FR-22, FR-23 · RN-09, RN-10
+**Milestone:** M5 · **Requirements:** FR-22, FR-23; RN-09, RN-10
 **Depends on:** #13, #16 · **Labels:** `relatorios`, `core`
 
 **Goal:** Fixed expenses for the month and the monthly summary with the balance (saldo).
@@ -943,7 +978,7 @@ As sangrias **não** entram no saldo, porque são movimentação interna.
 
 ### #18 — Dashboard: this month vs the previous one
 
-**Requirements:** FR-24 · RN-11
+**Milestone:** M6 · **Requirements:** FR-24; RN-11
 **Depends on:** #17 · **Labels:** `dashboards`, `core`
 
 **Goal:** Compare the month to date with the same days of the previous month.
@@ -981,7 +1016,7 @@ O total do mês anterior completo aparece como referência.
 
 ### #19 — Dashboards: tab ranking and income × expenses
 
-**Requirements:** FR-25, FR-26 · RN-11
+**Milestone:** M6 · **Requirements:** FR-25, FR-26; RN-11
 **Depends on:** #16, #17 · **Labels:** `dashboards`
 
 **Goal:** See which tabs sell most and whether income beats expenses over 7 or 30 days.
@@ -1026,7 +1061,7 @@ Gráfico diário de **entradas brutas × despesas** (gerais + fixas pagas) para 
 
 ### #20 — Settings
 
-**Requirements:** FR-33
+**Milestone:** M4 · **Requirements:** FR-33
 **Depends on:** #1 · **Labels:** `configuracoes`
 
 **Goal:** The owner configures the OneDrive folder (with a write test) and the alert thresholds.
@@ -1036,6 +1071,7 @@ Gráfico diário de **entradas brutas × despesas** (gerais + fixas pagas) para 
 - Uses the existing `settings` table (key/value). Defaults: cash-difference limit R$ 0,00; due-soon window 3 days.
 - "Testar" creates and deletes a test file and shows clear pt-BR errors.
 - Page "Configurações". Audit every change.
+- Migrate the pilot's OneDrive folder setting (config file from #25) into the `settings` table on first start.
 
 **Acceptance criteria** _(verbatim from spec §4)_
 
@@ -1054,27 +1090,29 @@ Gráfico diário de **entradas brutas × despesas** (gerais + fixas pagas) para 
 |---|---|---|---|
 | Q-07 | O PC da loja tem o **aplicativo OneDrive** instalado e conectado à conta certa? Qual pasta usar? Há espaço livre na conta? | Sem isso não há backup fora do PC. | Verificação obrigatória na implantação. |
 
-### #21 — Spreadsheet exports and the retry queue
+### #21 — Daily spreadsheet export and the retry queue
 
-**Requirements:** FR-28, FR-29, FR-30
-**Depends on:** #15, #17, #20 · **Labels:** `onedrive`, `export`
+**Milestone:** M4 · **Requirements:** FR-28, FR-30
+**Depends on:** #15, #20 · **Labels:** `onedrive`, `export`
 
-**Goal:** Closing a day produces the daily and monthly .xlsx files in the OneDrive folder, with retries when Excel has them open.
+**Goal:** Closing a day produces the daily .xlsx in the OneDrive folder, with retries when Excel has it open. This is what lets the owner stop his daily Excel (§9.5 step 5).
 
 **Scope**
 
-- `export_queue` table (spec §6.1 ItemFilaExportação); worker that retries every 5 min and at startup; "Tentar agora".
-- ExcelJS builders for the daily and monthly layouts (§7.3), numbers stored as numbers, R$ and dd/mm/aaaa formats.
+- `export_queue` table (spec §6.1 ItemFilaExportação), generic enough for monthly spreadsheets (#28) and DB backups (#22); worker that retries every 5 min and at startup; "Tentar agora".
+- ExcelJS builder for the **daily** layout (§7.3), numbers stored as numbers, R$ and dd/mm/aaaa formats.
 - Atomic write: temp file in the same folder, then rename (§7.4).
-- Wire the `onDayClosed` / `onMonthClosed` hook points from #9 and #14.
+- Wire the `onDayClosed` hook point from #9. "Backup pendente" shown on Início until #23.
 
 **Out of scope**
 
-- Database backups (#22).
+- Monthly spreadsheet (#28).
+- Database backups (#25, #22).
 
 **Technical notes**
 
-- Reuse the report queries from #15–#17 so the files always match the screens (FR-19).
+- Reuse the day report query from #15 so the file always matches the screen (FR-19).
+- Must ship before the parallel period ends (milestone M4).
 
 **Acceptance criteria** _(verbatim from spec §4)_
 
@@ -1087,9 +1125,6 @@ Gera `Diária AAAA-MM-DD.xlsx` (layout em §7.3) na pasta do OneDrive.
   **Quando** a exportação roda
   **Então** o arquivo anterior é substituído pela versão corrigida.
 - Dias sem movimento **não** geram arquivo.
-
-#### FR-29: Exportar a planilha mensal
-Gera ou atualiza `Mensal AAAA-MM.xlsx` cada vez que um dia do mês é fechado, e na versão final quando o mês é fechado.
 
 #### FR-30: Fila de exportação e novas tentativas
 - **Dado** que o arquivo está aberto no Excel, ou a pasta não existe
@@ -1154,20 +1189,21 @@ Gera ou atualiza `Mensal AAAA-MM.xlsx` cada vez que um dia do mês é fechado, e
 
 ### #22 — Database backup and restore
 
-**Requirements:** FR-31, FR-32 · RN-13
-**Depends on:** #21 · **Labels:** `onedrive`, `backup`, `core`
+**Milestone:** M5 · **Requirements:** FR-31, FR-32; RN-13
+**Depends on:** #21, #25 · **Labels:** `onedrive`, `backup`, `core`
 
-**Goal:** A consistent copy of the database goes to OneDrive on every closing and once a day, and the owner can restore any backup.
+**Goal:** Completes the pilot backup (#25): retention, failures in the queue and alert, and restore from the UI.
 
 **Scope**
 
-- Backup with `VACUUM INTO` to a temp file, then rename into `_backup-sistema/` (ADR 0001); failures use the export queue.
-- Core: retention (RN-13) as a pure function over the list of backup files.
+- Build on #25's `VACUUM INTO` backup; failures go to the export queue (#21).
+- Core: retention (RN-13) as a pure function over the list of backup files; apply it after each backup.
 - Restore: safety copy of the current DB, swap, reopen and migrate, audit row; restore from a file on a new PC.
+- Backup on month close (`onMonthClosed`, #14).
 
 **Technical notes**
 
-- NFR-07: restore must be tested before go-live (also listed in #24).
+- NFR-07: restore is tested before the full go-live (also listed in #24); during the pilot the documented manual restore from #25 applies.
 
 **Acceptance criteria** _(verbatim from spec §4)_
 
@@ -1198,7 +1234,7 @@ Gera ou atualiza `Mensal AAAA-MM.xlsx` cada vez que um dia do mês é fechado, e
 
 ### #23 — Home screen alerts
 
-**Requirements:** FR-27
+**Milestone:** M6 · **Requirements:** FR-27
 **Depends on:** #9, #13, #21, #22 · **Labels:** `inicio`
 
 **Goal:** Início shows what needs attention today, each alert with a link to fix it.
@@ -1211,6 +1247,7 @@ Gera ou atualiza `Mensal AAAA-MM.xlsx` cada vez que um dia do mês é fechado, e
 **Technical notes**
 
 - Replace the walking-skeleton health card with the alerts (keep the health info in Configurações).
+- Absorb the pilot's open-day warning (#9) and backup-pending notice (#21) into this list.
 
 **Acceptance criteria** _(verbatim from spec §4)_
 
@@ -1236,18 +1273,23 @@ A tela inicial mostra os alertas abaixo, cada um com link para resolver:
 
 ### #24 — Windows installer, auto-start and deployment checklist
 
-**Requirements:** FR-34
-**Depends on:** #22 · **Labels:** `instalacao`
+**Milestone:** M6 · **Requirements:** FR-34
+**Depends on:** #22, #26 · **Labels:** `instalacao`
 
-**Goal:** The developer installs and updates the system on the shop PC; it starts with Windows and works offline.
+**Goal:** Replaces the pilot install (#26) with a proper installer; it starts with Windows and works offline.
 
 **Scope**
 
 - Inno Setup installer: portable Node, built app, data in `%LOCALAPPDATA%\ColorBMS\data` (ADR 0001).
 - Task Scheduler task "At log on" (hidden, restart on failure) and a desktop shortcut to `http://127.0.0.1:3210`.
+- Upgrade path from the pilot install: keep the data folder, remove the pilot scheduled task and shortcuts.
 - Update path that keeps the data folder; backup before migrations.
 - Release workflow on `windows-latest` that builds the installer.
 - Deployment checklist (spec §9.5): rates, fixed expenses, OneDrive folder, backup and restore test, Windows time sync.
+
+**Technical notes**
+
+- Updates stay physical (USB stick at the shop), as in the pilot.
 
 **Acceptance criteria** _(verbatim from spec §4)_
 
@@ -1279,3 +1321,177 @@ A tela inicial mostra os alertas abaixo, cada um com link para resolver:
 | NFR-02 | Plataforma | Windows 11. Inicia com o Windows e tem atalho na área de trabalho. Navegador: Edge ou Chrome atuais. |
 | NFR-07 | Backup | Conforme FR-31 e RN-13. Restauração testada antes da implantação. |
 | NFR-13 | Instalação | Instalação e atualização simples, feitas pelo desenvolvedor, sem exigir conhecimento técnico do proprietário. |
+
+---
+
+## 10. Pilot and Phase 2 additions
+
+### #25 — Pilot database backup
+
+**Milestone:** M3 · **Requirements:** slice of FR-31
+**Depends on:** #9 · **Labels:** `pilot`, `backup`
+
+**Goal:** From the first pilot day, a consistent copy of the database is written automatically to the OneDrive folder, so no confirmed day can be lost (NFR-06, §7.4).
+
+**Scope**
+
+- Backup with `VACUUM INTO` to a temp file, then rename into `<pasta>/_backup-sistema/color-AAAA-MM-DD_HHMM.db` (§7.2, ADR 0001).
+- Triggers: day close (`onDayClosed`) and server startup (first start of the day) → OneDrive folder.
+- **Before applying migrations** (each pilot update): a backup in the local data folder (`data\backups\`), which is always available, so an update never depends on OneDrive.
+- OneDrive folder read from a small config file in the data folder (`config.json`) or an environment variable; moved into Settings by #20.
+- No retention (backups are small; RN-13 comes with #22), no restore UI.
+- Failures are logged and shown as a simple notice on Início; the backup is retried at the next trigger.
+- Documented manual restore procedure (pt-BR, step by step): stop the app, copy the chosen `.db` over `color.db`, start.
+
+**Out of scope**
+
+- Retention RN-13, queue integration, restore UI (#22).
+
+**Technical notes**
+
+- `VACUUM INTO` gives a consistent snapshot even while the app is running; never copy the live `color.db` file.
+
+**Acceptance criteria** _(defined for this item; not in the spec)_
+
+- Closing a day writes a new backup file in `_backup-sistema/` that opens as a valid SQLite database with the day's data.
+- Starting the server with pending migrations writes a local backup **before** migrating; if that backup fails, the server does not migrate and logs why.
+- If the OneDrive folder does not exist, the day still closes (the closing is never blocked) and the failure is visible on Início.
+- The manual restore procedure is tested once on the shop PC before go-live (NFR-07).
+
+**Spec reference** _(verbatim; only the parts listed under Scope belong to this item)_
+
+#### FR-31: Backup do banco de dados
+- **Dado** um fechamento de dia, um fechamento de mês, ou a primeira abertura do sistema no dia
+  **Quando** o backup roda
+  **Então** uma cópia consistente do banco é gravada em `<pasta>/_backup-sistema/`, e a política de retenção RN-13 é aplicada.
+- Uma falha no backup segue a mesma fila e o mesmo alerta de FR-30.
+
+### #26 — Pilot install on the shop PC
+
+**Milestone:** M3 · **Requirements:** slice of FR-34
+**Depends on:** #25 · **Labels:** `pilot`, `instalacao`
+
+**Goal:** A simple, scripted install and update of the app on the shop's Windows 11 PC, done in person from a USB stick; the app starts with Windows and the owner opens it from a desktop shortcut.
+
+**Scope**
+
+- `npm run package:pilot` builds `color-bms-<version>.zip`: built web + server, production `node_modules` (better-sqlite3 ships its `win32-x64` binary inside the npm package, so the zip can be built on any OS), portable `node.exe` (pinned Node 26), and pt-BR scripts. CI uploads it as an artifact.
+- `instalar.cmd`: copies the app to `%LOCALAPPDATA%\ColorBMS\app`, creates `%LOCALAPPDATA%\ColorBMS\data`, registers a Task Scheduler task "At log on" (hidden, restart on failure), and a desktop shortcut that opens Edge in app mode on `http://127.0.0.1:3210`.
+- `atualizar.cmd` (run from the USB stick): stop the app → backup (via #25) → replace `app\` only → start → open the health page showing the new version.
+- `iniciar.cmd` / `parar.cmd` for support; server logs written to `data\logs\` (rotated), since the hidden process has no console.
+- Separate **trial** data folder for training days, and a documented go-live reset: stop, archive the trial folder, start with a fresh database (seeds only).
+- Startup checks shown on the health page: PC clock vs São Paulo date, port 3210 free, data and OneDrive folders writable.
+
+**Out of scope**
+
+- Inno Setup installer and release workflow (#24).
+
+**Technical notes**
+
+- This is a temporary simplification of ADR 0001's packaging; #24 replaces the scripts with the Inno Setup installer and keeps the same folders.
+
+**Acceptance criteria** _(defined for this item; not in the spec)_
+
+- On a clean Windows 11 machine (or VM), running `instalar.cmd` from the USB stick and rebooting starts the app at logon without any window, and the desktop shortcut opens the Início page.
+- The app works with the network cable unplugged (NFR-03) and is not reachable from another PC on the network (NFR-08).
+- `atualizar.cmd` upgrades to a newer zip, keeps all data, writes a backup before migrating, and the health page shows the new version.
+- The go-live reset leaves an empty database whose first closing has an empty opening cash (FR-08).
+- A server crash is restarted automatically and the cause is in the log file.
+
+**Spec reference** _(verbatim; only the parts listed under Scope belong to this item)_
+
+#### FR-34: Instalação e inicialização
+- **Dado** o PC ligado
+  **Quando** o Windows inicia
+  **Então** o sistema inicia em segundo plano, e o atalho na área de trabalho abre a interface no navegador.
+- **Dado** que o PC está sem internet
+  **Quando** o proprietário usa o sistema
+  **Então** todas as funções operam normalmente, exceto a sincronização do OneDrive, que é feita pelo próprio aplicativo do OneDrive quando a conexão voltar.
+
+**Non-functional requirements** _(verbatim from spec §8)_
+
+| ID | Categoria | Requisito |
+|---|---|---|
+| NFR-02 | Plataforma | Windows 11. Inicia com o Windows e tem atalho na área de trabalho. Navegador: Edge ou Chrome atuais. |
+| NFR-03 | Offline | 100% funcional **sem internet**. |
+| NFR-08 | Segurança | No MVP, o servidor aceita conexões **apenas do próprio PC** (localhost). Sem login (ver §2). |
+
+### #27 — Pilot go-live and the parallel period
+
+**Milestone:** M3 · **Requirements:** spec §9.5
+**Depends on:** #26, #15 · **Labels:** `pilot`, `implantacao`
+
+**Goal:** The owner uses the system for real from the 1st of a month while keeping his Excel for 2 weeks, and the daily totals are compared every day (CS-3).
+
+**Scope**
+
+- Go-live checklist (`docs/pilot/go-live-checklist.md`): real fee table entered (Q-01), tabs/categories reviewed with the owner, PC clock and time zone, OneDrive folder, backup and manual restore tested, go-live reset done.
+- One-page owner guide in pt-BR (`docs/pilot/guia-rapido.md`): register a sale, refund, expense, sangria, close and reopen the day, what to do if something goes wrong, the interim "CONTA:" rule for bills paid from the till.
+- Training session with trial data (1 h) and the stopwatch measurements CS-2 (≤ 10 s per sale, average of 10) and CS-4 (≤ 3 min to close).
+- Daily comparison sheet for the 2 weeks (`docs/pilot/conferencia.md` or a printed table): date, Excel total, system total per tab and payment method, difference, reason, fix.
+- Weekly visit to collect feedback and apply updates (USB stick, #26).
+
+**Technical notes**
+
+- Open questions to take to the owner: `docs/pilot/owner-questions.md`.
+
+**Acceptance criteria** _(defined for this item; not in the spec)_
+
+- CS-1 to CS-5 have a recorded measurement or status at the end of the parallel period.
+- Every difference found in the comparison has a reason (system bug, typing error, Excel error) and, for bugs, a backlog item.
+- The owner stops the daily Excel only when #21 (daily .xlsx export) is live and CS-3 held for 2 weeks; otherwise the parallel period is extended.
+
+**Spec §9.5** _(verbatim)_
+
+##### 9.5 Implantação
+1. Antes da implantação:
+   - cadastrar as taxas atuais (Q-01);
+   - cadastrar os modelos de despesa fixa com dias de vencimento (Q-05, Q-06);
+   - configurar a pasta do OneDrive;
+   - testar o backup e a restauração.
+2. **Entrar em uso no dia 1º de um mês.**
+3. Informar à mão o troco inicial do primeiro dia.
+4. **Período paralelo de 2 semanas:** o proprietário mantém a planilha atual, e os totais diários são comparados todos os dias (CS-3).
+5. Depois do período paralelo, o Excel manual é abandonado, e as planilhas geradas pelo sistema passam a ser o backup.
+
+### #28 — Monthly spreadsheet export
+
+**Milestone:** M5 · **Requirements:** FR-29
+**Depends on:** #17, #21 · **Labels:** `onedrive`, `export`
+
+**Goal:** The monthly .xlsx is updated on every day close and written in its final version on month close.
+
+**Scope**
+
+- ExcelJS builder for the **monthly** layout (§7.3), reusing the month report queries (#16, #17).
+- Uses the export queue from #21; wire `onDayClosed` (update) and `onMonthClosed` (final version, #14).
+
+**Technical notes**
+
+- Split from #21 so the daily export can ship before the month reports exist.
+
+**Acceptance criteria** _(verbatim from spec §4)_
+
+#### FR-29: Exportar a planilha mensal
+Gera ou atualiza `Mensal AAAA-MM.xlsx` cada vez que um dia do mês é fechado, e na versão final quando o mês é fechado.
+
+**Spec §7.3** _(verbatim)_
+
+##### 7.3 Layout das planilhas
+**Diária AAAA-MM-DD.xlsx**
+- **Uma aba por categoria de venda** com movimento no dia.
+  - Linhas: hora, tipo (venda/estorno), forma, maquininha, parcelas, valor cheio, taxa %, taxa R$, valor real, observação.
+  - No fim: subtotal por forma de pagamento (cheio/taxa/real) e total da aba.
+- **Aba "Saídas":** despesas do dia (categoria, descrição, meio, do caixa?, valor), total, e sangrias.
+- **Aba "Resumo do dia":** matriz aba × forma, total do dia, e fechamento de caixa (troco inicial, esperado, contado, diferença).
+
+**Mensal AAAA-MM.xlsx**
+- **Aba "Entradas":** grade dias × abas, totais por forma de pagamento, Entrada mensal, taxas, líquido.
+- **Aba "Despesas gerais":** por categoria, com o grupo Fornecedores e o total.
+- **Aba "Despesas fixas":** cada item com vencimento, valor pago, data de pagamento e status, e o total pago.
+- **Aba "Resumo":** Total geral de despesas, Entrada mensal, Taxas, **Saldo mensal**.
+
+**Formatos:**
+- Moeda: R$ #.##0,00.
+- Datas: dd/mm/aaaa.
+- Os valores são gravados como **números**, não texto, para que somas manuais no Excel funcionem.
