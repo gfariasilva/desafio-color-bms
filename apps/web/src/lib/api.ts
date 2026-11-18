@@ -27,11 +27,14 @@ import {
   type UpdateExpenseCategoryInput,
   type UpdateSaleCategoryInput,
   healthResponseSchema,
+  daySalesResponseSchema,
   saleListResponseSchema,
   saleSchema,
   todayResponseSchema,
   type CreateSaleInput,
+  type DaySalesResponse,
   type Sale,
+  type UpdateSaleInput,
   type AuditListResponse,
   type AuditQuery,
   type HealthResponse,
@@ -128,7 +131,7 @@ export const QUERY_KEYS = {
   card_machine: ["cardMachines"],
   card_fees: ["cardFees"],
   today: ["today"],
-  /** Followed by the civil date: ["sales", "2026-11-18"]. */
+  /** Followed by the civil date: ["sales", "2026-11-18"]. Any sale change invalidates it all. */
   sales: ["sales"],
 } as const;
 
@@ -141,12 +144,18 @@ export const api = {
   /** RN-15: today's civil date in São Paulo, from the server clock (ADR 0002). */
   today: (): Promise<string> => getJson("/api/today", todayResponseSchema).then((r) => r.date),
 
-  /** FR-01 / FR-02: sales of a day, and registering a sale. */
+  /** FR-01 / FR-02 / FR-03 / FR-05: sales of a day, registering, editing and deleting. */
   sales: {
     list: (date: string): Promise<Sale[]> =>
       getJson(`/api/sales${toQueryString({ date })}`, saleListResponseSchema).then((r) => r.sales),
+    /** FR-05: the day grouped by tab, with subtotals per method and totals (RN-05). */
+    day: (date: string): Promise<DaySalesResponse> =>
+      getJson(`/api/days/${encodeURIComponent(date)}/sales`, daySalesResponseSchema),
     create: (input: CreateSaleInput): Promise<Sale> =>
       requestJson("POST", "/api/sales", input, saleSchema),
+    update: (id: number, input: UpdateSaleInput): Promise<Sale> =>
+      requestJson("PATCH", `/api/sales/${id}`, input, saleSchema),
+    remove: (id: number): Promise<void> => requestJson("DELETE", `/api/sales/${id}`, undefined),
   },
 
   /** FR-14: sale tabs (abas), in display order. */

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MAX_SALE_CENTS } from "../format/money-input";
-import { createSaleInputSchema, SALE_NOTE_MAX } from "./sales";
+import { createSaleInputSchema, SALE_NOTE_MAX, updateSaleInputSchema } from "./sales";
 
 const valid = {
   date: "2026-11-18",
@@ -57,5 +57,30 @@ describe("FR-01: sale input schema", () => {
     expect(firstError({ ...valid, note: "x".repeat(SALE_NOTE_MAX + 1) })).toBe(
       `A observação pode ter até ${SALE_NOTE_MAX} caracteres.`,
     );
+  });
+});
+
+describe("FR-03: sale edit schema", () => {
+  it("FR-03: accepts any subset of the sale fields", () => {
+    expect(updateSaleInputSchema.parse({ grossCents: 3000 })).toEqual({ grossCents: 3000 });
+    expect(updateSaleInputSchema.parse({ cardMachineId: null, installments: null })).toEqual({
+      cardMachineId: null,
+      installments: null,
+    });
+  });
+
+  it("FR-03: an empty note becomes null, a missing note stays untouched", () => {
+    expect(updateSaleInputSchema.parse({ note: "  " })).toEqual({ note: null });
+    expect(updateSaleInputSchema.parse({ grossCents: 1 })).not.toHaveProperty("note");
+  });
+
+  it("FR-03: needs something to change and keeps the FR-01 limits", () => {
+    const error = (input: unknown) => {
+      const parsed = updateSaleInputSchema.safeParse(input);
+      return parsed.success ? undefined : parsed.error.issues[0]?.message;
+    };
+    expect(error({})).toBe("Nada para alterar.");
+    expect(error({ grossCents: 0 })).toBe("Informe um valor maior que zero.");
+    expect(error({ date: "2026-02-30" })).toBe("Data inválida.");
   });
 });

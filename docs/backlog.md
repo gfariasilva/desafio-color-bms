@@ -44,7 +44,7 @@ Ordered backlog for the MVP (spec §9.1). Each item is one small PR / GitHub iss
 | [x] | M1 | [#2](#2--sale-tabs-and-expense-categories) | Sale tabs and expense categories | FR-14; RN-12 | #1 |
 | [x] | M1 | [#3](#3--payment-methods-card-machines-and-fee-table) | Payment methods, card machines and fee table | FR-15; RN-01, RN-12 | #1, #2 |
 | [x] | M1 | [#4](#4--register-a-sale-with-the-machine-fee) | Register a sale with the machine fee | FR-01, FR-02; RN-01, RN-02, RN-03, RN-14, RN-15 | #3 |
-| [ ] | M1 | [#5](#5--day-view-per-tab-and-editdelete-a-sale) | Day view per tab, and edit/delete a sale | FR-05, FR-03; RN-05, RN-14 | #4 |
+| [x] | M1 | [#5](#5--day-view-per-tab-and-editdelete-a-sale) | Day view per tab, and edit/delete a sale | FR-05, FR-03; RN-05, RN-14 | #4 |
 | [ ] | M1 | [#6](#6--refunds-estornos) | Refunds (estornos) | FR-04; RN-04 | #5 |
 | [ ] | M2 | [#7](#7--general-expenses-saídas-diárias) | General expenses (saídas diárias) | FR-06; RN-08, RN-14, RN-15 | #2, #4 |
 | [ ] | M2 | [#8](#8--cash-withdrawals-sangrias) | Cash withdrawals (sangrias) | FR-07; RN-14 | #4 |
@@ -378,6 +378,14 @@ O sistema deve calcular e **gravar na própria venda** o percentual aplicado, o 
 **Technical notes**
 
 - Totals are always computed from the rows, never stored (spec §6.3).
+
+**Done notes (follow-ups)**
+
+- No schema change. Core: `summarizeDaySales()` (RN-05; all active tabs in display order, inactive ones only with sales that day, method subtotals in method order), `saleChangeLockError()` (FR-03 text: reopen the day or register a refund), `updateSaleInputSchema` (partial, "Nada para alterar."), `daySalesResponseSchema`, `formatMoneyInput()` (cents → "1.234,56" for the form).
+- API: `GET /api/days/:date/sales` (grouped, with `lock` message), `PATCH /api/sales/:id` (merged into the saved sale, then the same FR-01 checks as `POST` via `checkAndPrice()`; the fee in force on the sale date is applied on **every** edit, FR-02 — owner-approved), `DELETE /api/sales/:id` (204). Both 409 `day_closed` on the old or new date. An edit may keep a tab/method/machine deactivated since; new choices must be active. An edit that changes nothing writes no audit row.
+- **#6:** `PATCH`/`DELETE` reject refund rows (400) and sales that already have refunds (409 `sale_has_refunds`). Revisit both when refunds exist (e.g. whether a refund can be deleted on an open day). The day view already adds refunds in (negative rows) and hides Editar/Excluir on them.
+- UI: the Vendas page shows the day per tab (`components/sales/DaySalesView.tsx`); "Editar" loads the sale into the same form, "Excluir" uses `window.confirm`. On a closed day both show the lock message without calling the server.
+- Possible follow-up for the owner's usability check: an option to hide empty tabs entirely (today they are collapsed one-line headers at R$ 0,00).
 
 **Acceptance criteria** _(verbatim from spec §4)_
 

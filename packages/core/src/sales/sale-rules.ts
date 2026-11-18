@@ -45,6 +45,25 @@ export function periodLockError(
 }
 
 /**
+ * RN-14 / FR-03: a sale on a closed day or in a closed month cannot be edited or deleted; the
+ * message suggests reopening (FR-09) or registering a refund (FR-04) instead.
+ */
+export function saleChangeLockError(
+  date: CivilDate,
+  status: { dayClosed: boolean; monthClosed: boolean },
+): string | null {
+  const suffix = "para alterar esta venda ou registre um estorno.";
+  if (status.monthClosed) {
+    const [year, month] = date.split("-");
+    return `O mês ${month}/${year} está fechado. Reabra o mês e o dia ${suffix}`;
+  }
+  if (status.dayClosed) {
+    return `O dia ${formatCivilDate(date)} está fechado. Reabra o dia ${suffix}`;
+  }
+  return null;
+}
+
+/**
  * FR-01 "Maquininha": required for Débito and Crédito, optional for PIX, not applicable to
  * Dinheiro and Boleto. Read from the method's `machineUsage`, never from its name.
  */

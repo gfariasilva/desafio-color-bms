@@ -39,3 +39,15 @@ export function parseMoneyText(text: string): number | null {
   if (reais.length > 12) return null;
   return Number(reais) * 100 + Number(decimals.padEnd(2, "0"));
 }
+
+/**
+ * FR-03: integer cents as the text the owner would type ("1.234,56", no "R$"), to load a
+ * saved sale into the form. Integer maths only; `parseMoneyToCents` reads it back exactly.
+ */
+export function formatMoneyInput(cents: number): string {
+  if (!Number.isSafeInteger(cents) || cents < 0) {
+    throw new RangeError(`formatMoneyInput expects non-negative integer cents, received ${cents}`);
+  }
+  const reais = String(Math.trunc(cents / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return `${reais},${String(cents % 100).padStart(2, "0")}`;
+}

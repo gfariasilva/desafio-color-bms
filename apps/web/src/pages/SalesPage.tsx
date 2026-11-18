@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -9,7 +9,7 @@ import {
   findFeeInForce,
   formatCents,
   formatCivilDate,
-  formatInstantTime,
+  formatMoneyInput,
   formatRatePercent,
   isCardFeeUsable,
   isCivilDate,
@@ -26,20 +26,15 @@ import {
   type PaymentMethod,
   type Sale,
 } from "@color-bms/core";
+import { DaySalesView } from "@/components/sales/DaySalesView";
+import { describeSale } from "@/components/sales/describe-sale";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ChoiceGroup } from "@/components/ui/choice-group";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { api, ApiError, QUERY_KEYS } from "@/lib/api";
 import { categoryColor } from "@/lib/category-colors";
 
@@ -67,18 +62,34 @@ function nextSale(date: string): FormState {
   };
 }
 
+/** FR-03: the saved sale loaded into the form, to edit it. */
+function fromSale(sale: Sale): FormState {
+  return {
+    date: sale.date,
+    value: formatMoneyInput(sale.grossCents),
+    saleCategoryId: sale.saleCategoryId,
+    paymentMethodId: sale.paymentMethodId,
+    cardMachineId: sale.cardMachineId,
+    installments: String(sale.installments ?? 1),
+    note: sale.note ?? "",
+  };
+}
+
 interface FormError {
   message: string;
   code?: string;
 }
 
 /**
- * Vendas (FR-01, FR-02): the keyboard-first sale form and the sales of the chosen day.
+ * Vendas (FR-01, FR-02, FR-03, FR-05): the keyboard-first sale form and the chosen day per tab.
  *
  * Keyboard (NFR-05, CS-2): focus starts on Valor; Tab → Aba (digit or first letters) →
  * Tab → Forma (digit) → Enter saves. Maquininha and Parcelas are enabled only when the
  * payment method uses them. After saving, the form is cleared except for the date, and
  * focus returns to Valor for the next sale.
+ *
+ * FR-03: "Editar" on a row loads the sale into the same form (Salvar / Cancelar, Esc cancels);
+ * "Excluir" asks for confirmation. On a closed day both only explain how to change it (RN-14).
  */
 export function SalesPage() {
   const queryClient = useQueryClient();
@@ -99,6 +110,7 @@ export function SalesPage() {
   const [form, setForm] = useState<FormState>(() => nextSale(""));
   const [error, setError] = useState<FormError | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Sale | null>(null);
   const valueField = useRef<HTMLInputElement>(null);
 
   // RN-15: the date starts as the server's today (never the browser clock). When the day
@@ -115,9 +127,9 @@ export function SalesPage() {
   }, [today.data]);
 
   const listDate = isCivilDate(form.date) ? form.date : null;
-  const sales = useQuery({
+  const day = useQuery({
     queryKey: [...QUERY_KEYS.sales, listDate],
-    queryFn: () => api.sales.list(listDate as string),
+    queryFn: () => api.sales.day(listDate as string),
     enabled: listDate !== null,
   });
 
@@ -127,27 +139,90 @@ export function SalesPage() {
   const method = methodList.find((item) => item.id === form.paymentMethodId);
   const machineDisabled = !method || method.machineUsage === "not_applicable";
   const installmentsDisabled = !method?.allowsInstallments;
-  const tabOrder = new Map(tabList.map((tab) => [tab.id, tab.order]));
+  // FR-03: while editing, the sale may keep a tab, method or machine deactivated since.
+  const offered = (item: { id: number; active: boolean }, currentId: number | null | undefined) =>
+    item.active || item.id === currentId;
+
+  function showFailure(failure: unknown) {
+    setSaved(null);
+    setError(
+      failure instanceof ApiError
+        ? { message: failure.message, code: failure.code }
+        : { message: "Erro inesperado. Tente de novo." },
+    );
+  }
+
+  /** After a save or delete: back to a new sale on `date`, focus on Valor, fresh totals. */
+  async function done(message: string, date: string) {
+    setError(null);
+    setSaved(message);
+    setEditing(null);
+    setForm(nextSale(date));
+    valueField.current?.focus();
+    await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.sales });
+  }
 
   const save = useMutation({
-    mutationFn: (input: CreateSaleInput) => api.sales.create(input),
-    onSuccess: async (sale, input) => {
-      setError(null);
-      setSaved(`Venda de ${formatCents(sale.grossCents)} registrada.`);
-      // FR-01: ready for the next sale, keeping the date.
-      setForm(nextSale(input.date));
-      valueField.current?.focus();
-      await queryClient.invalidateQueries({ queryKey: [...QUERY_KEYS.sales, sale.date] });
-    },
-    onError: (failure) => {
-      setSaved(null);
-      setError(
-        failure instanceof ApiError
-          ? { message: failure.message, code: failure.code }
-          : { message: "Erro inesperado. Tente de novo." },
-      );
-    },
+    mutationFn: ({ id, input }: { id: number | null; input: CreateSaleInput }) =>
+      id === null ? api.sales.create(input) : api.sales.update(id, input),
+    onSuccess: (sale, { id, input }) =>
+      // FR-01: ready for the next sale, keeping the date; after an edit, the day being viewed.
+      id === null
+        ? done(`Venda de ${formatCents(sale.grossCents)} registrada.`, input.date)
+        : done("Venda alterada.", editing?.date ?? input.date),
+    onError: showFailure,
   });
+
+  const remove = useMutation({
+    mutationFn: (sale: Sale) => api.sales.remove(sale.id),
+    onSuccess: async (_, sale) => {
+      // Deleting the sale being edited ends the edit; a new sale being typed is kept.
+      if (editing?.id === sale.id) return done("Venda excluída.", sale.date);
+      setError(null);
+      setSaved("Venda excluída.");
+      await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.sales });
+    },
+    onError: showFailure,
+  });
+
+  /** RN-14 / FR-03: a closed day cannot change; say how instead of opening the form. */
+  function blockedByLock(): boolean {
+    const lock = day.data?.lock;
+    if (!lock) return false;
+    setSaved(null);
+    setError({ message: lock });
+    return true;
+  }
+
+  function startEdit(sale: Sale) {
+    if (blockedByLock()) return;
+    setError(null);
+    setSaved(null);
+    setEditing(sale);
+    setForm(fromSale(sale));
+    valueField.current?.focus();
+  }
+
+  function cancelEdit() {
+    if (!editing) return;
+    setEditing(null);
+    setError(null);
+    setForm(nextSale(editing.date));
+    valueField.current?.focus();
+  }
+
+  function confirmDelete(sale: Sale) {
+    if (blockedByLock()) return;
+    const question = `Excluir a venda de ${formatCents(sale.grossCents)} (${sale.saleCategoryName}, ${sale.paymentMethodName})? A exclusão fica registrada na auditoria.`;
+    if (window.confirm(question)) remove.mutate(sale);
+  }
+
+  function cancelOnEscape(event: KeyboardEvent) {
+    if (event.key === "Escape" && editing) {
+      event.preventDefault();
+      cancelEdit();
+    }
+  }
 
   function set<K extends keyof FormState>(field: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -196,7 +271,7 @@ export function SalesPage() {
       if (dateError) return fail(dateError);
     }
     setSaved(null); // the confirmation always refers to the last save
-    save.mutate(parsed.data);
+    save.mutate({ id: editing?.id ?? null, input: parsed.data });
   }
 
   return (
@@ -208,7 +283,18 @@ export function SalesPage() {
 
       <Card className="mb-4">
         <CardContent className="p-4">
-          <form onSubmit={submit} noValidate className="space-y-4" aria-label="Nova venda">
+          <form
+            onSubmit={submit}
+            onKeyDown={cancelOnEscape}
+            noValidate
+            className="space-y-4"
+            aria-label={editing ? "Editar venda" : "Nova venda"}
+          >
+            {editing ? (
+              <p className="text-sm font-medium">
+                Editando a venda {describeSale(editing)} · Esc cancela
+              </p>
+            ) : null}
             <div className="flex flex-wrap items-end gap-3">
               <div className="w-40 space-y-1.5">
                 <Label htmlFor="sale-date">Data</Label>
@@ -247,7 +333,7 @@ export function SalesPage() {
             <ChoiceGroup
               label="Aba"
               options={tabList
-                .filter((tab) => tab.active)
+                .filter((tab) => offered(tab, editing?.saleCategoryId))
                 .map((tab) => ({
                   value: tab.id,
                   label: tab.name,
@@ -260,7 +346,7 @@ export function SalesPage() {
             <ChoiceGroup
               label="Forma de pagamento"
               options={methodList
-                .filter((item) => item.active)
+                .filter((item) => offered(item, editing?.paymentMethodId))
                 .map((item) => ({ value: item.id, label: item.name }))}
               value={form.paymentMethodId}
               onChange={chooseMethod}
@@ -270,7 +356,7 @@ export function SalesPage() {
               <ChoiceGroup
                 label="Maquininha"
                 options={machineList
-                  .filter((item) => item.active)
+                  .filter((item) => offered(item, editing?.cardMachineId))
                   .map((item) => ({ value: item.id, label: item.name }))}
                 value={form.cardMachineId}
                 onChange={(id) => set("cardMachineId", id)}
@@ -302,6 +388,11 @@ export function SalesPage() {
               <Button type="submit" disabled={save.isPending}>
                 Salvar
               </Button>
+              {editing ? (
+                <Button type="button" variant="ghost" onClick={cancelEdit}>
+                  Cancelar
+                </Button>
+              ) : null}
             </div>
 
             {today.isError && !today.data ? (
@@ -330,10 +421,34 @@ export function SalesPage() {
       </Card>
 
       <section aria-labelledby="sales-day-title">
-        <h2 id="sales-day-title" className="mb-2 text-base font-semibold">
-          {listDate ? `Vendas de ${formatCivilDate(listDate)}` : "Vendas"}
-        </h2>
-        <SalesTable sales={sales.data ?? []} tabOrder={tabOrder} loading={sales.isLoading} />
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <h2 id="sales-day-title" className="text-base font-semibold">
+            {listDate ? `Vendas de ${formatCivilDate(listDate)}` : "Vendas"}
+          </h2>
+          {day.data?.lock ? <Badge variant="secondary">Dia fechado</Badge> : null}
+        </div>
+        {day.isLoading ? <p className="text-sm text-muted-foreground">Carregando…</p> : null}
+        {day.isError ? (
+          <p role="alert" className="text-sm text-destructive">
+            Não foi possível carregar as vendas do dia. Recarregue a página.
+          </p>
+        ) : null}
+        {day.data ? (
+          <>
+            {day.data.tabs.every((tab) => tab.sales.length === 0) ? (
+              <p className="mb-2 text-sm text-muted-foreground">
+                Nenhuma venda neste dia. Registre a primeira com Enter.
+              </p>
+            ) : null}
+            <DaySalesView
+              day={day.data}
+              editingId={editing?.id ?? null}
+              busy={save.isPending || remove.isPending}
+              onEdit={startEdit}
+              onDelete={confirmDelete}
+            />
+          </>
+        ) : null}
       </section>
     </>
   );
@@ -384,94 +499,5 @@ function FeePreview({ value, date, method, machine, installments, fees }: FeePre
     <p data-testid="fee-preview" className="pb-2 text-sm tabular-nums text-muted-foreground">
       {text}
     </p>
-  );
-}
-
-/** FR-01: the sales of the chosen day, with the day's totals (computed, never stored). */
-function SalesTable({
-  sales,
-  tabOrder,
-  loading,
-}: {
-  sales: readonly Sale[];
-  tabOrder: ReadonlyMap<number, number>;
-  loading: boolean;
-}) {
-  if (loading) return <p className="text-sm text-muted-foreground">Carregando…</p>;
-  if (sales.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        Nenhuma venda neste dia. Registre a primeira com Enter.
-      </p>
-    );
-  }
-  const total = sales.reduce(
-    (sum, sale) => ({
-      gross: sum.gross + sale.grossCents,
-      fee: sum.fee + sale.feeCents,
-      net: sum.net + sale.netCents,
-    }),
-    { gross: 0, fee: 0, net: 0 },
-  );
-  return (
-    <Card>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Hora</TableHead>
-            <TableHead>Aba</TableHead>
-            <TableHead>Forma</TableHead>
-            <TableHead>Maquininha</TableHead>
-            <TableHead className="text-right">Parc.</TableHead>
-            <TableHead className="text-right">Bruto</TableHead>
-            <TableHead className="text-right">Taxa (%)</TableHead>
-            <TableHead className="text-right">Taxa</TableHead>
-            <TableHead className="text-right">Líquido</TableHead>
-            <TableHead>Observação</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {sales.map((sale) => (
-            <TableRow key={sale.id}>
-              <TableCell>{formatInstantTime(sale.createdAt)}</TableCell>
-              <TableCell>
-                <span className="inline-flex items-center gap-2">
-                  <span
-                    aria-hidden
-                    className="h-2 w-2 shrink-0 rounded-full"
-                    style={{
-                      backgroundColor: categoryColor((tabOrder.get(sale.saleCategoryId) ?? 1) - 1),
-                    }}
-                  />
-                  {sale.saleCategoryName}
-                </span>
-              </TableCell>
-              <TableCell>{sale.paymentMethodName}</TableCell>
-              <TableCell>{sale.cardMachineName ?? "—"}</TableCell>
-              <TableCell className="text-right">
-                {sale.installments === null ? "—" : `${sale.installments}x`}
-              </TableCell>
-              <TableCell className="text-right">{formatCents(sale.grossCents)}</TableCell>
-              <TableCell className="text-right">
-                {sale.feeRatePpm === 0 ? "—" : formatRatePercent(sale.feeRatePpm)}
-              </TableCell>
-              <TableCell className="text-right">{formatCents(sale.feeCents)}</TableCell>
-              <TableCell className="text-right">{formatCents(sale.netCents)}</TableCell>
-              <TableCell className="text-muted-foreground">{sale.note ?? ""}</TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-        <tfoot className="border-t bg-muted/50 font-medium">
-          <TableRow>
-            <TableCell colSpan={5}>Total do dia</TableCell>
-            <TableCell className="text-right">{formatCents(total.gross)}</TableCell>
-            <TableCell />
-            <TableCell className="text-right">{formatCents(total.fee)}</TableCell>
-            <TableCell className="text-right">{formatCents(total.net)}</TableCell>
-            <TableCell />
-          </TableRow>
-        </tfoot>
-      </Table>
-    </Card>
   );
 }
