@@ -3,12 +3,14 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "@/components/layout/AppShell";
 import { NAV_ITEMS } from "@/config/navigation";
 import { AuditPage } from "@/pages/AuditPage";
+import { CatalogPage } from "@/pages/CatalogPage";
+import { CategoriesPage } from "@/pages/CategoriesPage";
 import { HomePage } from "@/pages/HomePage";
 import { PlaceholderPage } from "@/pages/PlaceholderPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 
 /** Areas that already have their own page; the others show a placeholder. */
-const BUILT_AREAS = new Set(["/", "/configuracoes"]);
+const BUILT_AREAS = new Set(["/", "/cadastros", "/configuracoes"]);
 
 /** Opt in to React Router v7 behaviour now, so a future upgrade changes nothing. */
 export const ROUTER_FUTURE = { v7_startTransition: true, v7_relativeSplatPath: true } as const;
@@ -18,6 +20,9 @@ export function AppRoutes() {
     <Routes>
       <Route element={<AppShell />}>
         <Route index element={<HomePage />} />
+        <Route path="cadastros" element={<CatalogPage />} />
+        <Route path="cadastros/abas" element={<CategoriesPage kind="sale" />} />
+        <Route path="cadastros/categorias-despesa" element={<CategoriesPage kind="expense" />} />
         <Route path="configuracoes" element={<SettingsPage />} />
         <Route path="configuracoes/auditoria" element={<AuditPage />} />
         {NAV_ITEMS.filter((item) => !BUILT_AREAS.has(item.path)).map((item) => (

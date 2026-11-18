@@ -41,7 +41,7 @@ Ordered backlog for the MVP (spec §9.1). Each item is one small PR / GitHub iss
 | Done | Milestone | # | Item | Requirements | Depends on |
 |---|---|---|---|---|---|
 | [x] | M1 | [#1](#1--audit-log-foundation) | Audit log foundation | FR-18 | — |
-| [ ] | M1 | [#2](#2--sale-tabs-and-expense-categories) | Sale tabs and expense categories | FR-14; RN-12 | #1 |
+| [x] | M1 | [#2](#2--sale-tabs-and-expense-categories) | Sale tabs and expense categories | FR-14; RN-12 | #1 |
 | [ ] | M1 | [#3](#3--payment-methods-card-machines-and-fee-table) | Payment methods, card machines and fee table | FR-15; RN-01, RN-12 | #1, #2 |
 | [ ] | M1 | [#4](#4--register-a-sale-with-the-machine-fee) | Register a sale with the machine fee | FR-01, FR-02; RN-01, RN-02, RN-03, RN-14, RN-15 | #3 |
 | [ ] | M1 | [#5](#5--day-view-per-tab-and-editdelete-a-sale) | Day view per tab, and edit/delete a sale | FR-05, FR-03; RN-05, RN-14 | #4 |
@@ -140,6 +140,14 @@ Cada registro tem: data e hora, entidade, ação, valores antes e depois, e moti
 
 - "Never used" will be checked against sales/expenses once those tables exist; add the check in #4/#7 if the tables are not there yet.
 - Category colors: `categoryColor(order)` from the design system.
+
+**Done notes (follow-ups)**
+
+- Names are unique ignoring **case and accents** (owner decision): `categoryNameKey()` in `packages/core/src/catalog/categories.ts`, stored in a unique `name_key` column.
+- RN-12 lists are seeded by the migration `0003_seed_categories.sql`, so they run once and deleted categories never come back.
+- **#4** must add the sales count to `countUsages()` in `apps/server/src/modules/categories/categories.repository.ts`, replace the `it.todo` in `apps/server/test/categories.test.ts` (delete a used tab → 409 `category_in_use`), and test the FR-14 rename criterion with real sales. The sale form lists tabs with `GET /api/sale-categories?active=true`.
+- **#7** does the same for expense categories (`GET /api/expense-categories?active=true`).
+- Auditoria shows a category's id in "Registro", not its name; consider showing the name when audit rows gain a display label.
 
 **Acceptance criteria** _(verbatim from spec §4)_
 
