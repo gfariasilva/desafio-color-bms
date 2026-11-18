@@ -1,0 +1,83 @@
+# Design system
+
+The UI reuses the brand of the Color landing page (`gfariasilva/desafio-color-landing-page`): the same tokens, logo, font and shadcn/ui setup. This app is an **operational back-office**, though, not a marketing site, so the style is adapted for speed and readability: dense, calm and keyboard-first.
+
+Source files:
+
+| What | File |
+|---|---|
+| CSS variables (tokens, light + dark) and rainbow utilities | `apps/web/src/index.css` |
+| Tailwind theme (colors, radius, font) | `apps/web/tailwind.config.ts` |
+| shadcn/ui config | `apps/web/components.json` |
+| `cn()` class helper | `apps/web/src/lib/utils.ts` |
+| Components | `apps/web/src/components/ui/` |
+| Category / chart colors | `apps/web/src/lib/category-colors.ts` |
+| pt-BR formatters | `packages/core/src/format/` |
+
+## Tokens
+
+All colors are HSL CSS variables, used through Tailwind classes (`bg-primary`, `text-muted-foreground`…). **Never hard-code hex/rgb values in components.** The `.dark` class on `<html>` switches every token to its dark value.
+
+| Token | Tailwind | Use |
+|---|---|---|
+| `--background` / `--foreground` | `bg-background`, `text-foreground` | Page background and body text |
+| `--card` | `bg-card` | Cards, panels, tables |
+| `--primary` (brand blue 217 91% 50%) | `bg-primary`, `text-primary` | Main action per screen, active nav item, links |
+| `--secondary`, `--accent`, `--muted` | `bg-muted`, `text-muted-foreground` | Secondary buttons, hover, labels and help text |
+| `--destructive` | `bg-destructive`, `text-destructive` | Delete, errors, cash **shortage** |
+| `--border`, `--input`, `--ring` | `border`, `ring-ring` | Borders, inputs, focus ring |
+| `--rainbow-{red,orange,yellow,green,blue,purple}` | `bg-rainbow-green`… | Brand accent and category colors only |
+| `--chart-1…6` (= rainbow) | `bg-chart-1`… | Chart series and categories |
+| `--sidebar-*` | `bg-sidebar`… | Sidebar only |
+| `--radius` = 0.75rem | `rounded-lg` (cards), `rounded-md` (buttons, inputs) | Corner radius |
+
+**Typography:** Inter (variable), bundled with `@fontsource-variable/inter` so it works offline. Body text is `text-sm` (14px). Page titles use `text-xl font-semibold`. Section titles use `text-base font-semibold`.
+
+## The rainbow: accent only
+
+The rainbow is the brand's signature, so it gets used sparingly:
+
+- ✅ The 4px `rainbow-gradient` stripe at the top of the app (already in `AppShell`).
+- ✅ The logo in the sidebar.
+- ✅ Single rainbow colors as **category and chart colors** (see below).
+- ✅ `bg-rainbow-green` for positive status ("Conectado", "Pago", cash surplus).
+- ❌ No gradient backgrounds on buttons, cards or headers. No `rainbow-text` in the app.
+
+### Category and chart colors
+
+Sale tabs ("abas"), expense categories and chart series use `categoryColor(index)` from `src/lib/category-colors.ts`. The index is the category's **display order**, so a category keeps the same color in every table and chart. The palette is ordered for contrast between neighbours: blue, orange, green, purple, red, yellow, and it repeats after six. Use the color as a small dot or bar beside the text, never as the text color itself, which would hurt contrast.
+
+## Back-office style rules
+
+- **Dense:** buttons and inputs are `h-9` (small: `h-8`). Table rows are compact (`h-9`, `px-3 py-2`). Cards use `p-4`, not `p-6`.
+- **Numbers:** money is right-aligned with `tabular-nums` (applied automatically on `td`/`th`). Always format with `formatCents()` and never build "R$" strings by hand.
+- **No decorative motion:** no float, pulse, fade-in or slide-in. Short `transition-colors` on hover is fine. `prefers-reduced-motion` is respected globally.
+- **Status colors:** green (`rainbow-green`) for ok, paid and surplus. `destructive` for errors, overdue and shortage. `rainbow-yellow`/`orange` for warnings such as "a vencer" or "backup pendente". Always add a text label too; color alone is not enough.
+- **Empty states:** a short pt-BR sentence saying what to do next ("Nenhuma venda hoje. Registre a primeira com Enter.").
+
+## Keyboard-first (NFR-05)
+
+- **Alt+1 … Alt+9** open the nine main areas (`src/config/navigation.ts`). The shortcut is shown in the sidebar.
+- Every interactive element has a visible focus ring (`focus-visible:ring-2 ring-ring`). Never remove it.
+- Data-entry forms: logical tab order, **Enter submits**, Esc cancels or closes, and focus returns to the first field after saving so the next entry can start immediately (FR-01, CS-2).
+- Don't use shortcuts the browser or Windows already own, such as Ctrl+N, Ctrl+T, Ctrl+W, Ctrl+1–9 and F5.
+
+## pt-BR formatting
+
+Import these from `@color-bms/core`:
+
+| Helper | Input | Output |
+|---|---|---|
+| `formatCents(123456)` | integer cents | `R$ 1.234,56` (non-breaking space after `R$`) |
+| `formatCents(-8000)` | negative cents | `-R$ 80,00` |
+| `formatCivilDate("2026-11-18")` | civil date | `18/11/2026` |
+| `formatInstant("2026-11-18T22:03:00Z")` | UTC instant | `18/11/2026 19:03` (São Paulo time) |
+| `todayCivilDate()` | — | today in São Paulo, `"YYYY-MM-DD"` |
+
+## Components (shadcn/ui)
+
+- **Add a component only when a screen uses it.** Copy it from the landing page (`src/components/ui/`) if it is there; otherwise use the Tailwind 3-compatible CLI: `npx shadcn@2 add <component>` from `apps/web`. The latest shadcn CLI targets Tailwind 4.
+- After adding, apply the density rules: default size `h-9`, card padding `p-4`.
+- Currently in use: `button` (sizes tightened to `h-9`), `card`, `badge` (plus a `success` variant), `separator`.
+- Layout components live in `src/components/layout/`: `AppShell`, `AppSidebar`, `PageHeader`, `ThemeToggle`.
+- Naming: components in `PascalCase.tsx`, hooks in `use-kebab-case.ts`, one component per file. UI text is written in pt-BR directly in the component, since there is no i18n layer (pt-BR only, NFR-05).
