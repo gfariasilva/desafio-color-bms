@@ -44,3 +44,77 @@ export function toCivilDate(instant: Date): CivilDate {
 export function todayCivilDate(now: Date = new Date()): CivilDate {
   return toCivilDate(now);
 }
+
+/**
+ * Splits a civil date into [year, month, day] numbers, or throws a RangeError naming `caller`.
+ *
+ * @example parseCivilDate("2026-11-18", "myFn") // [2026, 11, 18]
+ */
+export function parseCivilDate(date: CivilDate, caller: string): [number, number, number] {
+  if (!isCivilDate(date)) {
+    throw new RangeError(`${caller} expects "YYYY-MM-DD", received "${date}"`);
+  }
+  const [year, month, day] = date.split("-").map(Number) as [number, number, number];
+  return [year, month, day];
+}
+
+/**
+ * Adds (or, with a negative `days`, subtracts) whole days to a civil date.
+ * Pure calendar math in UTC, so no time zone can shift the result.
+ *
+ * @example addDays("2026-12-31", 1) // "2027-01-01"
+ */
+export function addDays(date: CivilDate, days: number): CivilDate {
+  const [year, month, day] = parseCivilDate(date, "addDays");
+  const shifted = new Date(Date.UTC(year, month - 1, day + days));
+  return shifted.toISOString().slice(0, 10);
+}
+
+// Wall-clock parts of an instant in São Paulo, used to find the UTC offset.
+const wallClockFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: TIME_ZONE,
+  year: "numeric",
+  month: "numeric",
+  day: "numeric",
+  hour: "numeric",
+  minute: "numeric",
+  second: "numeric",
+  hourCycle: "h23",
+});
+
+/** São Paulo's UTC offset at `instantMs`, in milliseconds (e.g. −3 h = −10 800 000). */
+function saoPauloOffsetMs(instantMs: number): number {
+  const parts: Record<string, number> = {};
+  for (const part of wallClockFormatter.formatToParts(new Date(instantMs))) {
+    if (part.type !== "literal") parts[part.type] = Number(part.value);
+  }
+  const wallClockAsUtc = Date.UTC(
+    parts.year ?? 0,
+    (parts.month ?? 1) - 1,
+    parts.day ?? 1,
+    parts.hour ?? 0,
+    parts.minute ?? 0,
+    parts.second ?? 0,
+  );
+  return wallClockAsUtc - (instantMs - (instantMs % 1000));
+}
+
+/**
+ * The UTC instant (ISO-8601) when a civil date starts in São Paulo (RN-15).
+ * Uses the real time zone rules from Intl, so it is right even for the years when Brazil
+ * had daylight saving time. Use it to filter instants (e.g. audit `at`) by business day:
+ * `start(from) <= at < start(addDays(to, 1))`.
+ *
+ * @example civilDayStartInstant("2026-11-18") // "2026-11-18T03:00:00.000Z"
+ */
+export function civilDayStartInstant(date: CivilDate): string {
+  const [year, month, day] = parseCivilDate(date, "civilDayStartInstant");
+  const utcMidnight = Date.UTC(year, month - 1, day);
+  // First guess with the offset at UTC midnight, then refine with the offset at the guess.
+  const first = utcMidnight - saoPauloOffsetMs(utcMidnight);
+  const refined = utcMidnight - saoPauloOffsetMs(first);
+  // On a day whose midnight did not exist (clocks jumped 00:00 → 01:00 when daylight saving
+  // time started), `refined` lands on the previous day; the day then starts at `first`.
+  const start = toCivilDate(new Date(refined)) === date ? refined : first;
+  return new Date(start).toISOString();
+}

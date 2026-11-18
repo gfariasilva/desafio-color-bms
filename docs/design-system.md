@@ -78,6 +78,9 @@ Import these from `@color-bms/core`:
 
 - **Add a component only when a screen uses it.** Copy it from the landing page (`src/components/ui/`) if it is there; otherwise use the Tailwind 3-compatible CLI: `npx shadcn@2 add <component>` from `apps/web`. The latest shadcn CLI targets Tailwind 4.
 - After adding, apply the density rules: default size `h-9`, card padding `p-4`.
-- Currently in use: `button` (sizes tightened to `h-9`), `card`, `badge` (plus a `success` variant), `separator`.
+- Currently in use: `button` (sizes tightened to `h-9`), `card`, `badge` (plus a `success` variant), `separator`, `input` (`h-9`), `label` (plain `<label>`, no Radix), `table` (rows `h-9`, cells `px-3 py-2`).
+- **`NativeSelect`** (`components/ui/native-select.tsx`): a native `<select>` styled like `Input`. Use it for short fixed lists such as filters: it is keyboard-usable out of the box (type to jump, arrows to move) and **Enter submits the form**, which browsers do not do on a `<select>` by themselves.
+- **Filter bars:** a `<form>` with labelled fields in one row (`flex flex-wrap items-end gap-3`) and a primary **Filtrar** button; Enter in any field applies the filters. Validate with the same Zod schema as the server and show its pt-BR message in a `role="alert"` paragraph.
+- **Sub-pages** of an area (e.g. `/configuracoes/auditoria`) keep the area active in the sidebar and header, and show a "← Área" link under the page header.
 - Layout components live in `src/components/layout/`: `AppShell`, `AppSidebar`, `PageHeader`, `ThemeToggle`.
 - Naming: components in `PascalCase.tsx`, hooks in `use-kebab-case.ts`, one component per file. UI text is written in pt-BR directly in the component, since there is no i18n layer (pt-BR only, NFR-05).

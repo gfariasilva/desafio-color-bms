@@ -3,6 +3,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 import fastifyStatic from "@fastify/static";
 import type { DatabaseConnection } from "./db/client";
 import { registerHostGuard } from "./http/host-guard";
+import { registerAuditRoutes } from "./modules/audit/audit.routes";
 import { registerHealthRoutes } from "./modules/health/health.routes";
 import packageJson from "../package.json" with { type: "json" };
 
@@ -23,6 +24,7 @@ export async function buildApp({
 
   registerHostGuard(app);
   registerHealthRoutes(app, connection, packageJson.version);
+  registerAuditRoutes(app, connection);
 
   if (webDistDir && fs.existsSync(webDistDir)) {
     await app.register(fastifyStatic, { root: webDistDir });

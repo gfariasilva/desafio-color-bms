@@ -50,6 +50,13 @@ describe("AppShell", () => {
     expect(screen.getByText("18/11/2026 19:03")).toBeInTheDocument();
   });
 
+  it("shows the right area in the header for areas whose paths share a prefix", () => {
+    renderAt("/despesas-fixas");
+    expect(screen.getByRole("banner")).toHaveTextContent("Despesas fixas");
+    renderAt("/despesas");
+    expect(screen.getAllByRole("banner")[1]).not.toHaveTextContent("Despesas fixas");
+  });
+
   it("navigates when a sidebar link is clicked", () => {
     renderAt("/");
     fireEvent.click(screen.getByRole("link", { name: /Despesas fixas/ }));

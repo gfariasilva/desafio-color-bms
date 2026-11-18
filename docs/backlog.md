@@ -40,7 +40,7 @@ Ordered backlog for the MVP (spec §9.1). Each item is one small PR / GitHub iss
 
 | Done | Milestone | # | Item | Requirements | Depends on |
 |---|---|---|---|---|---|
-| [ ] | M1 | [#1](#1--audit-log-foundation) | Audit log foundation | FR-18 | — |
+| [x] | M1 | [#1](#1--audit-log-foundation) | Audit log foundation | FR-18 | — |
 | [ ] | M1 | [#2](#2--sale-tabs-and-expense-categories) | Sale tabs and expense categories | FR-14; RN-12 | #1 |
 | [ ] | M1 | [#3](#3--payment-methods-card-machines-and-fee-table) | Payment methods, card machines and fee table | FR-15; RN-01, RN-12 | #1, #2 |
 | [ ] | M1 | [#4](#4--register-a-sale-with-the-machine-fee) | Register a sale with the machine fee | FR-01, FR-02; RN-01, RN-02, RN-03, RN-14, RN-15 | #3 |
@@ -110,6 +110,12 @@ Cada registro tem: data e hora, entidade, ação, valores antes e depois, e moti
   **Quando** o proprietário consulta a auditoria filtrando por data ou tipo
   **Então** vê o registro com os dois valores.
 - Registros de auditoria **não podem** ser editados nem excluídos pela interface.
+
+**Done — notes for later items**
+
+- Call `recordAudit(tx, { entity, entityId, action, before, after, reason })` inside the business write's `db.transaction`. Money keys in `before`/`after` end in `Cents`.
+- Add pt-BR labels for new `before`/`after` fields to `AUDIT_FIELD_LABELS` in `packages/core/src/audit/audit.ts`; unknown fields are shown by their key.
+- Immutability is enforced by the API (no edit/delete routes), not by a database trigger (owner's decision).
 
 ### #2 — Sale tabs and expense categories
 
