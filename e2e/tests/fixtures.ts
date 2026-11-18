@@ -78,8 +78,12 @@ export const test = base.extend<
         await waitForHealth(baseURL, child, () => output);
         await use({ baseURL, dataDir });
       } finally {
-        child.kill();
-        await new Promise((resolve) => child.once("exit", resolve));
+        // A server that already exited (e.g. crashed at startup) sends no more "exit" events.
+        if (child.exitCode === null && child.signalCode === null) {
+          const exited = new Promise((resolve) => child.once("exit", resolve));
+          child.kill();
+          await exited;
+        }
         fs.rmSync(dataDir, { recursive: true, force: true });
       }
     },
@@ -128,8 +132,12 @@ export { expect };
 /** Adds a fee row through the public API, as the owner would on Tabela de taxas. */
 export async function createFee(api: APIRequestContext, input: CardFeeInput): Promise<void> {
   const response = await api.post("/api/card-fees", { data: input });
-  // 409 = the same row already exists from an earlier test in this worker.
-  expect([201, 409]).toContain(response.status());
+  if (response.status() === 201) return;
+  // 409 is fine only when this exact row already exists (an earlier test in this worker);
+  // an overlap with a different rate is a broken setup.
+  expect(response.status(), await response.text()).toBe(409);
+  const { fees } = (await (await api.get("/api/card-fees")).json()) as { fees: CardFeeInput[] };
+  expect(fees).toContainEqual(expect.objectContaining(input));
 }
 
 /**

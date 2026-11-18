@@ -6,6 +6,9 @@ import * as schema from "./schema";
 
 export type AppDatabase = BetterSQLite3Database<typeof schema>;
 
+/** The `tx` handed to a `db.transaction((tx) => …)` callback. */
+export type AppTransaction = Parameters<Parameters<AppDatabase["transaction"]>[0]>[0];
+
 export interface DatabaseConnection {
   /** Raw better-sqlite3 handle: pragmas, backups, transactions. */
   sqlite: Database.Database;

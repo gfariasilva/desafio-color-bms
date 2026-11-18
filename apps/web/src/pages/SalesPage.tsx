@@ -16,6 +16,7 @@ import {
   MAX_INSTALLMENTS,
   needsCardFee,
   parseMoneyToCents,
+  parseMoneyText,
   saleDateError,
   saleMachineError,
   SALE_TEXTS,
@@ -81,7 +82,12 @@ interface FormError {
  */
 export function SalesPage() {
   const queryClient = useQueryClient();
-  const today = useQuery({ queryKey: QUERY_KEYS.today, queryFn: api.today });
+  // RN-15: re-asked every minute, so a page left open overnight moves to the new day.
+  const today = useQuery({
+    queryKey: QUERY_KEYS.today,
+    queryFn: api.today,
+    refetchInterval: 60_000,
+  });
   const tabs = useQuery({ queryKey: QUERY_KEYS.sale, queryFn: api.saleCategories.list });
   const methods = useQuery({
     queryKey: QUERY_KEYS.payment_method,
@@ -95,10 +101,17 @@ export function SalesPage() {
   const [saved, setSaved] = useState<string | null>(null);
   const valueField = useRef<HTMLInputElement>(null);
 
-  // RN-15: the date starts as the server's today (never the browser clock).
+  // RN-15: the date starts as the server's today (never the browser clock). When the day
+  // changes, a form still on the old "today" follows it; a date the owner chose is kept.
+  const previousToday = useRef<string | null>(null);
   useEffect(() => {
-    if (today.data)
-      setForm((current) => (current.date ? current : { ...current, date: today.data }));
+    const newToday = today.data;
+    if (!newToday) return;
+    const oldToday = previousToday.current;
+    previousToday.current = newToday;
+    setForm((current) =>
+      !current.date || current.date === oldToday ? { ...current, date: newToday } : current,
+    );
   }, [today.data]);
 
   const listDate = isCivilDate(form.date) ? form.date : null;
@@ -159,31 +172,31 @@ export function SalesPage() {
   function submit(event: FormEvent) {
     event.preventDefault();
     if (save.isPending) return;
-    const grossCents = parseMoneyToCents(form.value);
+    // Well-formed text only; zero and the maximum are the schema's job (its messages).
+    const grossCents = parseMoneyText(form.value);
     if (grossCents === null) return fail(SALE_TEXTS.invalidValue);
-    if (form.saleCategoryId === null) return fail("Escolha a aba.");
-    if (!method) return fail("Escolha a forma de pagamento.");
-    const machineError = saleMachineError(method, form.cardMachineId);
-    if (machineError) return fail(machineError);
-    if (today.data && isCivilDate(form.date)) {
-      const dateError = saleDateError(form.date, today.data);
-      if (dateError) return fail(dateError);
-    }
 
-    const input: CreateSaleInput = {
+    // The same schema as the server, so its pt-BR messages show before any request
+    // ("Escolha a aba.", "Escolha a forma de pagamento.", the maximum value…).
+    const parsed = createSaleInputSchema.safeParse({
       date: form.date,
       grossCents,
-      saleCategoryId: form.saleCategoryId,
-      paymentMethodId: method.id,
-      cardMachineId: method.machineUsage === "not_applicable" ? null : form.cardMachineId,
-      installments: method.allowsInstallments ? Number(form.installments) : null,
-      note: form.note.trim() || null,
-    };
-    // The same schema as the server, so its pt-BR messages show before any request.
-    const parsed = createSaleInputSchema.safeParse(input);
+      saleCategoryId: form.saleCategoryId ?? undefined,
+      paymentMethodId: form.paymentMethodId ?? undefined,
+      cardMachineId: machineDisabled ? null : form.cardMachineId,
+      installments: method?.allowsInstallments ? Number(form.installments) : null,
+      note: form.note,
+    });
     if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "Dados inválidos.");
+    if (!method) return fail(SALE_TEXTS.inactiveMethod);
+    const machineError = saleMachineError(method, form.cardMachineId);
+    if (machineError) return fail(machineError);
+    if (today.data) {
+      const dateError = saleDateError(parsed.data.date, today.data);
+      if (dateError) return fail(dateError);
+    }
     setSaved(null); // the confirmation always refers to the last save
-    save.mutate(input);
+    save.mutate(parsed.data);
   }
 
   return (
@@ -291,6 +304,11 @@ export function SalesPage() {
               </Button>
             </div>
 
+            {today.isError && !today.data ? (
+              <p role="alert" className="text-sm text-destructive">
+                Não foi possível obter a data de hoje do servidor. Recarregue a página.
+              </p>
+            ) : null}
             {error ? (
               <p role="alert" className="text-sm text-destructive">
                 {error.message}
@@ -338,6 +356,13 @@ function FeePreview({ value, date, method, machine, installments, fees }: FeePre
   const text = useMemo(() => {
     const grossCents = parseMoneyToCents(value);
     if (grossCents === null || !method || !isCivilDate(date)) return null;
+    // While Parcelas is being typed ("" or 13), there is nothing to look up yet.
+    if (
+      installments !== null &&
+      (!Number.isInteger(installments) || installments < 1 || installments > MAX_INSTALLMENTS)
+    ) {
+      return null;
+    }
     if (!machine || !needsCardFee(method, machine.id)) {
       if (method.machineUsage === "required") return null;
       return `Sem taxa · Líquido ${formatCents(grossCents)}`;

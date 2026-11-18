@@ -18,6 +18,16 @@ const DOT_DECIMAL_PATTERN = /^(\d+)\.(\d{1,2})$/;
  * MAX_SALE_CENTS. Only string and integer work: "0,29" is exactly 29.
  */
 export function parseMoneyToCents(text: string): number | null {
+  const cents = parseMoneyText(text);
+  return cents !== null && cents >= 1 && cents <= MAX_SALE_CENTS ? cents : null;
+}
+
+/**
+ * The cents of any well-formed amount, without the 0 < amount ≤ maximum check, so a form
+ * can tell "not a number" from "too large" (the schema then gives the right message).
+ * Null for malformed text or more than 12 digits of reais.
+ */
+export function parseMoneyText(text: string): number | null {
   const cleaned = text.replace(/\s+/g, "").replace(/^R\$/i, "");
   const dotDecimal = DOT_DECIMAL_PATTERN.exec(cleaned);
   const match = dotDecimal ?? MONEY_PATTERN.exec(cleaned);
@@ -25,8 +35,7 @@ export function parseMoneyToCents(text: string): number | null {
   const reais = match[1]!.replaceAll(".", "");
   const decimals = match[2] ?? "";
 
-  // Too many digits can never be a valid amount; stops huge numbers before Number().
-  if (reais.length > 7) return null;
-  const cents = Number(reais) * 100 + Number(decimals.padEnd(2, "0"));
-  return cents >= 1 && cents <= MAX_SALE_CENTS ? cents : null;
+  // Keeps Number() exact (safe integers) for any text that gets this far.
+  if (reais.length > 12) return null;
+  return Number(reais) * 100 + Number(decimals.padEnd(2, "0"));
 }

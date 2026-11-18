@@ -11,7 +11,7 @@ import {
   type PaymentListKind,
   type PaymentMethod,
 } from "@color-bms/core";
-import type { AppDatabase } from "../../db/client";
+import type { AppDatabase, AppTransaction } from "../../db/client";
 import { cardFees, cardMachines, paymentMethods, sales } from "../../db/schema";
 import { BusinessError } from "../../http/route-helpers";
 import { recordAudit } from "../audit/audit.repository";
@@ -25,7 +25,7 @@ import { recordAudit } from "../audit/audit.repository";
  * Every write and its audit row (FR-18) run in one transaction.
  */
 
-type Tx = Parameters<Parameters<AppDatabase["transaction"]>[0]>[0];
+type Tx = AppTransaction;
 
 const TABLES = { payment_method: paymentMethods, card_machine: cardMachines } as const;
 

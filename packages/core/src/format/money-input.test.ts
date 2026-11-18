@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_SALE_CENTS, parseMoneyToCents } from "./money-input";
+import { MAX_SALE_CENTS, parseMoneyText, parseMoneyToCents } from "./money-input";
 
 describe("FR-01: parse a typed amount into integer cents (NFR-12)", () => {
   it("FR-01: parses pt-BR amounts", () => {
@@ -55,5 +55,14 @@ describe("FR-01: parse a typed amount into integer cents (NFR-12)", () => {
     ]) {
       expect(parseMoneyToCents(text), text).toBeNull();
     }
+  });
+});
+
+describe("parseMoneyText: well-formed amounts without the sale limits", () => {
+  it("FR-01: reads amounts above the maximum and zero, so the form can explain them", () => {
+    expect(parseMoneyText("1.500.000,00")).toBe(150000000);
+    expect(parseMoneyText("0")).toBe(0);
+    expect(parseMoneyText("abc")).toBeNull();
+    expect(parseMoneyText("-5")).toBeNull();
   });
 });

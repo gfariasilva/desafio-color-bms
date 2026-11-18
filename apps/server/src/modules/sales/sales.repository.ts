@@ -18,7 +18,7 @@ import {
   type ParsedCreateSaleInput,
   type Sale,
 } from "@color-bms/core";
-import type { AppDatabase } from "../../db/client";
+import type { AppDatabase, AppTransaction } from "../../db/client";
 import { cardMachines, days, months, paymentMethods, saleCategories, sales } from "../../db/schema";
 import { BusinessError } from "../../http/route-helpers";
 import { recordAudit } from "../audit/audit.repository";
@@ -29,7 +29,7 @@ import { findCardFeeInForce } from "../payments/card-fees.repository";
  * transaction, and so do all the checks, so nothing can change between check and insert.
  */
 
-type Tx = Parameters<Parameters<AppDatabase["transaction"]>[0]>[0];
+type Tx = AppTransaction;
 
 /** The sales of one civil date, with names, in the order they were registered. */
 export function listSales(db: AppDatabase | Tx, date: CivilDate): Sale[] {

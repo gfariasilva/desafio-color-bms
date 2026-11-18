@@ -2,8 +2,7 @@ import { z } from "zod";
 import { formatCents } from "../format/currency";
 import { MAX_SALE_CENTS } from "../format/money-input";
 import { INVALID_BODY } from "../catalog/categories";
-import { MAX_INSTALLMENTS } from "../payments/card-fees";
-import { isCivilDate } from "../time/civil-date";
+import { civilDateSchema, installmentsSchema } from "../payments/card-fees";
 
 /**
  * FR-01 / FR-02: sales ("entradas"). A sale has exactly one tab and one payment method
@@ -31,7 +30,6 @@ export const SALE_TEXTS = {
   invalidValue: "Informe o valor da venda, por exemplo 25,00.",
 } as const;
 
-const INSTALLMENTS_MESSAGE = `As parcelas vão de 1 a ${MAX_INSTALLMENTS}.`;
 const POSITIVE_MESSAGE = "Informe um valor maior que zero.";
 
 const idSchema = (message: string) => z.number({ message }).int(message).positive(message);
@@ -39,17 +37,11 @@ const idSchema = (message: string) => z.number({ message }).int(message).positiv
 /** Body of POST /api/sales. Amounts are integer cents. */
 export const createSaleInputSchema = z.object(
   {
-    date: z.string({ message: "Data inválida." }).refine(isCivilDate, "Data inválida."),
+    date: civilDateSchema("Data inválida."),
     saleCategoryId: idSchema("Escolha a aba."),
     paymentMethodId: idSchema("Escolha a forma de pagamento."),
     cardMachineId: idSchema("Escolha a maquininha.").nullable().optional(),
-    installments: z
-      .number({ message: INSTALLMENTS_MESSAGE })
-      .int(INSTALLMENTS_MESSAGE)
-      .min(1, INSTALLMENTS_MESSAGE)
-      .max(MAX_INSTALLMENTS, INSTALLMENTS_MESSAGE)
-      .nullable()
-      .optional(),
+    installments: installmentsSchema.nullable().optional(),
     grossCents: z
       .number({ message: POSITIVE_MESSAGE })
       .int("Valor inválido.")
@@ -97,9 +89,9 @@ export type SaleListResponse = z.infer<typeof saleListResponseSchema>;
 
 /** Query of GET /api/sales. */
 export const saleListQuerySchema = z.object({
-  date: z.string({ message: "Data inválida." }).refine(isCivilDate, "Data inválida."),
+  date: civilDateSchema("Data inválida."),
 });
 
 /** Response of GET /api/today: the business day in São Paulo, from the server clock (RN-15). */
-export const todayResponseSchema = z.object({ date: z.string().refine(isCivilDate) });
+export const todayResponseSchema = z.object({ date: civilDateSchema("Data inválida.") });
 export type TodayResponse = z.infer<typeof todayResponseSchema>;

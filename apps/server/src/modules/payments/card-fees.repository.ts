@@ -11,7 +11,7 @@ import {
   type CardFeeInForceQuery,
   type CardFeeInput,
 } from "@color-bms/core";
-import type { AppDatabase } from "../../db/client";
+import type { AppDatabase, AppTransaction } from "../../db/client";
 import { cardFees, cardMachines, paymentMethods } from "../../db/schema";
 import { BusinessError } from "../../http/route-helpers";
 import { recordAudit } from "../audit/audit.repository";
@@ -23,7 +23,7 @@ import { recordAudit } from "../audit/audit.repository";
  * Every write and its audit row (FR-18) run in one transaction.
  */
 
-type Tx = Parameters<Parameters<AppDatabase["transaction"]>[0]>[0];
+type Tx = AppTransaction;
 type FeeRow = typeof cardFees.$inferSelect;
 
 /** The fields compared and audited, in a stable order. */

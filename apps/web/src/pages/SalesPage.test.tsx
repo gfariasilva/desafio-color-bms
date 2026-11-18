@@ -216,6 +216,29 @@ describe("Vendas (FR-01, FR-02)", () => {
     expect(posts).toEqual([]);
   });
 
+  it("FR-01: an amount above the maximum gets the maximum-value message", async () => {
+    await openPage();
+    fireEvent.change(value(), { target: { value: "1.500.000,00" } });
+    pick("Aba", "Toner");
+    pick("Forma de pagamento", "Dinheiro");
+    submit();
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /O valor máximo de uma venda é R\$\s999\.999,99\./,
+    );
+    expect(posts).toEqual([]);
+  });
+
+  it("RN-15: explains when the server's date cannot be loaded", async () => {
+    const original = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (input, init) =>
+      String(input).startsWith("/api/today") ? json({ error: "boom" }, 500) : original(input, init),
+    );
+    renderAt("/vendas");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Não foi possível obter a data de hoje do servidor. Recarregue a página.",
+    );
+  });
+
   it("FR-01: asks for the tab and the payment method", async () => {
     await openPage();
     fireEvent.change(value(), { target: { value: "25" } });
