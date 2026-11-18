@@ -66,6 +66,10 @@ function sale(
     feeCents,
     netCents: grossCents - feeCents,
     note: null,
+    originalSaleId: null,
+    originalSaleDate: null,
+    reason: null,
+    refundedCents: 0,
   };
 }
 
