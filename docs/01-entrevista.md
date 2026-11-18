@@ -151,5 +151,34 @@ Legend: ✅ decided · ❓ OPEN QUESTION (ask the owner) · 🔮 future phase
 - Fixed bills due within 3 days, or overdue.
 - "Backup pendente".
 - A previous day not closed.
-- A cash difference on the last fechamento above a configurable limit (assumed default: R$ 10,00).
+- A cash difference on the last fechamento whose absolute value is **> R$ 0,00** (any difference). The limit is configurable.
 - Alerts appear only inside the app.
+
+## Round 9: Scope and rollout
+
+**Q25. MVP vs. phases** ✅
+- **MVP:**
+  - sales entry (with estornos) and daily expenses;
+  - fee table with history;
+  - fechamento de caixa with sangrias;
+  - fixed expenses from a monthly template;
+  - management of categories, machines and payment methods;
+  - day/month closing and reopening, with an audit log;
+  - the 5 report screens and the 3 dashboards;
+  - home-screen alerts;
+  - .xlsx export to OneDrive;
+  - database backup and restore.
+- 🔮 **Phase 2:** read-only phone access (shop Wi-Fi first, then remotely through a free tunnel).
+- 🔮 **Phase 3:** the extra dashboards, tracking when card money arrives, a competência view.
+
+**Q26. Rollout** ✅
+- Go live on the 1st day of a month.
+- During the first 2 weeks the spreadsheet is kept in parallel and the totals are compared every day.
+- The troco inicial on day 1 is entered by hand.
+
+**Q27. Success criteria** ✅
+1. No spreadsheets made by hand within 1 month of go-live.
+2. Entering one sale takes ≤ 10 s.
+3. Totals match a manual check to the cent during the parallel run.
+4. Closing the day takes ≤ 3 min.
+5. Each closed day's backup reaches OneDrive the same day, whenever there is internet.
