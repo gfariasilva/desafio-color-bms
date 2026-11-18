@@ -47,7 +47,7 @@ Ordered backlog for the MVP (spec §9.1). Each item is one small PR / GitHub iss
 | [x] | M1 | [#5](#5--day-view-per-tab-and-editdelete-a-sale) | Day view per tab, and edit/delete a sale | FR-05, FR-03; RN-05, RN-14 | #4 |
 | [x] | M1 | [#6](#6--refunds-estornos) | Refunds (estornos) | FR-04; RN-04 | #5 |
 | [x] | M2 | [#7](#7--general-expenses-saídas-diárias) | General expenses (saídas diárias) | FR-06; RN-08, RN-14, RN-15 | #2, #4 |
-| [ ] | M2 | [#8](#8--cash-withdrawals-sangrias) | Cash withdrawals (sangrias) | FR-07; RN-14 | #4 |
+| [x] | M2 | [#8](#8--cash-withdrawals-sangrias) | Cash withdrawals (sangrias) | FR-07; RN-14 | #4 |
 | [ ] | M2 | [#9](#9--close-the-day-cash-closing) | Close the day (cash closing) | FR-08; RN-07, RN-14 | #6, #7, #8 |
 | [ ] | M2 | [#10](#10--reopen-a-day) | Reopen a day | FR-09; RN-14 | #9 |
 | [ ] | M2 | [#15](#15--day-report) | Day report | FR-19; RN-05, RN-07 | #9 |
@@ -565,6 +565,16 @@ O sistema deve permitir estornar, total ou parcialmente, uma venda de um dia ant
 **Technical notes**
 
 - Never include withdrawals in expenses or in the monthly balance (RN-10).
+
+**Done notes (follow-ups)**
+
+- Migration `0008_create_cash_withdrawals`: `cash_withdrawals` (`date`, `amount_cents` with CHECK > 0, nullable `note`, `created_at`), index on `date`.
+- Core `packages/core/src/cash-withdrawals/`: schemas (`createCashWithdrawalInputSchema`, `updateCashWithdrawalInputSchema`, `cashWithdrawalSchema`, `dayCashWithdrawalsResponseSchema`), `CASH_WITHDRAWAL_TEXTS`, `cashWithdrawalDateError()` (RN-15), `cashWithdrawalLockError()` / `cashWithdrawalChangeLockError()` (RN-14) and `cashWithdrawalsOfDayCents()` (the sangrias term of RN-07).
+- API: `GET /api/days/:date/cash-withdrawals` (`withdrawals`, `totalCents`, `lock`), `POST /api/cash-withdrawals`, `PATCH /api/cash-withdrawals/:id` (merged; a new date is checked like a new one), `DELETE /api/cash-withdrawals/:id`. Audit entity `cash_withdrawal`, snapshot `{ date, amountCents, note }`.
+- The observação is **optional** (spec §6.1 does not require it; max 200 characters). Q-08 kept as "no suprimento".
+- UI: section "Sangrias de dd/mm/aaaa" with a "Não é despesa" badge below the day's expenses on `/despesas` (`components/cash-withdrawals/CashWithdrawalsSection.tsx`), using the page's date. The page title is now "Despesas e sangrias". The UI edits only the value and the note; the API also accepts a new date.
+- **#9:** subtract `cashWithdrawalsOfDayCents()` (or `totalCents` of the day endpoint) in RN-07 and assert FR-07's "reduz o dinheiro esperado" in the closing tests.
+- **#17:** assert in the RN-10 tests that sangrias do not enter the monthly balance.
 
 **Acceptance criteria** _(verbatim from spec §4)_
 

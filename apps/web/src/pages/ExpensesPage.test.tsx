@@ -75,6 +75,10 @@ beforeEach(() => {
       deletes.push(url);
       return new Response(null, { status: 204 });
     }
+    const withdrawals = /^\/api\/days\/([\d-]+)\/cash-withdrawals/.exec(url);
+    if (withdrawals) {
+      return json({ date: withdrawals[1], lock: dayLock, withdrawals: [], totalCents: 0 });
+    }
     const day = /^\/api\/days\/([\d-]+)\/expenses/.exec(url);
     if (day) {
       const date = day[1]!;
@@ -345,7 +349,8 @@ describe("Despesas (FR-06)", () => {
     dayLock = "O dia 18/11/2026 está fechado. Reabra o dia para alterar ou excluir esta despesa.";
     const confirm = vi.spyOn(window, "confirm");
     await openPage();
-    expect(await screen.findByText("Dia fechado")).toBeInTheDocument();
+    // One badge on the expenses and one on the sangrias (FR-07) of the closed day.
+    expect(await screen.findAllByText("Dia fechado")).toHaveLength(2);
     fireEvent.click(screen.getByRole("button", { name: /Editar despesa/ }));
     expect(await screen.findByRole("alert")).toHaveTextContent(dayLock);
     expect(screen.getByRole("form", { name: "Nova despesa" })).toBeInTheDocument();

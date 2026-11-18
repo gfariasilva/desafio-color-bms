@@ -19,6 +19,7 @@ import {
   type Expense,
   type ExpensePaymentMeans,
 } from "@color-bms/core";
+import { CashWithdrawalsSection } from "@/components/cash-withdrawals/CashWithdrawalsSection";
 import { DayExpensesTable } from "@/components/expenses/DayExpensesTable";
 import { describeExpense } from "@/components/expenses/describe-expense";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -67,7 +68,8 @@ const MEANS_OPTIONS = EXPENSE_PAYMENT_MEANS.map((means, index) => ({
 }));
 
 /**
- * Despesas (FR-06): general expenses, "saídas diárias", and the chosen day's list.
+ * Despesas (FR-06): general expenses, "saídas diárias", and the chosen day's list; below them,
+ * the day's sangrias (FR-07, `CashWithdrawalsSection`), which use the same date.
  *
  * Keyboard (NFR-05): focus starts on Valor; Tab → Categoria (type the first letters) →
  * Tab → Meio de pagamento (digit 1–5) → Enter saves. "Pago com dinheiro do caixa" is enabled
@@ -272,8 +274,8 @@ export function ExpensesPage() {
   return (
     <>
       <PageHeader
-        title="Despesas"
-        description="Saídas diárias: valor → categoria → meio de pagamento → Enter."
+        title="Despesas e sangrias"
+        description="Saídas diárias: valor → categoria → meio de pagamento → Enter. Sangrias abaixo."
       />
 
       <Card className="mb-4">
@@ -445,6 +447,8 @@ export function ExpensesPage() {
           </>
         ) : null}
       </section>
+
+      <CashWithdrawalsSection date={listDate} today={today.data} />
     </>
   );
 }

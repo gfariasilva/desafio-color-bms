@@ -301,3 +301,26 @@ export const expenses = sqliteTable(
     ),
   ],
 );
+
+/**
+ * Sangrias, cash withdrawals (spec §6.1 "Sangria", FR-07): cash taken out of the till. Not an
+ * expense: they only reduce the day's expected cash (RN-07). Totals are never stored.
+ */
+export const cashWithdrawals = sqliteTable(
+  "cash_withdrawals",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    /** Civil date "YYYY-MM-DD" in São Paulo (RN-15). */
+    date: text("date").notNull(),
+    /** Integer cents taken out, > 0. */
+    amountCents: integer("amount_cents").notNull(),
+    /** Optional note, e.g. "depósito no banco". */
+    note: text("note"),
+    /** ISO-8601 UTC instant when it was registered. */
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => [
+    index("cash_withdrawals_date_idx").on(table.date),
+    check("cash_withdrawals_amount_check", sql`${table.amountCents} > 0`),
+  ],
+);

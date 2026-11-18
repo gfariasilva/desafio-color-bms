@@ -57,6 +57,13 @@
       "when": 1795036398551,
       "tag": "0007_create_expenses",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1795037975389,
+      "tag": "0008_create_cash_withdrawals",
+      "breakpoints": true
     }
   ]
 }
