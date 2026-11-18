@@ -46,7 +46,7 @@ Ordered backlog for the MVP (spec §9.1). Each item is one small PR / GitHub iss
 | [x] | M1 | [#4](#4--register-a-sale-with-the-machine-fee) | Register a sale with the machine fee | FR-01, FR-02; RN-01, RN-02, RN-03, RN-14, RN-15 | #3 |
 | [x] | M1 | [#5](#5--day-view-per-tab-and-editdelete-a-sale) | Day view per tab, and edit/delete a sale | FR-05, FR-03; RN-05, RN-14 | #4 |
 | [x] | M1 | [#6](#6--refunds-estornos) | Refunds (estornos) | FR-04; RN-04 | #5 |
-| [ ] | M2 | [#7](#7--general-expenses-saídas-diárias) | General expenses (saídas diárias) | FR-06; RN-08, RN-14, RN-15 | #2, #4 |
+| [x] | M2 | [#7](#7--general-expenses-saídas-diárias) | General expenses (saídas diárias) | FR-06; RN-08, RN-14, RN-15 | #2, #4 |
 | [ ] | M2 | [#8](#8--cash-withdrawals-sangrias) | Cash withdrawals (sangrias) | FR-07; RN-14 | #4 |
 | [ ] | M2 | [#9](#9--close-the-day-cash-closing) | Close the day (cash closing) | FR-08; RN-07, RN-14 | #6, #7, #8 |
 | [ ] | M2 | [#10](#10--reopen-a-day) | Reopen a day | FR-09; RN-14 | #9 |
@@ -504,6 +504,16 @@ O sistema deve permitir estornar, total ou parcialmente, uma venda de um dia ant
 **Technical notes**
 
 - Design the `expenses` columns once using spec §6.1 (Despesa) so #12/#13 need only additive migrations.
+
+**Done notes (follow-ups)**
+
+- Migration `0007_create_expenses`: `expenses` with `type` (`general`|`fixed`), `status` (`pending`|`paid`|`dismissed`), `expense_category_id`, `description`, `amount_cents` and `payment_date` (both nullable for pending fixed expenses), `payment_means` (A-14 codes `cash`, `pix`, `card`, `boleto`, `bank_transfer`), `paid_from_till`, and the fixed-expense columns `reference_month`, `due_date`, `expected_amount_cents`, `installment_number` (unused until #12/#13). CHECKs: a `general` row is `paid` with a category, amount > 0, date and means; `paid_from_till` only with `cash`. **#11/#12** add `fixed_expense_template_id` with `ALTER TABLE ADD COLUMN` (its table does not exist yet).
+- Core `packages/core/src/expenses/`: schemas (`createExpenseInputSchema`, `updateExpenseInputSchema`, `expenseSchema`, `dayExpensesResponseSchema`), `EXPENSE_PAYMENT_MEANS(_LABELS)`, `resolvePaidFromTill()` (default yes for Dinheiro; error for other means), `expenseDateError()`, `expenseLockError()` / `expenseChangeLockError()`, and the totals `generalExpensesOfMonthCents()` (RN-08) and `cashPaidFromTillCents()` (the expense term of RN-07, general **and** fixed, paid only).
+- API: `GET /api/days/:date/expenses` (list, `totalCents`, `paidFromTillCents`, `monthGeneralTotalCents`, `lock`), `POST /api/expenses`, `PATCH /api/expenses/:id` (merged and re-checked; a new means resets "pago do caixa" to its default; an edit may keep a category deactivated since), `DELETE /api/expenses/:id`. Audit entity `expense`. The RN-14 lookup moved to `src/modules/periods/period-status.ts`, shared with sales.
+- FR-14: an expense category with expenses can no longer be deleted (409 `category_in_use`).
+- UI: `/despesas` (`pages/ExpensesPage.tsx`, `components/expenses/DayExpensesTable.tsx`). The page shows "Pago do caixa" and "Despesas gerais do mês" as stand-ins until #9 (expected cash) and #16 (month report).
+- **#9:** use `cashPaidFromTillCents()` for the expense term of RN-07 and test FR-06's two closing criteria there (cash from the till reduces expected cash; PIX does not).
+- **#8:** sangrias join the same page (nav item "Despesas" already says "e sangrias").
 
 **Acceptance criteria** _(verbatim from spec §4)_
 

@@ -7,7 +7,6 @@ import {
   DAY_CLOSED_CODE,
   feeInstallments,
   missingFeeMessage,
-  monthOf,
   needsCardFee,
   periodLockError,
   refundChangeLockError,
@@ -34,9 +33,10 @@ import {
   type SaleType,
 } from "@color-bms/core";
 import type { AppDatabase, AppTransaction } from "../../db/client";
-import { cardMachines, days, months, paymentMethods, saleCategories, sales } from "../../db/schema";
+import { cardMachines, paymentMethods, saleCategories, sales } from "../../db/schema";
 import { BusinessError } from "../../http/route-helpers";
 import { recordAudit } from "../audit/audit.repository";
+import { periodStatus } from "../periods/period-status";
 import { listCategories } from "../categories/categories.repository";
 import { listPaymentItems } from "../payments/payment-lists.repository";
 import { findCardFeeInForce } from "../payments/card-fees.repository";
@@ -107,17 +107,6 @@ export function listSales(db: AppDatabase | Tx, date: CivilDate): Sale[] {
 
 function findSale(db: AppDatabase | Tx, id: number): Sale | undefined {
   return selectSales(db, eq(sales.id, id))[0];
-}
-
-/** RN-14: is the date's day or month closed? No row means open. */
-function periodStatus(db: AppDatabase | Tx, date: CivilDate) {
-  const day = db.select({ status: days.status }).from(days).where(eq(days.date, date)).get();
-  const month = db
-    .select({ status: months.status })
-    .from(months)
-    .where(eq(months.yearMonth, monthOf(date)))
-    .get();
-  return { dayClosed: day?.status === "closed", monthClosed: month?.status === "closed" };
 }
 
 /**

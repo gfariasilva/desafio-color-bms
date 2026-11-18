@@ -247,3 +247,57 @@ export const sales = sqliteTable(
     check("sales_net_check", sql`${table.netCents} = ${table.grossCents} - ${table.feeCents}`),
   ],
 );
+
+/**
+ * Expenses, "despesas" (spec §6.1 "Despesa"): general expenses (FR-06, `type: "general"`,
+ * born `paid`) and, from #11–#13, fixed expenses (`type: "fixed"`). The columns of fixed
+ * expenses are here already, so #12/#13 only add the template link (an additive migration).
+ * Totals are never stored (spec §6.3).
+ */
+export const expenses = sqliteTable(
+  "expenses",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    /** One of EXPENSE_TYPES from @color-bms/core. */
+    type: text("type", { enum: ["general", "fixed"] }).notNull(),
+    /** One of EXPENSE_STATUSES; general expenses are always "paid". */
+    status: text("status", { enum: ["pending", "paid", "dismissed"] }).notNull(),
+    /** General expenses: exactly one category (RN-08, A-08). Null on fixed expenses. */
+    expenseCategoryId: integer("expense_category_id").references(() => expenseCategories.id),
+    description: text("description"),
+    /** Integer cents paid. Null while a fixed expense is pending. */
+    amountCents: integer("amount_cents"),
+    /** Civil date "YYYY-MM-DD" of the payment (RN-08, RN-09, A-06). Null while pending. */
+    paymentDate: text("payment_date"),
+    /** One of EXPENSE_PAYMENT_MEANS (A-14). Null while a fixed expense is pending. */
+    paymentMeans: text("payment_means", {
+      enum: ["cash", "pix", "card", "boleto", "bank_transfer"],
+    }),
+    /** FR-06: paid with cash from the till (only with "cash"); reduces expected cash (RN-07). */
+    paidFromTill: integer("paid_from_till", { mode: "boolean" }).notNull().default(false),
+    /** Fixed expenses (#12): the month "YYYY-MM" the bill belongs to. */
+    referenceMonth: text("reference_month"),
+    /** Fixed expenses (#12): civil date due; may be in the future (RN-15). */
+    dueDate: text("due_date"),
+    /** Fixed expenses (#12): expected amount in integer cents, from the template. */
+    expectedAmountCents: integer("expected_amount_cents"),
+    /** Fixed expenses (#13): loan installment number. */
+    installmentNumber: integer("installment_number"),
+    /** ISO-8601 UTC instant when it was registered. */
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => [
+    index("expenses_payment_date_idx").on(table.paymentDate),
+    index("expenses_expense_category_idx").on(table.expenseCategoryId),
+    // FR-06: a general expense is paid, has one category, an amount > 0, a date and a means.
+    check(
+      "expenses_general_check",
+      sql`${table.type} <> 'general' or (${table.status} = 'paid' and ${table.expenseCategoryId} is not null and ${table.amountCents} > 0 and ${table.paymentDate} is not null and ${table.paymentMeans} is not null)`,
+    ),
+    // FR-06: only cash can come from the till.
+    check(
+      "expenses_paid_from_till_check",
+      sql`${table.paidFromTill} = 0 or ${table.paymentMeans} = 'cash'`,
+    ),
+  ],
+);

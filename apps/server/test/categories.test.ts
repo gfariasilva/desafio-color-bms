@@ -478,5 +478,24 @@ describe("FR-14: expense categories", () => {
     expect(response.json()).toEqual({ error: "Categoria de despesa não encontrada." });
   });
 
-  it.todo(`FR-14: blocks deleting an expense category with expenses (${CATEGORY_IN_USE_CODE}, #7)`);
+  it(`FR-14: blocks deleting an expense category with expenses and answers ${CATEGORY_IN_USE_CODE}`, async () => {
+    const kalunga = (await listExpense()).find((category) => category.name === "Kalunga")!;
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/expenses",
+      // A past date, so the system clock of this app never makes it a future one (RN-15).
+      payload: {
+        paymentDate: "2026-01-10",
+        expenseCategoryId: kalunga.id,
+        amountCents: 12000,
+        paymentMeans: "pix",
+      },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+
+    const response = await app.inject({ method: "DELETE", url: `${EXPENSE}/${kalunga.id}` });
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toMatchObject({ code: CATEGORY_IN_USE_CODE });
+    expect((await listExpense()).some((category) => category.id === kalunga.id)).toBe(true);
+  });
 });

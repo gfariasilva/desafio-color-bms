@@ -167,6 +167,11 @@ export const AUDIT_FIELD_LABELS: Record<string, string> = {
   saleCategory: "Aba",
   installments: "Parcelas",
   feeRatePpm: "Percentual da taxa",
+  paymentDate: "Data de pagamento",
+  expenseCategory: "Categoria",
+  description: "Descrição",
+  paymentMeans: "Meio de pagamento",
+  paidFromTill: "Pago do caixa",
 };
 
 /** pt-BR labels for coded values, per field (e.g. an expense category's group). */

@@ -13,7 +13,7 @@ import {
 } from "@color-bms/core";
 import type { AppDatabase, AppTransaction } from "../../db/client";
 import { BusinessError } from "../../http/route-helpers";
-import { expenseCategories, saleCategories, sales } from "../../db/schema";
+import { expenseCategories, expenses, saleCategories, sales } from "../../db/schema";
 import { recordAudit } from "../audit/audit.repository";
 
 /**
@@ -118,12 +118,18 @@ function closeOrderGap(tx: Tx, kind: CategoryKind, removedOrder: number): void {
 }
 
 /**
- * FR-14: how many sales or expenses use this category. Delete is allowed only at 0.
- * Sales count for tabs; the expenses table arrives in #7 and adds its count here.
+ * FR-14: how many sales (tabs) or expenses (expense categories) use this category.
+ * Delete is allowed only at 0.
  */
 function countUsages(tx: Tx, kind: CategoryKind, id: number): number {
-  if (kind !== "sale") return 0;
-  const used = tx.select({ value: count() }).from(sales).where(eq(sales.saleCategoryId, id)).get();
+  const used =
+    kind === "sale"
+      ? tx.select({ value: count() }).from(sales).where(eq(sales.saleCategoryId, id)).get()
+      : tx
+          .select({ value: count() })
+          .from(expenses)
+          .where(eq(expenses.expenseCategoryId, id))
+          .get();
   return used?.value ?? 0;
 }
 
