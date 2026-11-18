@@ -36,3 +36,21 @@ Legend: ✅ decided · ❓ OPEN QUESTION (ask the owner) · 🔮 future phase
 - **Saldo = Entradas brutas − Taxas de maquininha − Despesas.** Fees appear as their own line.
 - Income counts on the **sale date**.
 - 🔮 Tracking when card money reaches the bank (D+1, D+30, installments) is a future phase.
+
+## Round 3: Corrections, cancellations and closing the day
+
+**Q7. Mistakes, cancellations, refunds** ✅
+- **Same day, while the day is open:** a sale can be edited or deleted freely.
+- **A refund on an old sale:** an **estorno** (negative row) on **today's date**, with the same aba, method and machine, and a required reason.
+- An **audit log** records every edit and deletion (who, when, before → after).
+
+**Q8. Discounts** ✅
+- No discount field. Only the amount actually charged is recorded.
+
+**Q9. Fechamento de caixa and locking** ✅
+- At closing the user enters the **troco inicial** and the **dinheiro contado**.
+- **Esperado = troco inicial + vendas em dinheiro − despesas pagas em dinheiro do caixa − sangrias.**
+- **Diferença = contado − esperado.**
+- The day becomes **fechado**. Reopening it needs the admin password and a reason.
+- Closing a month locks all of its days.
+- Implication: expenses need a "paid from the drawer" flag, and there is a **sangria** record.
