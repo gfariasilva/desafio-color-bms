@@ -95,6 +95,7 @@ function sale(overrides: Partial<Sale>): Sale {
 
 let sales: Sale[];
 let dayLock: string | null;
+let dayRefundLock: string | null;
 let postResponse: () => Response;
 let patchResponse: () => Response;
 let refundResponse: () => Response;
@@ -126,6 +127,7 @@ beforeEach(() => {
   deletes.length = 0;
   sales = [];
   dayLock = null;
+  dayRefundLock = null;
   postResponse = () => json(sale({ id: 99 }), 201);
   patchResponse = () => json(sale({ id: 1, grossCents: 3000, netCents: 3000 }));
   fetchMock.mockReset();
@@ -152,7 +154,12 @@ beforeEach(() => {
     if (day) {
       const date = day[1]!;
       const ofDay = sales.filter((item) => item.date === date);
-      return json({ date, lock: dayLock, ...summarizeDaySales({ tabs, methods, sales: ofDay }) });
+      return json({
+        date,
+        lock: dayLock,
+        refundLock: dayRefundLock,
+        ...summarizeDaySales({ tabs, methods, sales: ofDay }),
+      });
     }
     if (url.startsWith("/api/today")) return json({ date: TODAY });
     if (url.startsWith("/api/sale-categories")) return json({ categories: tabs });
@@ -641,5 +648,72 @@ describe("Estornos (FR-04)", () => {
     );
     await screen.findByText("Estorno excluído.");
     expect(deletes).toEqual(["/api/sales/50"]);
+  });
+
+  it("RN-14: deleting a refund on a closed day explains how, without suggesting a refund", async () => {
+    sales = [
+      sale({
+        id: 50,
+        type: "refund",
+        grossCents: -8000,
+        netCents: -8000,
+        originalSaleId: 5,
+        originalSaleDate: OLD_DAY,
+        reason: "produto com defeito",
+      }),
+    ];
+    dayLock =
+      "O dia 18/11/2026 está fechado. Reabra o dia para alterar esta venda ou registre um estorno.";
+    dayRefundLock = "O dia 18/11/2026 está fechado. Reabra o dia para excluir este estorno.";
+    const confirm = vi.spyOn(window, "confirm");
+    await openPage();
+    fireEvent.click(await screen.findByRole("button", { name: /Excluir estorno/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(dayRefundLock);
+    expect(confirm).not.toHaveBeenCalled();
+    expect(deletes).toEqual([]);
+  });
+
+  it("FR-04: a server error goes away when the owner types or retries", async () => {
+    sales = [oldSale()];
+    const message = "O estorno passa do valor da venda.";
+    refundResponse = () => json({ error: message, code: "refund_exceeds_sale" }, 409);
+    await openOldDay();
+    fireEvent.click(await screen.findByRole("button", { name: /Estornar venda/ }));
+    const form = screen.getByRole("form", { name: "Estornar venda" });
+    fireEvent.change(within(form).getByLabelText("Motivo"), { target: { value: "defeito" } });
+    fireEvent.submit(form);
+    expect(await within(form).findByRole("alert")).toHaveTextContent(message);
+
+    fireEvent.change(within(form).getByLabelText("Valor do estorno (R$)"), {
+      target: { value: "30" },
+    });
+    expect(within(form).queryByRole("alert")).not.toBeInTheDocument();
+
+    // A retry hides the old error while the request runs.
+    fireEvent.submit(form);
+    expect(within(form).queryByRole("alert")).not.toBeInTheDocument();
+    expect(await within(form).findByRole("alert")).toHaveTextContent(message);
+  });
+
+  it("FR-04: pressing Estornar again on the same sale moves focus back to Valor", async () => {
+    sales = [oldSale()];
+    await openOldDay();
+    const button = await screen.findByRole("button", { name: /Estornar venda/ });
+    fireEvent.click(button);
+    const refundValue = screen.getByLabelText("Valor do estorno (R$)");
+    await waitFor(() => expect(refundValue).toHaveFocus());
+    button.focus();
+    fireEvent.click(button);
+    await waitFor(() => expect(refundValue).toHaveFocus());
+  });
+
+  it("FR-04: changing the date closes the refund form", async () => {
+    sales = [oldSale()];
+    await openOldDay();
+    fireEvent.click(await screen.findByRole("button", { name: /Estornar venda/ }));
+    expect(screen.getByRole("form", { name: "Estornar venda" })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Data"), { target: { value: TODAY } });
+    await screen.findByText("Vendas de 18/11/2026");
+    expect(screen.queryByRole("form", { name: "Estornar venda" })).not.toBeInTheDocument();
   });
 });

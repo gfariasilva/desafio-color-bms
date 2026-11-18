@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { formatCents } from "../format/currency";
-import { MAX_SALE_CENTS } from "../format/money-input";
 import { INVALID_BODY } from "../catalog/categories";
 import type { CivilDate } from "../time/civil-date";
 import { calculateSaleAmounts } from "./sale-amounts";
+import { periodLockError } from "./sale-rules";
+import { saleAmountCentsSchema } from "./sales";
 
 /**
  * FR-04 / RN-04: refunds ("estornos"). A refund is a row of the sales table with
@@ -48,6 +49,17 @@ export function calculateRefundAmounts(refundCents: number, ratePpm: number): Re
   return { grossCents, feeCents: refundFeeCents, netCents: grossCents - refundFeeCents };
 }
 
+/**
+ * RN-14: a refund on a closed day or in a closed month cannot be deleted. Unlike a sale's
+ * lock message (FR-03), it never suggests a refund: a refund cannot be refunded.
+ */
+export function refundChangeLockError(
+  date: CivilDate,
+  status: { dayClosed: boolean; monthClosed: boolean },
+): string | null {
+  return periodLockError(date, status, "para excluir este estorno.");
+}
+
 /** RN-04: how much of a sale can still be refunded. `refundedCents` is positive. */
 export function refundableCents(originalGrossCents: number, refundedCents: number): number {
   return Math.max(0, originalGrossCents - refundedCents);
@@ -73,16 +85,10 @@ export function refundDateError(saleDate: CivilDate, today: CivilDate): string |
   return saleDate >= today ? REFUND_TEXTS.saleFromToday : null;
 }
 
-const POSITIVE_MESSAGE = "Informe um valor maior que zero.";
-
 /** Body of POST /api/sales/:id/refunds (FR-04). The reason is required. */
 export const createRefundInputSchema = z.object(
   {
-    refundCents: z
-      .number({ message: POSITIVE_MESSAGE })
-      .int("Valor inválido.")
-      .positive(POSITIVE_MESSAGE)
-      .max(MAX_SALE_CENTS, `O valor máximo de uma venda é ${formatCents(MAX_SALE_CENTS)}.`),
+    refundCents: saleAmountCentsSchema,
     reason: z
       .string({ message: REFUND_TEXTS.reasonRequired })
       .trim()

@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import {
   calculateRefundAmounts,
   createRefundInputSchema,
@@ -26,10 +26,14 @@ interface RefundFormProps {
   /** Today's civil date: where the refund is registered (FR-04). */
   today: string;
   pending: boolean;
+  /** Changes each time "Estornar" is pressed, even on the same sale: focus moves to Valor. */
+  focusRequest: number;
   /** The server's answer to the last attempt, if it failed. */
   serverError: string | null;
   onSubmit: (input: ParsedCreateRefundInput) => void;
   onCancel: () => void;
+  /** The owner typed again or submitted: the last server error no longer applies. */
+  onEdit: () => void;
 }
 
 /**
@@ -41,14 +45,20 @@ export function RefundForm({
   sale,
   today,
   pending,
+  focusRequest,
   serverError,
   onSubmit,
   onCancel,
+  onEdit,
 }: RefundFormProps) {
   const left = refundableCents(sale.grossCents, sale.refundedCents);
   const [value, setValue] = useState(() => formatMoneyInput(left));
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const valueField = useRef<HTMLInputElement>(null);
+
+  // NFR-05: focus on Valor when the form opens and whenever "Estornar" is pressed again.
+  useEffect(() => valueField.current?.focus(), [focusRequest]);
 
   const preview = useMemo(() => {
     const cents = parseMoneyText(value);
@@ -69,6 +79,7 @@ export function RefundForm({
   function submit(event: FormEvent) {
     event.preventDefault();
     if (pending) return;
+    onEdit();
     const refundCents = parseMoneyText(value);
     if (refundCents === null) return setError(SALE_TEXTS.invalidValue);
     const parsed = createRefundInputSchema.safeParse({ refundCents, reason });
@@ -108,14 +119,17 @@ export function RefundForm({
               <Label htmlFor="refund-value">Valor do estorno (R$)</Label>
               <Input
                 id="refund-value"
-                autoFocus
+                ref={valueField}
                 inputMode="decimal"
                 autoComplete="off"
                 className="text-right tabular-nums"
                 value={value}
                 // Typing replaces the suggested full value.
                 onFocus={(event) => event.currentTarget.select()}
-                onChange={(event) => setValue(event.target.value)}
+                onChange={(event) => {
+                  setValue(event.target.value);
+                  onEdit();
+                }}
               />
             </div>
             <div className="min-w-64 flex-1 space-y-1.5">
@@ -126,7 +140,10 @@ export function RefundForm({
                 maxLength={REFUND_REASON_MAX}
                 placeholder="ex.: produto com defeito"
                 value={reason}
-                onChange={(event) => setReason(event.target.value)}
+                onChange={(event) => {
+                  setReason(event.target.value);
+                  onEdit();
+                }}
               />
             </div>
             <Button type="submit" variant="destructive" disabled={pending}>

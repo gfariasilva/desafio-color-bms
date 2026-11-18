@@ -10,6 +10,7 @@ import {
   monthOf,
   needsCardFee,
   periodLockError,
+  refundChangeLockError,
   REFUND_EXCEEDS_SALE_CODE,
   REFUND_TEXTS,
   refundDateError,
@@ -22,6 +23,7 @@ import {
   SALE_TEXTS,
   summarizeDaySales,
   todayCivilDate,
+  type AuditEntity,
   type AuditValues,
   type CivilDate,
   type DaySalesResponse,
@@ -29,6 +31,7 @@ import {
   type ParsedCreateSaleInput,
   type ParsedUpdateSaleInput,
   type Sale,
+  type SaleType,
 } from "@color-bms/core";
 import type { AppDatabase, AppTransaction } from "../../db/client";
 import { cardMachines, days, months, paymentMethods, saleCategories, sales } from "../../db/schema";
@@ -51,12 +54,16 @@ const originalSales = alias(sales, "original_sales");
 
 /**
  * RN-04: how much of a sale was refunded so far, as positive cents (refund rows are negative).
- * Always 0 for refund rows, which have no refunds of their own.
+ * Always 0 for refund rows, which have no refunds of their own: the CASE skips the lookup
+ * for them (it uses the `sales_original_sale_idx` index for sales).
  */
-const refundedCentsSql = sql<number>`coalesce((
+const refundedCentsSql = sql<number>`case when ${sales.type} = 'refund' then 0 else coalesce((
   select -sum(refund_rows.gross_cents) from sales as refund_rows
   where refund_rows.original_sale_id = ${sales.id} and refund_rows.type = 'refund'
-), 0)`.mapWith(Number);
+), 0) end`.mapWith(Number);
+
+/** FR-18: the audit entity of each kind of row in the sales table. */
+const AUDIT_ENTITY_BY_TYPE: Record<SaleType, AuditEntity> = { sale: "sale", refund: "refund" };
 
 /** Sales with the names of their tab, method and machine, filtered by `where`. */
 function selectSales(db: AppDatabase | Tx, where: SQL | undefined): Sale[] {
@@ -124,7 +131,13 @@ export function getDaySales(db: AppDatabase, date: CivilDate): DaySalesResponse 
     methods: listPaymentItems(db, "payment_method"),
     sales: listSales(db, date),
   });
-  return { date, lock: saleChangeLockError(date, periodStatus(db, date)), ...summary };
+  const status = periodStatus(db, date);
+  return {
+    date,
+    lock: saleChangeLockError(date, status),
+    refundLock: refundChangeLockError(date, status),
+    ...summary,
+  };
 }
 
 /**
@@ -329,6 +342,17 @@ function changeableSale(tx: Tx, sale: Sale): Sale {
 }
 
 /**
+ * The row FR-03 / FR-04 may delete: a sale as `changeableSale` says, or a refund on an open
+ * day and month (RN-14), with the refund's own lock message.
+ */
+function deletableRow(tx: Tx, row: Sale): Sale {
+  if (row.type === "sale") return changeableSale(tx, row);
+  const lockError = refundChangeLockError(row.date, periodStatus(tx, row.date));
+  if (lockError) throw new BusinessError(409, lockError, DAY_CLOSED_CODE);
+  return row;
+}
+
+/**
  * FR-03: edits a sale on an open day. The changes are merged into the saved sale, which is
  * then checked like a new one; the fee in force on the sale date is applied again (FR-02).
  * The audit row holds the values before and after; an edit that changes nothing writes none.
@@ -392,22 +416,12 @@ export function updateSale(
  */
 export function deleteSale(db: AppDatabase, id: number, now: Date): void {
   db.transaction((tx) => {
-    const found = existingSale(tx, id);
-    if (found.type === "refund") {
-      const lockError = periodLockError(
-        found.date,
-        periodStatus(tx, found.date),
-        "para excluir este estorno.",
-      );
-      if (lockError) throw new BusinessError(409, lockError, DAY_CLOSED_CODE);
-    } else {
-      changeableSale(tx, found);
-    }
+    const found = deletableRow(tx, existingSale(tx, id));
     tx.delete(sales).where(eq(sales.id, id)).run();
     recordAudit(
       tx,
       {
-        entity: found.type,
+        entity: AUDIT_ENTITY_BY_TYPE[found.type],
         entityId: id,
         action: "delete",
         before: auditSnapshot(found),

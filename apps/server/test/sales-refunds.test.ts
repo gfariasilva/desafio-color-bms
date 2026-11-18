@@ -309,3 +309,14 @@ describe("FR-04 and FR-03: changing refunds and refunded sales", () => {
     });
   });
 });
+
+describe("RN-14: the day view tells how to delete a refund on a closed day", () => {
+  it("RN-14: refundLock never suggests a refund", async () => {
+    closeDay(ctx, TODAY);
+    const response = await ctx.app.inject({ method: "GET", url: `/api/days/${TODAY}/sales` });
+    const day = daySalesResponseSchema.parse(response.json());
+    expect(day.refundLock).toBe(
+      "O dia 18/11/2026 está fechado. Reabra o dia para excluir este estorno.",
+    );
+  });
+});

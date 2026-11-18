@@ -37,6 +37,16 @@ export const SALE_TEXTS = {
 
 const POSITIVE_MESSAGE = "Informe um valor maior que zero.";
 
+/**
+ * A positive amount in integer cents up to MAX_SALE_CENTS: the value of a sale (FR-01) and of
+ * a refund (FR-04), with the same pt-BR messages.
+ */
+export const saleAmountCentsSchema = z
+  .number({ message: POSITIVE_MESSAGE })
+  .int("Valor inválido.")
+  .positive(POSITIVE_MESSAGE)
+  .max(MAX_SALE_CENTS, `O valor máximo de uma venda é ${formatCents(MAX_SALE_CENTS)}.`);
+
 const idSchema = (message: string) => z.number({ message }).int(message).positive(message);
 
 /** The fields of a sale the owner types (FR-01); amounts are integer cents. */
@@ -46,11 +56,7 @@ const saleFields = {
   paymentMethodId: idSchema("Escolha a forma de pagamento."),
   cardMachineId: idSchema("Escolha a maquininha.").nullable().optional(),
   installments: installmentsSchema.nullable().optional(),
-  grossCents: z
-    .number({ message: POSITIVE_MESSAGE })
-    .int("Valor inválido.")
-    .positive(POSITIVE_MESSAGE)
-    .max(MAX_SALE_CENTS, `O valor máximo de uma venda é ${formatCents(MAX_SALE_CENTS)}.`),
+  grossCents: saleAmountCentsSchema,
   note: z
     .string({ message: "Observação inválida." })
     .max(SALE_NOTE_MAX, `A observação pode ter até ${SALE_NOTE_MAX} caracteres.`)
@@ -154,6 +160,8 @@ export const daySalesResponseSchema = z.object({
   date: civilDateSchema("Data inválida."),
   /** RN-14 / FR-03: why the day's sales cannot change (closed day or month); null if open. */
   lock: z.string().nullable(),
+  /** RN-14 / FR-04: the same lock, worded for deleting a refund row of that day; null if open. */
+  refundLock: z.string().nullable(),
   tabs: z.array(daySalesTabSchema),
   total: saleTotalsSchema,
 });

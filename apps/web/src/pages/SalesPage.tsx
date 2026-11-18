@@ -117,7 +117,9 @@ export function SalesPage() {
   const [saved, setSaved] = useState<string | null>(null);
   const [editing, setEditing] = useState<Sale | null>(null);
   // FR-04: the sale being refunded, and the server's answer to the last attempt.
-  const [refunding, setRefunding] = useState<Sale | null>(null);
+  // Only the id is kept: the sale is read from the day shown, so "restam" is always current.
+  const [refundingId, setRefundingId] = useState<number | null>(null);
+  const [refundFocus, setRefundFocus] = useState(0);
   const [refundError, setRefundError] = useState<string | null>(null);
   // FR-03: the new sale being typed when "Editar" was pressed, restored after the edit.
   const draft = useRef<FormState | null>(null);
@@ -147,6 +149,13 @@ export function SalesPage() {
     queryFn: () => api.sales.day(listDate as string),
     enabled: listDate !== null,
   });
+
+  // FR-04: the sale being refunded, from the day on screen; another day closes the form.
+  const refunding =
+    refundingId === null
+      ? undefined
+      : day.data?.tabs.flatMap((tab) => tab.sales).find((sale) => sale.id === refundingId);
+  useEffect(() => setRefundingId(null), [listDate]);
 
   const tabList = tabs.data ?? [];
   const methodList = methods.data ?? [];
@@ -213,7 +222,7 @@ export function SalesPage() {
     mutationFn: ({ sale, input }: { sale: Sale; input: ParsedCreateRefundInput }) =>
       api.sales.refund(sale.id, input),
     onSuccess: async (created) => {
-      setRefunding(null);
+      setRefundingId(null);
       setRefundError(null);
       setError(null);
       setSaved(
@@ -229,23 +238,28 @@ export function SalesPage() {
   });
 
   function startRefund(sale: Sale) {
-    if (refund.isPending) return;
+    // An edit being saved decides what the form shows next; wait for it.
+    if (refund.isPending || save.isPending) return;
     if (editing) cancelEdit();
     setError(null);
     setSaved(null);
     setRefundError(null);
-    setRefunding(sale);
+    setRefundingId(sale.id);
+    setRefundFocus((count) => count + 1);
   }
 
   function cancelRefund() {
-    setRefunding(null);
+    setRefundingId(null);
     setRefundError(null);
     valueField.current?.focus();
   }
 
-  /** RN-14 / FR-03: a closed day cannot change; say how instead of opening the form. */
-  function blockedByLock(): boolean {
-    const lock = day.data?.lock;
+  /**
+   * RN-14 / FR-03: a closed day cannot change; say how instead of opening the form. A refund
+   * row gets its own message (no "registre um estorno": a refund cannot be refunded).
+   */
+  function blockedByLock(sale: Sale): boolean {
+    const lock = sale.type === "refund" ? day.data?.refundLock : day.data?.lock;
     if (!lock) return false;
     setSaved(null);
     setError({ message: lock });
@@ -253,8 +267,8 @@ export function SalesPage() {
   }
 
   function startEdit(sale: Sale) {
-    if (blockedByLock()) return;
-    setRefunding(null);
+    if (blockedByLock(sale)) return;
+    setRefundingId(null);
     setError(null);
     setSaved(null);
     if (!editing) draft.current = form;
@@ -274,7 +288,7 @@ export function SalesPage() {
   }
 
   function confirmDelete(sale: Sale) {
-    if (blockedByLock()) return;
+    if (blockedByLock(sale)) return;
     const kind = sale.type === "refund" ? "o estorno" : "a venda";
     const amount = formatCents(Math.abs(sale.grossCents));
     const question = `Excluir ${kind} de ${amount} (${sale.saleCategoryName}, ${sale.paymentMethodName})? A exclusão fica registrada na auditoria.`;
@@ -495,13 +509,16 @@ export function SalesPage() {
 
       {refunding && today.data ? (
         <RefundForm
-          key={refunding.id}
+          // A refund elsewhere changes "restam": start again from the new value.
+          key={`${refunding.id}-${refunding.refundedCents}`}
           sale={refunding}
           today={today.data}
           pending={refund.isPending}
+          focusRequest={refundFocus}
           serverError={refundError}
           onSubmit={(input) => refund.mutate({ sale: refunding, input })}
           onCancel={cancelRefund}
+          onEdit={() => setRefundError(null)}
         />
       ) : null}
 

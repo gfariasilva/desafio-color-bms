@@ -8,6 +8,7 @@ import {
   createRefundInputSchema,
   REFUND_REASON_MAX,
   refundableCents,
+  refundChangeLockError,
   refundDateError,
   refundLimitError,
 } from "./refunds";
@@ -137,5 +138,19 @@ describe("FR-04: what can be refunded", () => {
       `O valor máximo de uma venda é ${formatCents(MAX_SALE_CENTS)}.`,
     );
     expect(message(MAX_SALE_CENTS)).toBeUndefined();
+  });
+});
+
+describe("RN-14: refunds on a closed period", () => {
+  it("RN-14: a refund on a closed day is deleted only after reopening (no refund hint)", () => {
+    expect(refundChangeLockError("2026-11-18", { dayClosed: true, monthClosed: false })).toBe(
+      "O dia 18/11/2026 está fechado. Reabra o dia para excluir este estorno.",
+    );
+    expect(refundChangeLockError("2026-11-18", { dayClosed: false, monthClosed: true })).toBe(
+      "O mês 11/2026 está fechado. Reabra o mês e o dia para excluir este estorno.",
+    );
+    expect(refundChangeLockError("2026-11-18", { dayClosed: false, monthClosed: false })).toBe(
+      null,
+    );
   });
 });
