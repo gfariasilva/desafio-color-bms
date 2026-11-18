@@ -73,3 +73,19 @@ Legend: ✅ decided · ❓ OPEN QUESTION (ask the owner) · 🔮 future phase
 - The **payment date** decides the month (regime de caixa).
 - The due date is stored too.
 - A pending bill only counts toward the saldo once it is paid.
+
+## Round 5: Users, permissions and categories
+
+**Q13. Users and permissions** ✅
+- **One user: the business owner**, with a single profile (admin, full access). No roles, no admin password.
+- Reopening a closed day only asks for an "Are you sure?" confirmation, plus the reason, which goes into the audit log.
+- Decision taken by the interviewer (no login): there is **no login screen on the PC**. The PC's Windows account protects access.
+  - 🔮 When phone access is enabled (future), a **password becomes required** for any access from outside the PC itself.
+
+**Q14. Managing categories** ✅
+- The owner can add, rename, deactivate and reorder categories, and the history keeps its link to the category (by ID).
+- A category can only be deleted if it has never been used.
+- The same rules apply to the fee table, payment methods and machines.
+
+**Q15. CHAVEIRO listed twice** ✅
+- It's a typo. There is one "Chaveiro" aba, so the list starts with **9 sales abas**.
