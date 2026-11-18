@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   cashPaidFromTillCents,
+  expensesTotalCents,
   generalExpensesOfMonthCents,
   type ExpenseTotalsRow,
 } from "./expense-totals";
@@ -74,5 +75,12 @@ describe("RN-07: expenses paid from the till", () => {
   it("FR-06: a PIX expense does not affect expected cash", () => {
     const rows = [row({ amountCents: 4500, paymentMeans: "pix", paidFromTill: false })];
     expect(cashPaidFromTillCents(rows, "2026-11-18")).toBe(0);
+  });
+});
+
+describe("FR-06: total of a list of expenses", () => {
+  it("FR-06: adds the amounts in integer cents; an empty list is zero", () => {
+    expect(expensesTotalCents([row({ amountCents: 4500 }), row({ amountCents: 1200 })])).toBe(5700);
+    expect(expensesTotalCents([])).toBe(0);
   });
 });

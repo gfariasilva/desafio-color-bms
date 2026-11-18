@@ -1,4 +1,4 @@
-import { formatCivilDate } from "../format/date";
+import { formatCivilDate, formatYearMonth } from "../format/date";
 import { canHaveCardFee, type MachineUsage } from "../payments/payment-methods";
 import type { CivilDate } from "../time/civil-date";
 
@@ -36,8 +36,7 @@ export function periodLockError(
   suffix = "para registrar ou alterar lançamentos nessa data.",
 ): string | null {
   if (status.monthClosed) {
-    const [year, month] = date.split("-");
-    return `O mês ${month}/${year} está fechado. Reabra o mês e o dia ${suffix}`;
+    return `O mês ${formatYearMonth(monthOf(date))} está fechado. Reabra o mês e o dia ${suffix}`;
   }
   if (status.dayClosed) {
     return `O dia ${formatCivilDate(date)} está fechado. Reabra o dia ${suffix}`;

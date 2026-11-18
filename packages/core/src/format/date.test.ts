@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { formatCivilDate, formatInstant, formatInstantTime } from "./date";
+import { formatCivilDate, formatInstant, formatInstantTime, formatYearMonth } from "./date";
+
+describe("formatYearMonth", () => {
+  it("formats a month as mm/aaaa", () => {
+    expect(formatYearMonth("2026-11")).toBe("11/2026");
+    expect(formatYearMonth("2027-01")).toBe("01/2027");
+  });
+});
 
 describe("formatCivilDate", () => {
   it("formats YYYY-MM-DD as dd/mm/aaaa", () => {

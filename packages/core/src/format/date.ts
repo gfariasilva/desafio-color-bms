@@ -36,6 +36,16 @@ export function formatInstant(instant: string | Date): string {
 }
 
 /**
+ * Formats a month ("YYYY-MM") as "mm/aaaa".
+ *
+ * @example formatYearMonth("2026-11") // "11/2026"
+ */
+export function formatYearMonth(yearMonth: string): string {
+  const [year, month] = yearMonth.split("-");
+  return `${month}/${year}`;
+}
+
+/**
  * The São Paulo wall-clock time of an instant, "HH:mm", e.g. for the list of today's sales.
  *
  * @example formatInstantTime("2026-11-18T22:03:00Z") // "19:03"

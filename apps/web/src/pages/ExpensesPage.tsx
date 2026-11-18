@@ -11,6 +11,7 @@ import {
   formatCents,
   formatCivilDate,
   formatMoneyInput,
+  formatYearMonth,
   isCivilDate,
   monthOf,
   parseMoneyText,
@@ -436,7 +437,7 @@ export function ExpensesPage() {
               />
             )}
             <p className="mt-2 text-sm text-muted-foreground">
-              Despesas gerais do mês {formatMonth(monthOf(day.data.date))}:{" "}
+              Despesas gerais do mês {formatYearMonth(monthOf(day.data.date))}:{" "}
               <span className="font-medium tabular-nums text-foreground">
                 {formatCents(day.data.monthGeneralTotalCents)}
               </span>
@@ -446,10 +447,4 @@ export function ExpensesPage() {
       </section>
     </>
   );
-}
-
-/** "2026-11" → "11/2026". */
-function formatMonth(yearMonth: string): string {
-  const [year, month] = yearMonth.split("-");
-  return `${month}/${year}`;
 }

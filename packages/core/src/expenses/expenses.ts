@@ -75,11 +75,13 @@ const expenseFields = {
   paidFromTill: z.boolean({ message: "Informe se foi pago com dinheiro do caixa." }).optional(),
   description: z
     .string({ message: "Descrição inválida." })
+    // Trimmed first, so spaces around the text never count toward the limit.
+    .trim()
     .max(EXPENSE_DESCRIPTION_MAX, `A descrição pode ter até ${EXPENSE_DESCRIPTION_MAX} caracteres.`)
     .nullable()
     .optional()
     // An empty description is no description.
-    .transform((text) => (text?.trim() ? text.trim() : text === undefined ? undefined : null)),
+    .transform((text) => (text ? text : text === undefined ? undefined : null)),
 };
 
 /** Body of POST /api/expenses. */

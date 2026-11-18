@@ -6,6 +6,7 @@ import {
   EXPENSE_TEXTS,
   expenseChangeLockError,
   expenseDateError,
+  expensesTotalCents,
   expenseLockError,
   generalExpensesOfMonthCents,
   monthOf,
@@ -85,7 +86,7 @@ export function getDayExpenses(db: AppDatabase, date: CivilDate): DayExpensesRes
     date,
     lock: expenseChangeLockError(date, periodStatus(db, date)),
     expenses: dayRows,
-    totalCents: dayRows.reduce((total, expense) => total + expense.amountCents, 0),
+    totalCents: expensesTotalCents(dayRows),
     paidFromTillCents: cashPaidFromTillCents(dayRows, date),
     monthGeneralTotalCents: generalExpensesOfMonthCents(monthRows, yearMonth),
   };

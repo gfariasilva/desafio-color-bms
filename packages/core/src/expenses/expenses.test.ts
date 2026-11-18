@@ -63,6 +63,10 @@ describe("FR-06: expense input", () => {
       "posto",
     );
     expect(createExpenseInputSchema.parse({ ...valid, description: "   " }).description).toBeNull();
+    const longest = "x".repeat(EXPENSE_DESCRIPTION_MAX);
+    expect(
+      createExpenseInputSchema.parse({ ...valid, description: ` ${longest}\n ` }).description,
+    ).toBe(longest);
     expect(firstMessage({ ...valid, description: "x".repeat(EXPENSE_DESCRIPTION_MAX + 1) })).toBe(
       `A descrição pode ter até ${EXPENSE_DESCRIPTION_MAX} caracteres.`,
     );
