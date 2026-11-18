@@ -1,0 +1,27 @@
+{
+  "name": "@color-bms/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local Fastify server: REST API, SQLite database, exports and backups",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate"
+  },
+  "dependencies": {
+    "@color-bms/core": "*",
+    "@fastify/static": "^10.1.11",
+    "better-sqlite3": "^13.2.0",
+    "drizzle-orm": "^0.45.4",
+    "fastify": "^5.12.8"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "drizzle-kit": "^0.31.11",
+    "tsup": "^8.5.1",
+    "tsx": "^4.23.15"
+  }
+}
