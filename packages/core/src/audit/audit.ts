@@ -90,20 +90,35 @@ function civilDateField(message: string) {
   return z.string().refine(isCivilDate, { message });
 }
 
+/** The filters of the audit log (FR-18: filter by date or type). */
+const auditFilterFields = z.object({
+  from: civilDateField("Data inicial inválida.").optional(),
+  to: civilDateField("Data final inválida.").optional(),
+  entity: z
+    .enum(AUDIT_ENTITIES, { errorMap: () => ({ message: "Tipo de registro desconhecido." }) })
+    .optional(),
+  action: z.enum(AUDIT_ACTIONS, { errorMap: () => ({ message: "Ação desconhecida." }) }).optional(),
+});
+
+const dateRangeIsOrdered = {
+  check: (filters: { from?: string; to?: string }) =>
+    !filters.from || !filters.to || filters.from <= filters.to,
+  message: "A data inicial deve ser anterior ou igual à data final.",
+};
+
 /**
- * Query string of GET /api/audit (FR-18: filter by date or type). Dates are civil dates in
- * São Paulo (RN-15), both inclusive. Error messages are pt-BR so the UI can show them.
+ * Filters chosen on the Auditoria screen. Dates are civil dates in São Paulo (RN-15),
+ * both inclusive. Error messages are pt-BR so the UI can show them.
  */
-export const auditQuerySchema = z
-  .object({
-    from: civilDateField("Data inicial inválida.").optional(),
-    to: civilDateField("Data final inválida.").optional(),
-    entity: z
-      .enum(AUDIT_ENTITIES, { errorMap: () => ({ message: "Tipo de registro desconhecido." }) })
-      .optional(),
-    action: z
-      .enum(AUDIT_ACTIONS, { errorMap: () => ({ message: "Ação desconhecida." }) })
-      .optional(),
+export const auditFiltersSchema = auditFilterFields.refine(dateRangeIsOrdered.check, {
+  message: dateRangeIsOrdered.message,
+  path: ["to"],
+});
+export type AuditFilters = z.infer<typeof auditFiltersSchema>;
+
+/** Query string of GET /api/audit: the filters plus paging. */
+export const auditQuerySchema = auditFilterFields
+  .extend({
     limit: z.coerce
       .number({ message: "Limite inválido." })
       .int("Limite inválido.")
@@ -117,10 +132,7 @@ export const auditQuerySchema = z
       .positive("Cursor inválido.")
       .optional(),
   })
-  .refine((query) => !query.from || !query.to || query.from <= query.to, {
-    message: "A data inicial deve ser anterior ou igual à data final.",
-    path: ["to"],
-  });
+  .refine(dateRangeIsOrdered.check, { message: dateRangeIsOrdered.message, path: ["to"] });
 export type AuditQuery = z.infer<typeof auditQuerySchema>;
 
 /**
@@ -175,14 +187,17 @@ export function describeAuditChanges(
   const fields = [...new Set([...Object.keys(before ?? {}), ...Object.keys(after ?? {})])];
   const changes: AuditChange[] = [];
   for (const field of fields) {
-    const hadField = before !== null && field in before;
-    const hasField = after !== null && field in after;
+    // Object.hasOwn, not `in`: inherited keys such as "constructor" are not fields.
+    const hadField = before !== null && Object.hasOwn(before, field);
+    const hasField = after !== null && Object.hasOwn(after, field);
     const oldValue = before?.[field];
     const newValue = after?.[field];
     if (hadField && hasField && JSON.stringify(oldValue) === JSON.stringify(newValue)) continue;
     changes.push({
       field,
-      label: AUDIT_FIELD_LABELS[field] ?? field,
+      label: Object.hasOwn(AUDIT_FIELD_LABELS, field)
+        ? (AUDIT_FIELD_LABELS[field] ?? field)
+        : field,
       before: hadField ? formatAuditValue(field, oldValue) : null,
       after: hasField ? formatAuditValue(field, newValue) : null,
     });

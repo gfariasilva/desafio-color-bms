@@ -16,10 +16,11 @@ const NativeSelect = React.forwardRef<HTMLSelectElement, React.ComponentProps<"s
       ref={ref}
       onKeyDown={(event) => {
         onKeyDown?.(event);
-        if (event.key === "Enter" && !event.defaultPrevented && event.currentTarget.form) {
-          event.preventDefault();
-          event.currentTarget.form.requestSubmit();
-        }
+        const form = event.currentTarget.form;
+        if (event.key !== "Enter" || event.defaultPrevented || !form) return;
+        // Not cancelled, and submitted on the next tick: when Enter picks an option in an open
+        // list (e.g. Firefox), the change event and its state update must happen first.
+        setTimeout(() => form.requestSubmit(), 0);
       }}
       className={cn(
         "flex h-9 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",

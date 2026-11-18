@@ -1,4 +1,4 @@
-import { isCivilDate, TIME_ZONE, type CivilDate } from "../time/civil-date";
+import { parseCivilDate, TIME_ZONE, type CivilDate } from "../time/civil-date";
 
 /**
  * Formats a civil date ("YYYY-MM-DD") as "dd/mm/aaaa". Pure string work: no Date, no time zone.
@@ -6,11 +6,9 @@ import { isCivilDate, TIME_ZONE, type CivilDate } from "../time/civil-date";
  * @example formatCivilDate("2026-11-18") // "18/11/2026"
  */
 export function formatCivilDate(date: CivilDate): string {
-  if (!isCivilDate(date)) {
-    throw new RangeError(`formatCivilDate expects "YYYY-MM-DD", received "${date}"`);
-  }
-  const [year, month, day] = date.split("-");
-  return `${day}/${month}/${year}`;
+  const [year, month, day] = parseCivilDate(date, "formatCivilDate");
+  const pad = (value: number, length: number) => String(value).padStart(length, "0");
+  return `${pad(day, 2)}/${pad(month, 2)}/${pad(year, 4)}`;
 }
 
 const instantFormatter = new Intl.DateTimeFormat("pt-BR", {

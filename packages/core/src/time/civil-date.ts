@@ -45,7 +45,12 @@ export function todayCivilDate(now: Date = new Date()): CivilDate {
   return toCivilDate(now);
 }
 
-function parseCivilDate(date: CivilDate, caller: string): [number, number, number] {
+/**
+ * Splits a civil date into [year, month, day] numbers, or throws a RangeError naming `caller`.
+ *
+ * @example parseCivilDate("2026-11-18", "myFn") // [2026, 11, 18]
+ */
+export function parseCivilDate(date: CivilDate, caller: string): [number, number, number] {
   if (!isCivilDate(date)) {
     throw new RangeError(`${caller} expects "YYYY-MM-DD", received "${date}"`);
   }
@@ -106,6 +111,10 @@ export function civilDayStartInstant(date: CivilDate): string {
   const [year, month, day] = parseCivilDate(date, "civilDayStartInstant");
   const utcMidnight = Date.UTC(year, month - 1, day);
   // First guess with the offset at UTC midnight, then refine with the offset at the guess.
-  const guess = utcMidnight - saoPauloOffsetMs(utcMidnight);
-  return new Date(utcMidnight - saoPauloOffsetMs(guess)).toISOString();
+  const first = utcMidnight - saoPauloOffsetMs(utcMidnight);
+  const refined = utcMidnight - saoPauloOffsetMs(first);
+  // On a day whose midnight did not exist (clocks jumped 00:00 → 01:00 when daylight saving
+  // time started), `refined` lands on the previous day; the day then starts at `first`.
+  const start = toCivilDate(new Date(refined)) === date ? refined : first;
+  return new Date(start).toISOString();
 }

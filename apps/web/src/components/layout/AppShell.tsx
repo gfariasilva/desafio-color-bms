@@ -9,8 +9,9 @@ export function AppShell() {
   useNavShortcuts();
   const { pathname } = useLocation();
   // The area that owns the current page, also for sub-pages such as /configuracoes/auditoria.
-  const current = NAV_ITEMS.find((item) =>
-    item.path === "/" ? pathname === "/" : pathname.startsWith(item.path),
+  // ("/despesas" must not match "/despesas-fixas", so a sub-page needs the "/" after the area.)
+  const current = NAV_ITEMS.find(
+    (item) => pathname === item.path || (item.path !== "/" && pathname.startsWith(`${item.path}/`)),
   );
 
   return (

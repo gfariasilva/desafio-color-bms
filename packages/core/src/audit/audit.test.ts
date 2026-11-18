@@ -4,6 +4,7 @@ import {
   AUDIT_ACTIONS,
   AUDIT_ENTITIES,
   AUDIT_ENTITY_LABELS,
+  auditFiltersSchema,
   auditQuerySchema,
   describeAuditChanges,
 } from "./audit";
@@ -74,6 +75,12 @@ describe("describeAuditChanges (FR-18: before and after values)", () => {
     ]);
   });
 
+  it("only looks at the snapshot's own keys, not inherited ones like constructor", () => {
+    expect(describeAuditChanges({}, { constructor: "x" })).toEqual([
+      { field: "constructor", label: "constructor", before: null, after: "x" },
+    ]);
+  });
+
   it("returns nothing when there are no values", () => {
     expect(describeAuditChanges(null, null)).toEqual([]);
   });
@@ -104,6 +111,17 @@ describe("auditQuerySchema (FR-18: filter by date or type)", () => {
     expect(result.error?.issues[0]?.message).toBe(
       "A data inicial deve ser anterior ou igual à data final.",
     );
+  });
+
+  it("FR-18: auditFiltersSchema validates the filters without adding paging fields", () => {
+    expect(auditFiltersSchema.parse({ from: "2026-11-01", entity: "sale" })).toEqual({
+      from: "2026-11-01",
+      entity: "sale",
+    });
+    expect(
+      auditFiltersSchema.safeParse({ from: "2026-11-19", to: "2026-11-18" }).error?.issues[0]
+        ?.message,
+    ).toBe("A data inicial deve ser anterior ou igual à data final.");
   });
 
   it("rejects an unknown entity type and a limit above 500", () => {

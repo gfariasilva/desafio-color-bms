@@ -7,14 +7,14 @@ import {
   AUDIT_ACTIONS,
   AUDIT_ENTITIES,
   AUDIT_ENTITY_LABELS,
-  auditQuerySchema,
+  auditFiltersSchema,
   describeAuditChanges,
   formatCivilDate,
   formatInstant,
   isCivilDate,
   todayCivilDate,
   type AuditEntry,
-  type AuditQuery,
+  type AuditFilters,
 } from "@color-bms/core";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -31,8 +31,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { api } from "@/lib/api";
-
-type Filters = Omit<AuditQuery, "limit" | "beforeId">;
 
 interface FormValues {
   from: string;
@@ -73,7 +71,7 @@ function AuditChanges({ entry }: { entry: AuditEntry }) {
  */
 export function AuditPage() {
   const [form, setForm] = useState<FormValues>(defaultForm);
-  const [filters, setFilters] = useState<Filters>(() => ({ from: form.from, to: form.to }));
+  const [filters, setFilters] = useState<AuditFilters>(() => ({ from: form.from, to: form.to }));
   const [formError, setFormError] = useState<string | null>(null);
 
   const audit = useInfiniteQuery({
@@ -88,7 +86,7 @@ export function AuditPage() {
   // Enter in any field submits (NFR-05). Same Zod schema as the server, same pt-BR messages.
   function applyFilters(event: FormEvent) {
     event.preventDefault();
-    const parsed = auditQuerySchema.safeParse({
+    const parsed = auditFiltersSchema.safeParse({
       from: form.from || undefined,
       to: form.to || undefined,
       entity: form.entity || undefined,
@@ -99,8 +97,13 @@ export function AuditPage() {
       return;
     }
     setFormError(null);
-    const { limit: _limit, beforeId: _beforeId, ...next } = parsed.data;
-    setFilters(next);
+    // Same filters again: the query key would not change, so reload explicitly
+    // (e.g. to see entries recorded since the page was opened).
+    if (JSON.stringify(parsed.data) === JSON.stringify(filters)) {
+      void audit.refetch();
+    } else {
+      setFilters(parsed.data);
+    }
   }
 
   function update(field: keyof FormValues) {

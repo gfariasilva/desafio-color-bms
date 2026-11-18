@@ -58,6 +58,16 @@ describe("civilDayStartInstant (RN-15: a business day starts at midnight in São
     expect(civilDayStartInstant("2018-12-01")).toBe("2018-12-01T02:00:00.000Z");
   });
 
+  it("RN-15: a day whose midnight did not exist starts at 01:00 (daylight saving time start)", () => {
+    // 2018-11-04: clocks jumped from 00:00 to 01:00 (UTC−02:00), i.e. 03:00 UTC.
+    expect(civilDayStartInstant("2018-11-04")).toBe("2018-11-04T03:00:00.000Z");
+  });
+
+  it("RN-15: the day after daylight saving time ends starts at 00:00 UTC−03:00", () => {
+    // 2019-02-17: at 00:00 (UTC−02:00) clocks went back to 23:00 on the 16th.
+    expect(civilDayStartInstant("2019-02-17")).toBe("2019-02-17T03:00:00.000Z");
+  });
+
   it("RN-15: the instant maps back to the same civil date", () => {
     const start = civilDayStartInstant("2026-01-01");
     expect(todayCivilDate(new Date(start))).toBe("2026-01-01");

@@ -123,6 +123,16 @@ describe("Auditoria page (FR-18)", () => {
     });
   });
 
+  it("FR-18: Filtrar with unchanged filters reloads the list", async () => {
+    renderAt("/configuracoes/auditoria");
+    await screen.findByText("R$ 50,00");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Filtrar" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+  });
+
   it("NFR-05: Enter on the Tipo select applies the filters", async () => {
     renderAt("/configuracoes/auditoria");
     await screen.findByText("R$ 50,00");
