@@ -6,13 +6,14 @@ import { AppRoutes, ROUTER_FUTURE } from "@/App";
 
 function renderAt(path: string) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
+  const view = render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[path]} future={ROUTER_FUTURE}>
         <AppRoutes />
       </MemoryRouter>
     </QueryClientProvider>,
   );
+  return { ...view, queryClient };
 }
 
 let unclosed: string[];
@@ -274,6 +275,25 @@ describe("FR-30: Início shows the exports that could not be written", () => {
     expect(
       await screen.findByText("Ainda não foi possível gravar. Verifique o motivo acima."),
     ).toBeInTheDocument();
+  });
+
+  it("FR-30: the still-failing message goes away when the list is refreshed", async () => {
+    exportStatus = { enabled: true, items: [failedItem], hasFailures: true };
+    retryAnswer = { enabled: true, items: [failedItem], hasFailures: true };
+    const { container, queryClient } = renderAt("/");
+    fireEvent.click(await screen.findByRole("button", { name: "Tentar agora" }));
+    const message = "Ainda não foi possível gravar. Verifique o motivo acima.";
+    expect(await screen.findByText(message)).toBeInTheDocument();
+
+    // The server wrote one file and another one failed; the list is refreshed.
+    exportStatus = {
+      enabled: true,
+      items: [{ ...failedItem, id: 2, fileName: "Diária 2026-11-18.xlsx" }],
+      hasFailures: true,
+    };
+    await queryClient.invalidateQueries({ queryKey: ["exports", "status"] });
+    await vi.waitFor(() => expect(container).toHaveTextContent("Diária 2026-11-18.xlsx:"));
+    expect(screen.queryByText(message)).toBeNull();
   });
 
   it("FR-30: nothing pending, no notice", async () => {

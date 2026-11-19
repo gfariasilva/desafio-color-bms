@@ -51,6 +51,16 @@ describe("§7.4: atomic write (temp file in the same folder, then rename)", () =
     expect(fs.readdirSync(dir)).toEqual(["Diária 2026-11-18.xlsx"]);
   });
 
+  it("§7.4: a leftover temp file locked by OneDrive (EPERM on open) is reported as in use (EBUSY)", () => {
+    const file = path.join(dir, "Diária 2026-11-18.xlsx");
+    vi.spyOn(fs, "openSync").mockImplementation(() => {
+      throw Object.assign(new Error("EPERM: operation not permitted, open"), { code: "EPERM" });
+    });
+    expect(() => writeFileAtomic(file, Buffer.from("novo"))).toThrow(
+      expect.objectContaining({ code: "EBUSY" }),
+    );
+  });
+
   it("§7.4: a missing folder fails and writes nothing", () => {
     const file = path.join(dir, "não existe", "Diária 2026-11-18.xlsx");
     expect(() => writeFileAtomic(file, Buffer.from("x"))).toThrow(

@@ -58,6 +58,9 @@ export const BLANK_ROW: SpreadsheetRow = { style: "blank", cells: [] };
 /** Excel's limit for a sheet name. */
 export const SHEET_NAME_MAX = 31;
 
+/** Names Excel keeps for itself. */
+const EXCEL_RESERVED_SHEET_NAMES = ["History"];
+
 /** Characters Excel refuses in a sheet name. */
 const FORBIDDEN_IN_SHEET_NAME = /[[\]:*?/\\]/g;
 
@@ -68,6 +71,8 @@ function cleanSheetName(name: string): string {
     .replace(/^'+|'+$/g, "")
     .trim()
     .slice(0, SHEET_NAME_MAX)
+    // Cutting may leave an apostrophe at the end again.
+    .replace(/'+$/, "")
     .trim();
   return cleaned === "" ? "Aba" : cleaned;
 }
@@ -79,7 +84,10 @@ function cleanSheetName(name: string): string {
  * as they are and win over a tab with the same name.
  */
 export function excelSheetNames(wanted: readonly string[], reserved: readonly string[]): string[] {
-  const taken = new Set(reserved.map((name) => name.toLocaleLowerCase("pt-BR")));
+  // Excel reserves "History" for its own use (any case).
+  const taken = new Set(
+    [...reserved, ...EXCEL_RESERVED_SHEET_NAMES].map((name) => name.toLocaleLowerCase("pt-BR")),
+  );
   return wanted.map((name) => {
     const base = cleanSheetName(name);
     let candidate = base;

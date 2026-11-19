@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { dailySpreadsheetFileName } from "./export-files";
 
 /**
  * FR-30 / spec §6.1 "ItemFilaExportação": the export queue. Every file the system writes to
@@ -70,11 +69,12 @@ export type ExportQueueStatusResponse = z.infer<typeof exportQueueStatusResponse
  */
 export function exportFileName(kind: ExportKind, reference: string): string {
   switch (kind) {
+    // Never throws: a malformed reference must not break the status list or the queue.
     case "daily_spreadsheet":
-      return dailySpreadsheetFileName(reference);
+      return `Diária ${reference}.xlsx`;
     case "monthly_spreadsheet":
       return `Mensal ${reference}.xlsx`;
     case "db_backup":
-      return "Backup do banco de dados";
+      return "backup do banco de dados";
   }
 }

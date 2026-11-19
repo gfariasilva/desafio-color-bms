@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -80,9 +81,17 @@ function ExportNotices() {
     // The server retries every 5 minutes: check now and then, so a fixed problem disappears.
     refetchInterval: 60_000,
   });
+  /**
+   * The status update that "Tentar agora" produced: its "still failing" message stays only
+   * until the list is refreshed, so it never describes an older list.
+   */
+  const [retriedUpdateAt, setRetriedUpdateAt] = useState<number | null>(null);
   const retry = useMutation({
     mutationFn: api.retryExports,
-    onSuccess: (data) => queryClient.setQueryData(QUERY_KEYS.exportStatus, data),
+    onSuccess: (data) => {
+      queryClient.setQueryData(QUERY_KEYS.exportStatus, data);
+      setRetriedUpdateAt(queryClient.getQueryState(QUERY_KEYS.exportStatus)?.dataUpdatedAt ?? null);
+    },
   });
   if (status.isError) {
     return <p className="mb-2 text-destructive">Não foi possível verificar as planilhas.</p>;
@@ -132,7 +141,7 @@ function ExportNotices() {
         ) : null}
         <span role="status" className="text-sm">
           {retry.isError ? "Não foi possível tentar agora." : null}
-          {retry.isSuccess && retry.data.hasFailures
+          {retry.isSuccess && retriedUpdateAt === status.dataUpdatedAt
             ? "Ainda não foi possível gravar. Verifique o motivo acima."
             : null}
         </span>

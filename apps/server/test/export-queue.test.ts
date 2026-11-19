@@ -340,6 +340,61 @@ describe("FR-30: the export queue and its retries", () => {
     ]);
   });
 
+  it("FR-30: a day closed again while its write is failing is tried again at once", async () => {
+    await createSale(ctx);
+    let writes = 0;
+    writeFile = () => {
+      writes += 1;
+      if (writes === 1) {
+        // The owner closes the day again (after fixing the cause) while this write fails.
+        queue.enqueueDailySpreadsheet(TODAY);
+        throw Object.assign(new Error("EBUSY"), { code: "EBUSY" });
+      }
+    };
+    await closeToday(2500);
+    expect(writes).toBe(2);
+    expect(queueRows()).toEqual([
+      { kind: "daily_spreadsheet", reference: TODAY, status: "done", attempts: 2 },
+    ]);
+  });
+
+  it("FR-30: an unknown error is shown in pt-BR; the raw error only goes to the log", async () => {
+    writeFile = () => {
+      throw Object.assign(new Error("EIO: i/o error, write"), { code: "EIO" });
+    };
+    await createSale(ctx);
+    await closeToday(2500);
+    const [item] = (await getStatus()).items;
+    expect(item?.lastError).toBe(
+      `Não foi possível gravar ${FILE_NAME}. Se continuar, avise o desenvolvedor`,
+    );
+    expect(item?.lastErrorCause).toBe("other");
+  });
+
+  it("FR-30: a malformed item is recorded as failed and the queue goes on", async () => {
+    await createSale(ctx);
+    // A corrupt row: an impossible date that is closed and has a sale (e.g. a manual DB edit).
+    const sqlite = ctx.connection.sqlite;
+    const columns = (sqlite.prepare("pragma table_info(sales)").all() as { name: string }[])
+      .map((column) => column.name)
+      .filter((name) => name !== "id");
+    const values = columns.map((name) => (name === "date" ? "'2026-02-30'" : name));
+    sqlite.exec(
+      `insert into sales (${columns.join(", ")}) select ${values.join(", ")} from sales limit 1`,
+    );
+    sqlite
+      .prepare("insert into days (date, status, closed_at) values ('2026-02-30', 'closed', ?)")
+      .run(NOW.toISOString());
+    queue.enqueueDailySpreadsheet("2026-02-30");
+
+    await closeToday(2500);
+    expect(queueRows()).toEqual([
+      { kind: "daily_spreadsheet", reference: "2026-02-30", status: "failed", attempts: 1 },
+      { kind: "daily_spreadsheet", reference: TODAY, status: "done", attempts: 1 },
+    ]);
+    expect(fs.existsSync(dailyFile())).toBe(true);
+  });
+
   it("FR-30: changing the folder in Configurações retries at once", async () => {
     const newFolder = path.join(tempDir, "Nova pasta");
     configuredFolder = newFolder;

@@ -103,8 +103,11 @@ function describeFailure(
   if (code === "ENOSPC") {
     return { message: `Disco cheio: não há espaço para gravar ${fileName}`, cause: "other" };
   }
-  const detail = error instanceof Error ? error.message : String(error);
-  return { message: `Não foi possível gravar ${fileName} (${detail})`, cause: "other" };
+  // The raw error (in English) goes to the log only; the owner reads pt-BR (CLAUDE.md).
+  return {
+    message: `Não foi possível gravar ${fileName}. Se continuar, avise o desenvolvedor`,
+    cause: "other",
+  };
 }
 
 /** The OneDrive folder, checked. It is never created here: a missing one is a wrong setting. */
@@ -183,7 +186,10 @@ export function createExportQueue({
   async function exportItem(kind: ExportKind, reference: string, at: Date): Promise<void> {
     if (kind !== "daily_spreadsheet") {
       // #28 (monthly) and #22 (DB backup) add their writers here.
-      throw new ExportError(`Exportação ainda não disponível: ${kind}`, "other");
+      throw new ExportError(
+        `Exportação ainda não disponível: ${exportFileName(kind, reference)}`,
+        "other",
+      );
     }
     const model = getDailySpreadsheet(db, reference, at);
     if (model === null) return; // No movement, or reopened: no file (FR-28, FR-09).
@@ -238,13 +244,22 @@ export function createExportQueue({
       }
     } catch (error) {
       const root = folder();
-      const [year, month] =
-        item.kind === "daily_spreadsheet" ? dailySpreadsheetPath(item.reference) : [];
-      const dir = root && year && month ? path.join(root, year, month) : root;
+      let dir = root;
+      try {
+        if (root && item.kind === "daily_spreadsheet") {
+          const [year, month] = dailySpreadsheetPath(item.reference);
+          dir = path.join(root, year, month);
+        }
+      } catch {
+        // A malformed reference: still record the failure below and go on with the queue.
+      }
       const { message, cause } = describeFailure(error, fileName, dir);
+      // Closed again while this try failed: a new request, tried with the next new items.
+      const requeued = inFlight.requeued;
+      if (requeued) nextPass ??= "pending";
       db.update(exportQueue)
         .set({
-          status: "failed",
+          status: requeued ? "pending" : "failed",
           attempts,
           lastAttemptAt,
           lastError: message,
