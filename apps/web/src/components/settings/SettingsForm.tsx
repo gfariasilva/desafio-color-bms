@@ -6,6 +6,7 @@ import {
   formatMoneyInput,
   MAX_DUE_SOON_DAYS,
   parseMoneyText,
+  SETTING_LABELS,
   settingsInputSchema,
   type FolderTestResponse,
   type SettingsResponse,
@@ -122,7 +123,7 @@ export function SettingsForm({ settings }: { settings: SettingsResponse }) {
           <CardTitle className="text-base">OneDrive</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 p-4 pt-0">
-          <Label htmlFor="settings-folder">Pasta do OneDrive</Label>
+          <Label htmlFor="settings-folder">{SETTING_LABELS.oneDriveFolder}</Label>
           <div className="flex gap-2">
             <Input
               id="settings-folder"
@@ -170,7 +171,7 @@ export function SettingsForm({ settings }: { settings: SettingsResponse }) {
         </CardHeader>
         <CardContent className="grid gap-3 p-4 pt-0 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor="settings-limit">Limite da diferença de caixa (R$)</Label>
+            <Label htmlFor="settings-limit">{SETTING_LABELS.cashDifferenceLimitCents} (R$)</Label>
             <Input
               id="settings-limit"
               ref={refs.cashDifferenceLimitCents}
@@ -186,7 +187,7 @@ export function SettingsForm({ settings }: { settings: SettingsResponse }) {
             </p>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="settings-days">Antecedência das contas a vencer (dias)</Label>
+            <Label htmlFor="settings-days">{SETTING_LABELS.dueSoonDays}</Label>
             <Input
               id="settings-days"
               ref={refs.dueSoonDays}

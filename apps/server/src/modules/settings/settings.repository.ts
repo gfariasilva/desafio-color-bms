@@ -1,6 +1,8 @@
 import { eq } from "drizzle-orm";
 import {
   DEFAULT_SETTINGS,
+  isAbsoluteFolderPath,
+  sameFolderPath,
   SETTING_KEYS,
   type SettingKey,
   type Settings,
@@ -150,7 +152,11 @@ export function createSettingsStore(
         const changed: SettingKey[] = [];
         for (const key of SETTING_KEYS) {
           if (key === "oneDriveFolder" && envOneDriveFolder !== null) continue;
-          if (input[key] === current[key]) continue;
+          const unchanged =
+            key === "oneDriveFolder"
+              ? sameFolderPath(input.oneDriveFolder, current.oneDriveFolder)
+              : input[key] === current[key];
+          if (unchanged) continue;
           writeSetting(tx, key, rows[key] !== undefined, current[key], input[key], now);
           changed.push(key);
         }
@@ -159,7 +165,8 @@ export function createSettingsStore(
     },
 
     importLegacyOneDriveFolder(folder, now) {
-      if (folder === null) return false;
+      // Only a full path: a relative one would block every later save (settingsInputSchema).
+      if (folder === null || !isAbsoluteFolderPath(folder)) return false;
       return db.transaction((tx) => {
         if (readRows(tx).oneDriveFolder !== undefined) return false;
         writeSetting(

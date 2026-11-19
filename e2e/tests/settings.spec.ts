@@ -43,7 +43,7 @@ test("FR-33: Testar the folder, then save the alert thresholds by keyboard", asy
   // FR-18: each changed setting is in Auditoria.
   await page.goto("/configuracoes/auditoria");
   await expect(page.getByText("Limite da diferença de caixa").first()).toBeVisible();
-  await expect(page.getByText("Antecedência de contas a vencer (dias)").first()).toBeVisible();
+  await expect(page.getByText("Antecedência das contas a vencer (dias)").first()).toBeVisible();
 
   // Leave the worker's server as it was for the other tests.
   const reset = await api.put("/api/settings", {

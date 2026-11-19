@@ -15,6 +15,13 @@ import { MAX_SALE_CENTS } from "../format/money-input";
 export const SETTING_KEYS = ["oneDriveFolder", "cashDifferenceLimitCents", "dueSoonDays"] as const;
 export type SettingKey = (typeof SETTING_KEYS)[number];
 
+/** FR-33: pt-BR names of the settings, shared by the form and the Auditoria screen. */
+export const SETTING_LABELS: Record<SettingKey, string> = {
+  oneDriveFolder: "Pasta do OneDrive",
+  cashDifferenceLimitCents: "Limite da diferença de caixa",
+  dueSoonDays: "Antecedência das contas a vencer (dias)",
+};
+
 /** The largest "antecedência" allowed (a month). */
 export const MAX_DUE_SOON_DAYS = 30;
 
@@ -40,6 +47,28 @@ export function isAbsoluteFolderPath(folder: string): boolean {
   return (
     /^[A-Za-z]:[\\/]/.test(folder) || /^\\\\[^\\]+\\[^\\]+/.test(folder) || folder.startsWith("/")
   );
+}
+
+/** A folder path without trailing separators, except a root such as `C:\` or `/`. */
+function trimTrailingSeparators(folder: string): string {
+  const trimmed = folder.replace(/[\\/]+$/, "");
+  if (trimmed === "") return folder.slice(0, 1); // "/" stays "/"
+  if (/^[A-Za-z]:$/.test(trimmed)) return `${trimmed}${folder.charAt(2)}`; // "C:\" stays "C:\"
+  return trimmed;
+}
+
+/**
+ * Whether two folder settings name the same folder: trailing separators are ignored, and
+ * Windows paths (drive letter or `\\servidor`) are compared ignoring case, as Windows does.
+ */
+export function sameFolderPath(a: string | null, b: string | null): boolean {
+  if (a === null || b === null) return a === b;
+  const left = trimTrailingSeparators(a);
+  const right = trimTrailingSeparators(b);
+  const windows = (folder: string) => /^([A-Za-z]:|\\\\)/.test(folder);
+  return windows(left) && windows(right)
+    ? left.toLowerCase() === right.toLowerCase()
+    : left === right;
 }
 
 const FULL_PATH_MESSAGE =

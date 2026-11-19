@@ -6,6 +6,7 @@ import { openDatabase } from "./db/client";
 import { migrateWithBackup } from "./modules/backup/backup-before-migrations";
 import { createBackupService } from "./modules/backup/backup.service";
 import { runSystemChecks, type SystemInfo } from "./modules/health/system-checks";
+import { isAbsoluteFolderPath } from "@color-bms/core";
 import { createSettingsStore } from "./modules/settings/settings.repository";
 import { ALREADY_RUNNING_EXIT_CODE } from "./pilot/exit-codes";
 import { identifyPortOwner } from "./startup/port-conflict";
@@ -39,6 +40,13 @@ async function main(): Promise<void> {
   });
   if (settings.importLegacyOneDriveFolder(config.legacyOneDriveFolder, now())) {
     console.info(`OneDrive folder imported from config.json: ${config.legacyOneDriveFolder}`);
+  } else if (
+    config.legacyOneDriveFolder !== null &&
+    !isAbsoluteFolderPath(config.legacyOneDriveFolder)
+  ) {
+    console.warn(
+      `Not imported from config.json: "${config.legacyOneDriveFolder}" is not a full path. Set the folder in Configurações.`,
+    );
   }
 
   // FR-31 (#25): the OneDrive backup, after each closing and on the first start of the day.

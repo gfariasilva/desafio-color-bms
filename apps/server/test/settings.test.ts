@@ -160,6 +160,17 @@ describe("FR-33: PUT /api/settings", () => {
     });
   });
 
+  it("FR-33: the same folder with a trailing separator is not a change", async () => {
+    await startApp();
+    await put({ ...defaults, oneDriveFolder: oneDrive });
+    const before = (await settingAudit()).length;
+
+    expect((await put({ ...defaults, oneDriveFolder: `${oneDrive}${path.sep}` })).statusCode).toBe(
+      200,
+    );
+    expect(await settingAudit()).toHaveLength(before);
+  });
+
   it("FR-33: unchanged values write no audit row", async () => {
     await startApp();
     await put({ ...defaults, dueSoonDays: 5 });
@@ -298,6 +309,37 @@ describe("FR-33: POST /api/settings/onedrive-folder/test (Testar)", () => {
     },
   );
 
+  it.each(["EACCES", "EPERM"])(
+    'FR-33: Testar when writing fails with %s says "Sem permissão para gravar"',
+    async (code) => {
+      const spy = vi.spyOn(fs, "openSync").mockImplementation(() => {
+        throw Object.assign(new Error(code), { code });
+      });
+      try {
+        expect((await testFolder(oneDrive)).json()).toEqual({
+          ok: false,
+          message: `Sem permissão para gravar na pasta ${oneDrive}.`,
+        });
+      } finally {
+        spy.mockRestore();
+      }
+    },
+  );
+
+  it("FR-33: a test file held by OneDrive (delete fails) still counts as written", async () => {
+    const spy = vi.spyOn(fs, "rmSync").mockImplementation(() => {
+      throw Object.assign(new Error("EBUSY"), { code: "EBUSY" });
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      expect((await testFolder(oneDrive)).json()).toMatchObject({ ok: true });
+      expect(warn).toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+      warn.mockRestore();
+    }
+  });
+
   it("FR-33: Testar asks for a full path", async () => {
     const response = await testFolder("Color");
     expect(response.statusCode).toBe(400);
@@ -374,6 +416,13 @@ describe("#20: import of the pilot's config.json folder (#25)", () => {
     await put(defaults); // cleared on purpose
     expect(store.importLegacyOneDriveFolder(path.join(tempDir, "Velha"), NOW)).toBe(false);
     expect((await getSettings()).oneDriveFolder).toBeNull();
+  });
+
+  it("#20: a relative config.json folder is not imported (it would block every save)", async () => {
+    await startApp();
+    expect(store.importLegacyOneDriveFolder("OneDrive\\Color", NOW)).toBe(false);
+    expect(storedRows()).toEqual([]);
+    expect((await put({ ...defaults, dueSoonDays: 4 })).statusCode).toBe(200);
   });
 
   it("#20: nothing to import when config.json has no folder", async () => {

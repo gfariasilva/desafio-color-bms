@@ -9,6 +9,7 @@ import {
   folderTestRequestSchema,
   isAbsoluteFolderPath,
   MAX_DUE_SOON_DAYS,
+  sameFolderPath,
   settingsInputSchema,
 } from "./settings";
 
@@ -49,6 +50,23 @@ describe("FR-33: isAbsoluteFolderPath", () => {
       expect(isAbsoluteFolderPath(folder)).toBe(false);
     },
   );
+});
+
+describe("FR-33: sameFolderPath", () => {
+  it("FR-33: ignores trailing separators, and case on Windows paths", () => {
+    expect(sameFolderPath("C:\\OneDrive\\Color", "C:\\OneDrive\\Color\\")).toBe(true);
+    expect(sameFolderPath("C:\\OneDrive\\Color", "c:\\onedrive\\color")).toBe(true);
+    expect(sameFolderPath("\\\\Srv\\Pasta", "\\\\srv\\pasta\\")).toBe(true);
+    expect(sameFolderPath("/home/dono/Color/", "/home/dono/Color")).toBe(true);
+    expect(sameFolderPath(null, null)).toBe(true);
+  });
+
+  it("FR-33: different folders stay different", () => {
+    expect(sameFolderPath("C:\\OneDrive\\Color", "D:\\OneDrive\\Color")).toBe(false);
+    expect(sameFolderPath("/home/dono/Color", "/home/dono/color")).toBe(false);
+    expect(sameFolderPath("C:\\", "C:\\Color")).toBe(false);
+    expect(sameFolderPath("C:\\Color", null)).toBe(false);
+  });
 });
 
 describe("FR-33: settingsInputSchema", () => {
@@ -169,7 +187,7 @@ describe("FR-18: settings in the audit log", () => {
       },
       {
         field: "dueSoonDays",
-        label: "Antecedência de contas a vencer (dias)",
+        label: "Antecedência das contas a vencer (dias)",
         before: "3",
         after: "5",
       },

@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import {
   folderTestRequestSchema,
+  sameFolderPath,
   settingsInputSchema,
   type FolderTestResponse,
   type SettingsResponse,
@@ -30,7 +31,7 @@ export function registerSettingsRoutes(
     const current = store.read();
     const folderChanges =
       current.oneDriveFolderSource === "settings" &&
-      input.oneDriveFolder !== current.oneDriveFolder;
+      !sameFolderPath(input.oneDriveFolder, current.oneDriveFolder);
     // A new folder must pass "Testar" before it is saved: a wrong path would silently stop the
     // backups (spec §7.4). Clearing the folder is always allowed.
     if (folderChanges && input.oneDriveFolder !== null) {

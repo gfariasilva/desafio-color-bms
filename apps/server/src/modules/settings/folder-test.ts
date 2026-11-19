@@ -25,11 +25,23 @@ export function testFolderWrite(folder: string): FolderTestResponse {
         fs.closeSync(fd);
       }
     } finally {
-      fs.rmSync(file, { force: true });
+      removeTestFile(file);
     }
     return { ok: true, message: folderTestOkMessage(folder) };
   } catch (error) {
     return failure((error as NodeJS.ErrnoException).code, folder);
+  }
+}
+
+/**
+ * Deletes the test file. The OneDrive client may hold a new file for a moment (EBUSY/EPERM), so
+ * retry briefly; if it still fails, the write already worked: keep the result and log it.
+ */
+function removeTestFile(file: string): void {
+  try {
+    fs.rmSync(file, { force: true, maxRetries: 3, retryDelay: 100 });
+  } catch (error) {
+    console.warn(`Could not delete the folder test file ${file}: ${(error as Error).message}`);
   }
 }
 

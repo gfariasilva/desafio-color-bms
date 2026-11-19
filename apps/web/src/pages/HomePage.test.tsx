@@ -131,6 +131,18 @@ describe("#25: Início shows the state of the backup", () => {
     );
   });
 
+  it("#26/#20: in trial mode, no 'não configurada' prompt and no Configurar link", async () => {
+    backupStatus = { configured: false, folder: null, lastSuccess: null, lastFailure: null };
+    healthBody = { ...healthBody, trial: true };
+    renderAt("/");
+    const alerts = await screen.findByRole("region", { name: "Alertas" });
+    expect(
+      await within(alerts).findByText("Modo treino: sem backup no OneDrive."),
+    ).toBeInTheDocument();
+    expect(within(alerts).queryByText(/não configurada/)).not.toBeInTheDocument();
+    expect(within(alerts).queryByRole("link", { name: "Configurar" })).not.toBeInTheDocument();
+  });
+
   it("#25: the system status shows the time of the last backup", async () => {
     backupStatus = {
       configured: true,

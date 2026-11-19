@@ -156,10 +156,13 @@ export function createBackupService({
         throw Object.assign(new Error(`Not a folder: ${folder}`), { code: "ROOT_NOT_FOLDER" });
       }
       const file = writeBackup(sqlite, backupDir, at);
+      // The folder was changed in Configurações meanwhile: this result is about the old one.
+      if (currentFolder() !== folder) return;
       lastSuccess = { at: at.toISOString(), file: path.basename(file) };
       lastFailure = null;
       log.info(`Backup (${trigger}) written to ${file}`);
     } catch (error) {
+      if (currentFolder() !== folder) return;
       lastFailure = {
         at: at.toISOString(),
         trigger,
