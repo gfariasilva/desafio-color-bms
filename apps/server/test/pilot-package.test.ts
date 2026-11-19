@@ -47,7 +47,9 @@ describe("#26: production node_modules copied from the installed tree (lockfile 
 
     const found = collectRuntimePackages(path.join(repo, "apps/server"), ["a", "c"]);
 
-    expect(found.map((dir) => path.relative(repo, dir)).sort()).toEqual([
+    // path.relative uses "\" on Windows; compare with "/" on every OS.
+    const relative = found.map((dir) => path.relative(repo, dir).split(path.sep).join("/"));
+    expect(relative.sort()).toEqual([
       "apps/server/node_modules/c",
       "node_modules/a",
       "node_modules/a/node_modules/d",

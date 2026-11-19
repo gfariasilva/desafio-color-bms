@@ -53,7 +53,7 @@ Ordered backlog for the MVP (spec §9.1). Each item is one small PR / GitHub iss
 | [x] | M2 | [#15](#15--day-report) | Day report | FR-19; RN-05, RN-07 | #9 |
 | [x] | M3 | [#25](#25--pilot-database-backup) | Pilot database backup | slice of FR-31 | #9 |
 | [x] | M3 | [#26](#26--pilot-install-on-the-shop-pc) | Pilot install on the shop PC | slice of FR-34 | #25 |
-| [ ] | M3 | [#27](#27--pilot-go-live-and-the-parallel-period) | Pilot go-live and the parallel period | spec §9.5 | #26, #15 |
+| [x] | M3 | [#27](#27--pilot-go-live-and-the-parallel-period) | Pilot go-live and the parallel period | spec §9.5 | #26, #15 |
 | [ ] | M4 | [#20](#20--settings) | Settings | FR-33 | #1 |
 | [ ] | M4 | [#21](#21--daily-spreadsheet-export-and-the-retry-queue) | Daily spreadsheet export and the retry queue | FR-28, FR-30 | #15, #20 |
 | [x] | M4 | [#11](#11--fixed-expense-templates) | Fixed-expense templates | FR-10; RN-12 | #1 |
@@ -1653,6 +1653,21 @@ A tela inicial mostra os alertas abaixo, cada um com link para resolver:
 - CS-1 to CS-5 have a recorded measurement or status at the end of the parallel period.
 - Every difference found in the comparison has a reason (system bug, typing error, Excel error) and, for bugs, a backlog item.
 - The owner stops the daily Excel only when #21 (daily .xlsx export) is live and CS-3 held for 2 weeks; otherwise the parallel period is extended.
+
+**Done notes (follow-ups)**
+
+- Docs only; no code, migration or audit rows. All in `docs/pilot/`:
+  - [`go-live-checklist.md`](pilot/go-live-checklist.md): timeline; before go-live (clock, OneDrive, backup/restore test, training); the go-live reset; master data (fees Q-01, tabs, categories, fixed-expense templates Q-05/Q-06); the first real day (opening cash by hand, first backup).
+  - [`guia-rapido.md`](pilot/guia-rapido.md): the owner's one printable page (pt-BR), checked against the UI labels and keys.
+  - [`treinamento.md`](pilot/treinamento.md): the 1 h agenda and the CS-2 / CS-4 stopwatch protocol and tables.
+  - [`conferencia.md`](pilot/conferencia.md): printable 14-day comparison (pt-BR), with reason codes S (system bug → backlog item), D (typing error in the system), E (Excel error), O (other), and a tab × method detail block.
+  - [`resultado-piloto.md`](pilot/resultado-piloto.md): CS-1 to CS-5 record, system bugs found, weekly visit log, and the exit decision (stop the Excel or extend).
+- **Change from the scope:** the guide does **not** teach the interim "CONTA:" sangria rule. #13 shipped before the pilot, so bills paid from the till go to Despesas fixas › Contas do mês › Pagar with "Pago com dinheiro do caixa". `owner-questions.md` question 5 was updated the same way. The #13 conversion panel stays for any "CONTA:" sangria typed by habit.
+- **Field work still open (not verifiable in the repo):** the training, the go-live reset, the 14 days of comparison, the CS-1 to CS-5 measurements and the exit decision. They are tracked in `resultado-piloto.md`, and the acceptance criteria above are met when that file is filled in.
+- **Follow-ups:**
+  - The parallel period cannot end before #21 is live on the shop PC (M4 deadline).
+  - After a refund, the sale form keeps the old date: the guide tells the owner to set it back to today. A UI fix (return to today after "Estornar") would remove that step; consider it if it trips the owner in training.
+  - Keep `guia-rapido.md` in sync with UI changes (noted in CLAUDE.md).
 
 **Spec §9.5** _(verbatim)_
 

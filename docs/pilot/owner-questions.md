@@ -39,7 +39,7 @@ Para **cada maquininha** (PagSeguro e Mercado Pago), qual é a taxa em %:
 
 **5. Contas pagas com o dinheiro do caixa**
 - Quais contas fixas o senhor costuma pagar **com o dinheiro do caixa** (Luz, Água, funcionário…)? Com que frequência?
-- Até essa parte ficar pronta no sistema, a combinação é registrar o pagamento como **sangria** com a observação começando por **"CONTA:"** (ex.: "CONTA: Luz outubro"). O senhor concorda?
+- No sistema, essas contas são pagas em **Despesas fixas › Contas do mês**, com "Pago com dinheiro do caixa" marcado, e o fechamento do caixa já desconta o valor. (A regra provisória da sangria "CONTA:" não é mais necessária.)
 
 **6. Rotina de fechamento**
 - O senhor **conta todo o dinheiro do caixa** todos os dias ao fechar? A que horas costuma fechar?
