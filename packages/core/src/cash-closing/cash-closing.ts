@@ -15,6 +15,12 @@ export const CASH_CLOSING_NOTE_MAX = 200;
 /** HTTP 409 code: the day has no movement, so it does not need closing (A-15). */
 export const NO_MOVEMENT_CODE = "no_movement";
 
+/**
+ * HTTP 409 code: the day's records changed after the screen computed the expected cash, so the
+ * difference the owner saw (and confirmed) is not the one that would be stored (FR-08).
+ */
+export const CASH_CHANGED_CODE = "cash_changed";
+
 export const DAY_STATUSES = ["open", "closed"] as const;
 export type DayStatus = (typeof DAY_STATUSES)[number];
 
@@ -39,6 +45,12 @@ export const closeDayInputSchema = z.object(
     openingCashCents: cashAmountSchema("Informe o troco inicial."),
     /** Dinheiro contado. */
     countedCashCents: cashAmountSchema("Informe o dinheiro contado."),
+    /**
+     * The expected cash the screen showed (RN-07). Optional; when sent, the server refuses the
+     * closing (409 CASH_CHANGED_CODE) if its own recomputation differs, so a difference is
+     * never stored without the owner having seen it (FR-08).
+     */
+    expectedCashCents: z.number({ message: "Valor inválido." }).int("Valor inválido.").optional(),
     /** Optional, e.g. to explain a difference (FR-08). */
     note: z
       .string({ message: "Observação inválida." })

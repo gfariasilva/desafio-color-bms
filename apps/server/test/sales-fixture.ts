@@ -41,7 +41,7 @@ export interface SalesContext {
   /** FR-08: the dates passed to the app's `onDayClosed` hook, in call order. */
   dayClosedCalls: string[];
   /** Optional extra work the `onDayClosed` hook does in a test (e.g. throw, read the DB). */
-  afterDayClosed?: (date: string) => void;
+  afterDayClosed?: (date: string) => void | Promise<void>;
 }
 
 /**
@@ -64,7 +64,7 @@ export function useSalesApp(): SalesContext {
       now: () => NOW,
       onDayClosed: (date) => {
         context.dayClosedCalls.push(date);
-        context.afterDayClosed?.(date);
+        return context.afterDayClosed?.(date);
       },
     });
     const app = context.app;

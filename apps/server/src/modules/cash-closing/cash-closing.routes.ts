@@ -14,7 +14,7 @@ import { closeDay, getCashClosing, listUnclosedDays } from "./cash-closing.repos
  * Runs after a day is closed and committed (FR-08): the place where the daily and monthly
  * spreadsheet exports (FR-28, FR-29, #21) and the DB backup (FR-31, #25) get queued.
  */
-export type OnDayClosed = (date: CivilDate) => void;
+export type OnDayClosed = (date: CivilDate) => void | Promise<void>;
 
 /** FR-08: the closing screen, closing a day; FR-27: the days left open. */
 export function registerCashClosingRoutes(
@@ -47,11 +47,14 @@ export function registerCashClosingRoutes(
     }
     // After the commit: a failure here must not undo the closing. The export queue (FR-30)
     // will record its own failures; until then, it is only logged.
-    try {
-      onDayClosed(params.date);
-    } catch (error) {
-      request.log.error({ err: error, date: params.date }, "onDayClosed failed");
-    }
+    // An async hook's rejection is caught too: an unhandled rejection would stop the server.
+    // Not awaited, so a slow backup never delays the answer.
+    const date = params.date;
+    void Promise.resolve()
+      .then(() => onDayClosed(date))
+      .catch((error: unknown) => {
+        request.log.error({ err: error, date }, "onDayClosed failed");
+      });
     return closed;
   });
 }

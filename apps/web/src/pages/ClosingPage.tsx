@@ -56,7 +56,14 @@ export function ClosingPage() {
   });
 
   async function close(closeDate: string, input: CloseDayInput) {
-    const closed: DayCashClosingResponse = await api.cashClosing.close(closeDate, input);
+    let closed: DayCashClosingResponse;
+    try {
+      closed = await api.cashClosing.close(closeDate, input);
+    } catch (failure) {
+      // The server refused (closed elsewhere, records changed): show the day as it is now.
+      void queryClient.invalidateQueries({ queryKey: [...QUERY_KEYS.cashClosingDay, closeDate] });
+      throw failure;
+    }
     queryClient.setQueryData([...QUERY_KEYS.cashClosingDay, closeDate], closed);
     setSaved(`Dia ${formatCivilDate(closeDate)} fechado.`);
     // RN-14: the day is now locked on every screen; FR-27: it leaves the Início alert.
@@ -99,6 +106,11 @@ export function ClosingPage() {
           {saved}
         </p>
 
+        {today.isError && dateText === "" ? (
+          <p role="alert" className="text-sm text-destructive">
+            Não foi possível carregar a data de hoje. Recarregue a página.
+          </p>
+        ) : null}
         {date === null && dateText !== "" ? (
           <p role="alert" className="text-sm text-destructive">
             Escolha uma data válida.

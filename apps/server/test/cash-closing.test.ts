@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DAY_CLOSED_CODE, NO_MOVEMENT_CODE } from "@color-bms/core";
+import { CASH_CHANGED_CODE, DAY_CLOSED_CODE, NO_MOVEMENT_CODE } from "@color-bms/core";
 import {
   closeDay,
   closeMonth,
@@ -205,13 +205,17 @@ describe("FR-08: close the day (POST /api/days/:date/close)", () => {
     });
   });
 
-  it("FR-08: the expected cash is recomputed by the server; the client only sends the counts", async () => {
+  it("FR-08: the expected cash is recomputed by the server; a client value is only checked, never stored", async () => {
     await createSale(ctx, { grossCents: 2500 });
-    const response = await postClose(ctx, TODAY, {
+    const wrong = await postClose(ctx, TODAY, {
       openingCashCents: 0,
       countedCashCents: 2500,
       expectedCashCents: 1,
     });
+    expect(wrong.statusCode).toBe(409);
+    expect(wrong.json()).toMatchObject({ code: CASH_CHANGED_CODE });
+
+    const response = await postClose(ctx, TODAY, { openingCashCents: 0, countedCashCents: 2500 });
     expect(response.statusCode, response.body).toBe(200);
     expect(response.json().closing).toMatchObject({ expectedCashCents: 2500, differenceCents: 0 });
   });
@@ -294,6 +298,32 @@ describe("FR-08: close the day (POST /api/days/:date/close)", () => {
     expect(response.json()).toEqual({ error: "Não é possível fechar um dia futuro." });
   });
 
+  it("FR-08: refuses the closing when the expected cash the screen showed is out of date", async () => {
+    await createSale(ctx, { grossCents: 5000 });
+    // The screen computed R$ 50,00 expected; then another cash sale came in.
+    await createSale(ctx, { grossCents: 1000 });
+    const response = await postClose(ctx, TODAY, {
+      openingCashCents: 0,
+      countedCashCents: 5000,
+      expectedCashCents: 5000,
+    });
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toEqual({
+      error:
+        "Os lançamentos do dia mudaram desde que a tela foi aberta. Confira os valores e feche de novo.",
+      code: CASH_CHANGED_CODE,
+    });
+    expect((await getCashClosing(ctx, TODAY)).status).toBe("open");
+    expect(await dayAudit(ctx)).toEqual([]);
+    expect(ctx.dayClosedCalls).toEqual([]);
+
+    await closeDayWithCount(ctx, TODAY, {
+      openingCashCents: 0,
+      countedCashCents: 6000,
+      expectedCashCents: 6000,
+    });
+  });
+
   it("A-15: a day without movement is not closed", async () => {
     const response = await postClose(ctx, TODAY, { openingCashCents: 0, countedCashCents: 0 });
     expect(response.statusCode).toBe(409);
@@ -342,6 +372,26 @@ describe("FR-08: exports and backup are queued after the closing (onDayClosed)",
     const response = await postClose(ctx, TODAY, { openingCashCents: 0, countedCashCents: 2500 });
     expect(response.statusCode, response.body).toBe(200);
     expect((await getCashClosing(ctx, TODAY)).status).toBe("closed");
+  });
+
+  it("FR-08: a rejecting async onDayClosed is caught and does not undo the closing", async () => {
+    await createSale(ctx);
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => unhandled.push(reason);
+    process.on("unhandledRejection", onUnhandled);
+    try {
+      ctx.afterDayClosed = () => Promise.reject(new Error("OneDrive offline"));
+      const response = await postClose(ctx, TODAY, {
+        openingCashCents: 0,
+        countedCashCents: 2500,
+      });
+      expect(response.statusCode, response.body).toBe(200);
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(unhandled).toEqual([]);
+      expect((await getCashClosing(ctx, TODAY)).status).toBe("closed");
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+    }
   });
 });
 

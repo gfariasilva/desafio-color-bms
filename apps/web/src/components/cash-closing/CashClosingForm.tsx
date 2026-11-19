@@ -57,6 +57,12 @@ export function CashClosingForm({ day, onClose }: CashClosingFormProps) {
 
   useEffect(() => openingField.current?.focus(), []);
 
+  // The day's records changed (a refetch): a difference confirmed on the old terms is not
+  // confirmed any more (FR-08).
+  useEffect(() => {
+    setConfirming(false);
+  }, [day.cashSalesCents, day.tillExpensesCents, day.withdrawalsCents]);
+
   // RN-07, live: "—" until the values can be read.
   const openingCents = readMoney(opening);
   const countedCents = readMoney(counted);
@@ -93,6 +99,8 @@ export function CashClosingForm({ day, onClose }: CashClosingFormProps) {
       openingCashCents: openingCents,
       countedCashCents: countedCents,
       note,
+      // The server refuses the closing if its own RN-07 result differs from what is on screen.
+      ...(expected === null ? {} : { expectedCashCents: expected }),
     });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "Dados inválidos.");

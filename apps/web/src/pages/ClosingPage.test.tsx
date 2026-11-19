@@ -137,7 +137,12 @@ describe("FR-08: close the day (Fechamento page)", () => {
       expect(posts).toEqual([
         {
           url: `/api/days/${TODAY}/close`,
-          body: { openingCashCents: 12500, countedCashCents: 9000, note: null },
+          body: {
+            openingCashCents: 12500,
+            countedCashCents: 9000,
+            expectedCashCents: 9000,
+            note: null,
+          },
         },
       ]),
     );
@@ -161,7 +166,12 @@ describe("FR-08: close the day (Fechamento page)", () => {
     submit();
     await waitFor(() =>
       expect(posts.map((post) => post.body)).toEqual([
-        { openingCashCents: 12500, countedCashCents: 8500, note: "faltou troco" },
+        {
+          openingCashCents: 12500,
+          countedCashCents: 8500,
+          expectedCashCents: 9000,
+          note: "faltou troco",
+        },
       ]),
     );
   });

@@ -1,5 +1,6 @@
 import { and, desc, eq, isNotNull, lt, sql } from "drizzle-orm";
 import {
+  CASH_CHANGED_CODE,
   cashDifferenceCents,
   cashPaidFromTillCents,
   cashWithdrawalsOfDayCents,
@@ -171,6 +172,14 @@ export function closeDay(
 
     const terms = dayCashTerms(tx, date);
     const expected = expectedCashCents({ openingCashCents: input.openingCashCents, ...terms });
+    // FR-08: the difference stored must be the one the owner saw and confirmed.
+    if (input.expectedCashCents !== undefined && input.expectedCashCents !== expected) {
+      throw new BusinessError(
+        409,
+        "Os lançamentos do dia mudaram desde que a tela foi aberta. Confira os valores e feche de novo.",
+        CASH_CHANGED_CODE,
+      );
+    }
     const values = {
       status: "closed" as const,
       closedAt: now.toISOString(),
