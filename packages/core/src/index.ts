@@ -29,3 +29,5 @@ export * from "./fixed-expenses/fixed-expenses";
 export * from "./fixed-expenses/fixed-expense-payment";
 export * from "./cash-closing/month-closing";
 export * from "./reports/day-report";
+export * from "./reports/month-income";
+export * from "./reports/month-general-expenses";

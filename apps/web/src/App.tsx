@@ -13,6 +13,8 @@ import { CatalogListPage } from "@/pages/CatalogListPage";
 import { ClosingPage } from "@/pages/ClosingPage";
 import { HomePage } from "@/pages/HomePage";
 import { DayReportPage } from "@/pages/DayReportPage";
+import { MonthGeneralExpensesReportPage } from "@/pages/MonthGeneralExpensesReportPage";
+import { MonthIncomeReportPage } from "@/pages/MonthIncomeReportPage";
 import { PlaceholderPage } from "@/pages/PlaceholderPage";
 import { ReportsPage } from "@/pages/ReportsPage";
 import { SalesPage } from "@/pages/SalesPage";
@@ -46,6 +48,8 @@ export function AppRoutes() {
         <Route path="fechamento" element={<ClosingPage />} />
         <Route path="relatorios" element={<ReportsPage />} />
         <Route path="relatorios/dia" element={<DayReportPage />} />
+        <Route path="relatorios/mes/entradas" element={<MonthIncomeReportPage />} />
+        <Route path="relatorios/mes/despesas-gerais" element={<MonthGeneralExpensesReportPage />} />
         <Route path="cadastros" element={<CatalogPage />} />
         <Route path="cadastros/abas" element={<CatalogListPage kind="sale" />} />
         <Route path="cadastros/categorias-despesa" element={<CatalogListPage kind="expense" />} />

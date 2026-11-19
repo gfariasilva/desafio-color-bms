@@ -60,7 +60,7 @@ Ordered backlog for the MVP (spec §9.1). Each item is one small PR / GitHub iss
 | [x] | M4 | [#12](#12--generate-the-months-fixed-expenses) | Generate the month's fixed expenses | FR-11 | #11 |
 | [x] | M4 | [#13](#13--pay-or-dismiss-a-fixed-expense-loan-installments) | Pay or dismiss a fixed expense; loan installments | FR-12, FR-13; RN-09, RN-07, RN-14 | #12, #9 |
 | [x] | M5 | [#14](#14--close-and-reopen-the-month) | Close and reopen the month | FR-16, FR-17; RN-14 | #10, #13 |
-| [ ] | M5 | [#16](#16--month-reports-income-and-general-expenses) | Month reports: income and general expenses | FR-20, FR-21; RN-06, RN-08 | #6, #7 |
+| [x] | M5 | [#16](#16--month-reports-income-and-general-expenses) | Month reports: income and general expenses | FR-20, FR-21; RN-06, RN-08 | #6, #7 |
 | [ ] | M5 | [#17](#17--month-reports-fixed-expenses-and-monthly-summary) | Month reports: fixed expenses and monthly summary | FR-22, FR-23; RN-09, RN-10 | #13, #16 |
 | [ ] | M5 | [#28](#28--monthly-spreadsheet-export) | Monthly spreadsheet export | FR-29 | #17, #21 |
 | [ ] | M5 | [#22](#22--database-backup-and-restore) | Database backup and restore | FR-31, FR-32; RN-13 | #21, #25 |
@@ -1050,6 +1050,14 @@ Diferença = Dinheiro contado − Dinheiro esperado   (>0 sobra, <0 falta)
 **Technical notes**
 
 - Test the FR-20 invariant: column sums = tab totals, sum of tabs = monthly income.
+
+**Done notes**
+
+- `GET /api/months/:yearMonth/reports/income` and `…/reports/general-expenses` (`apps/server/src/modules/reports/month-reports.repository.ts`); the core builders are `buildMonthIncome` and `buildMonthGeneralExpenses` (`packages/core/src/reports/`). #17 (monthly summary) and #28 (monthly .xlsx) should reuse `getMonthIncome` and `getMonthGeneralExpenses`, so screen and file agree.
+- Grid rows (FR-20): every day of the month, up to today for the current month (a future month has none). Days without sales show "—", so the grid lines up with the owner's Excel row by row. Columns: active tabs, plus inactive ones with sales in the month (the same rule as the day report).
+- The income rows are summed in SQL per day × tab × method (NFR-04), so a month with ≈ 9,000 sales is one grouped query. No migration: `sales_date_idx` and `expenses_payment_date_idx` cover the ranges.
+- FR-21 drill-down: the entries of each category come in the same response and open in place (expandable row). Categories: active ones, plus inactive ones with expenses in the month. Geral first, then the "Fornecedores de materiais" block with its subtotal, then "Total geral". The total equals the expense screen's "Despesas gerais do mês" (RN-08).
+- No refetch on writes is needed: the report queries refetch when the page is opened (TanStack Query's default stale time is 0).
 
 **Acceptance criteria** _(verbatim from spec §4)_
 
