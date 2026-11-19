@@ -147,6 +147,8 @@ export function FixedExpensesMonthPage() {
         : api.fixedExpenses.undo(expense.id),
     onSuccess: async (changed, { expense }) => {
       setFormError(null);
+      // A bill that is no longer pending cannot stay in the pay card.
+      setPaying((current) => (current?.id === changed.id ? null : current));
       setSaved(
         changed.status === "dismissed"
           ? `${changed.label} dispensada.`
@@ -195,6 +197,8 @@ export function FixedExpensesMonthPage() {
   function goToMonth(month: string) {
     setSaved(null);
     setFormError(null);
+    // The pay card belongs to the month on screen.
+    setPaying(null);
     setSearchParams({ mes: month });
   }
 

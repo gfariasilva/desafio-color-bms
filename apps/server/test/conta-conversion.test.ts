@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CONTA_CONVERSION_REASON, fixedExpenseSchema } from "@color-bms/core";
-import { closeMonth, createSale, TODAY, useSalesApp } from "./sales-fixture";
+import { closeDay, closeMonth, createSale, TODAY, useSalesApp } from "./sales-fixture";
 import { closeDayWithCount, dayAudit, getCashClosing } from "./cash-closing-fixture";
 import { createCashWithdrawal, getDayCashWithdrawals } from "./cash-withdrawals-fixture";
 import {
@@ -49,6 +49,7 @@ describe("#13: convert the pilot's CONTA: sangrias", () => {
         note: "CONTA: Luz outubro",
         suggestedName: "Luz outubro",
         dayClosed: true,
+        lock: null,
       },
     ]);
     // The pending bills the owner can pick, from any month.
@@ -179,5 +180,27 @@ describe("#13: convert the pilot's CONTA: sangrias", () => {
     });
     expect(closedMonth.statusCode).toBe(409);
     expect(closedMonth.json().error).toMatch(/^O mês 11\/2026 está fechado/);
+    // RN-14: the list says why it cannot be converted now.
+    expect((await getContaCandidates(ctx)).withdrawals[0]!.lock).toMatch(
+      /^O mês 11\/2026 está fechado/,
+    );
+  });
+
+  it("#13: refuses to re-close a closed day without a stored count", async () => {
+    await createSale(ctx, { date: DAY, grossCents: 50000 });
+    const conta = await createCashWithdrawal(ctx, {
+      date: DAY,
+      amountCents: 100,
+      note: "CONTA: x",
+    });
+    closeDay(ctx, DAY); // a closed row without the cash fields
+    const response = await postConvert(ctx, conta.id, {
+      target: "one_off",
+      name: "x",
+      group: "general",
+    });
+    expect(response.statusCode).toBe(409);
+    expect(response.json().error).toMatch(/não tem a contagem gravada/);
+    expect((await getDayCashWithdrawals(ctx, DAY)).withdrawals).toHaveLength(1);
   });
 });

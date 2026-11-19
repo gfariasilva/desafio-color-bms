@@ -5,7 +5,7 @@ import { chars, expect, pressKeys, test, TODAY, type Catalog } from "./fixtures"
  * FR-12 / FR-13 (paying and dismissing the month's bills) and the #13 conversion of the
  * pilot's "CONTA:" sangrias, in the real built app. The server starts on 18/11/2026, so
  * November's bills exist. Tests in a worker share one database: each test pays its own bill
- * on its own date.
+ * on its own date, and only touches bills the other specs never check (Contador, Seguro loja).
  */
 
 async function post(api: APIRequestContext, url: string, data: unknown, status = 201) {
@@ -44,10 +44,10 @@ test("FR-12: pay a bill with cash from the till, keyboard only; it reduces the d
   const before = await tillExpensesToday(api);
   await openMonth(page);
 
-  // Row → "Pagar Água" → the card opens with Valor focused and today's date.
-  await page.getByRole("button", { name: "Pagar Água" }).focus();
+  // Row → "Pagar Contador" → the card opens with Valor focused and today's date.
+  await page.getByRole("button", { name: "Pagar Contador" }).focus();
   await page.keyboard.press("Enter");
-  const form = page.getByRole("form", { name: "Pagar Água" });
+  const form = page.getByRole("form", { name: "Pagar Contador" });
   await expect(form.getByLabel("Valor pago (R$)")).toBeFocused();
   await expect(form.getByLabel("Data do pagamento")).toHaveValue(TODAY);
 
@@ -56,8 +56,8 @@ test("FR-12: pay a bill with cash from the till, keyboard only; it reduces the d
   await expect(form.getByLabel("Pago com dinheiro do caixa")).toBeChecked();
   await page.keyboard.press("Enter");
 
-  await expect(page.getByRole("status")).toHaveText("Água paga: R$ 120,00 em 18/11/2026.");
-  const row = page.getByRole("row", { name: /Água/ });
+  await expect(page.getByRole("status")).toHaveText("Contador paga: R$ 120,00 em 18/11/2026.");
+  const row = page.getByRole("row", { name: /Contador/ });
   await expect(row).toContainText("Pago");
   await expect(row).toContainText("R$ 120,00 · 18/11/2026 · Dinheiro do caixa");
 
@@ -69,13 +69,13 @@ test("FR-12: dismiss a bill and reactivate it", async ({ page }) => {
   await openMonth(page);
   page.on("dialog", (dialog) => void dialog.accept());
 
-  await page.getByRole("button", { name: "Dispensar TFE" }).click();
-  await expect(page.getByRole("status")).toHaveText("TFE dispensada.");
-  await expect(page.getByRole("row", { name: /TFE/ })).toContainText("Dispensado");
+  await page.getByRole("button", { name: "Dispensar Seguro loja" }).click();
+  await expect(page.getByRole("status")).toHaveText("Seguro loja dispensada.");
+  await expect(page.getByRole("row", { name: /Seguro loja/ })).toContainText("Dispensado");
 
-  await page.getByRole("button", { name: "Reativar TFE" }).click();
-  await expect(page.getByRole("status")).toHaveText("TFE reativada.");
-  await expect(page.getByRole("row", { name: /TFE/ })).toContainText("Pendente");
+  await page.getByRole("button", { name: "Reativar Seguro loja" }).click();
+  await expect(page.getByRole("status")).toHaveText("Seguro loja reativada.");
+  await expect(page.getByRole("row", { name: /Seguro loja/ })).toContainText("Pendente");
 });
 
 test("#13: convert a CONTA: sangria of a closed day; the closing keeps its count", async ({

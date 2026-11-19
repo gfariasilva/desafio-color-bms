@@ -176,14 +176,18 @@ export function ContaConversionPanel({ onConverted }: { onConverted: (text: stri
                       </span>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={convert.isPending}
-                        onClick={() => confirmConvert(candidate)}
-                      >
-                        Converter
-                      </Button>
+                      {candidate.lock ? (
+                        <span className="text-sm text-muted-foreground">{candidate.lock}</span>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={convert.isPending}
+                          onClick={() => confirmConvert(candidate)}
+                        >
+                          Converter
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 );

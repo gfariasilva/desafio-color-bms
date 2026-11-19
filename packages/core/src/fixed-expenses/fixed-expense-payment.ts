@@ -271,6 +271,8 @@ export const contaCandidateSchema = z.object({
   suggestedName: z.string(),
   /** The conversion reopens and closes the day again (RN-14). */
   dayClosed: z.boolean(),
+  /** RN-14: a closed month must be reopened (FR-17) before converting; null if open. */
+  lock: z.string().nullable(),
 });
 export type ContaCandidate = z.infer<typeof contaCandidateSchema>;
 

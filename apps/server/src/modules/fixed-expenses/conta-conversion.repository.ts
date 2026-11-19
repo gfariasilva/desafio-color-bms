@@ -19,7 +19,7 @@ import {
   closeDayInTransaction,
   reopenDayInTransaction,
 } from "../cash-closing/cash-closing.repository";
-import { periodStatus } from "../periods/period-status";
+import { monthStatus, periodStatus } from "../periods/period-status";
 import {
   compareFixedExpenses,
   createOneOffInTransaction,
@@ -39,6 +39,15 @@ import {
  * same opening cash, counted cash, difference and note.
  */
 
+/** RN-14: the message for a CONTA: sangria in a closed month. */
+function monthLockMessage(date: CivilDate): string {
+  return periodLockError(
+    date,
+    { dayClosed: false, monthClosed: true },
+    "para converter esta sangria.",
+  )!;
+}
+
 /** GET /api/conta-conversions: the CONTA: sangrias left and the bills they can pay. */
 export function listContaCandidates(db: AppDatabase): ContaCandidatesResponse {
   const withdrawals = db
@@ -56,7 +65,13 @@ export function listContaCandidates(db: AppDatabase): ContaCandidatesResponse {
     .flatMap(({ dayStatus, note, ...withdrawal }) => {
       const name = contaBillName(note);
       if (name === null || note === null) return [];
-      return [{ ...withdrawal, note, suggestedName: name, dayClosed: dayStatus === "closed" }];
+      // RN-14: shown with the reason, so the owner knows to reopen the month first.
+      const lock = monthStatus(db, monthOf(withdrawal.date)).monthClosed
+        ? monthLockMessage(withdrawal.date)
+        : null;
+      return [
+        { ...withdrawal, note, suggestedName: name, dayClosed: dayStatus === "closed", lock },
+      ];
     });
 
   const pendingExpenses = selectFixedExpenses(db, eq(expenses.status, "pending")).sort(
@@ -98,15 +113,18 @@ export function convertConta(
     // RN-14: a closed month must be reopened first (FR-17); a closed day is reopened here.
     const status = periodStatus(tx, date);
     if (status.monthClosed) {
-      throw new BusinessError(
-        409,
-        periodLockError(date, status, "para converter esta sangria.")!,
-        MONTH_CLOSED_CODE,
-      );
+      throw new BusinessError(409, monthLockMessage(date), MONTH_CLOSED_CODE);
     }
     const closedDay = status.dayClosed
       ? tx.select().from(days).where(eq(days.date, date)).get()
       : undefined;
+    // The re-closing repeats the stored count; a closed day without one cannot be repeated.
+    if (closedDay && (closedDay.countedCashCents === null || closedDay.openingCashCents === null)) {
+      throw new BusinessError(
+        409,
+        "O fechamento deste dia não tem a contagem gravada. Reabra o dia, converta e feche de novo.",
+      );
+    }
     if (closedDay) reopenDayInTransaction(tx, date, { reason: CONTA_CONVERSION_REASON }, now);
 
     // The sangria goes; the audit row keeps it (FR-18).
@@ -158,8 +176,8 @@ export function convertConta(
         tx,
         date,
         {
-          openingCashCents: closedDay.openingCashCents ?? 0,
-          countedCashCents: closedDay.countedCashCents ?? 0,
+          openingCashCents: closedDay.openingCashCents!,
+          countedCashCents: closedDay.countedCashCents!,
           expectedCashCents: closedDay.expectedCashCents ?? undefined,
           note: closedDay.note,
         },

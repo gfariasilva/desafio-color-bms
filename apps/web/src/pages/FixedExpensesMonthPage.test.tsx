@@ -389,6 +389,7 @@ describe("Conversão das sangrias CONTA: (#13)", () => {
           note: "CONTA: Luz outubro",
           suggestedName: "Luz outubro",
           dayClosed: true,
+          lock: null,
         },
       ],
       pendingExpenses: [entry(1, "Luz", { dueDate: "2026-11-10" })],
