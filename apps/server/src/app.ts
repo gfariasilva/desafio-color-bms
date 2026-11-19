@@ -23,6 +23,7 @@ import {
   registerMonthClosingRoutes,
   type OnMonthClosed,
 } from "./modules/month-closing/month-closing.routes";
+import { registerDayReportRoutes } from "./modules/reports/day-report.routes";
 import { registerHealthRoutes } from "./modules/health/health.routes";
 import { registerSalesRoutes } from "./modules/sales/sales.routes";
 import packageJson from "../package.json" with { type: "json" };
@@ -72,6 +73,7 @@ export async function buildApp({
   registerCashClosingRoutes(app, connection, now, onDayClosed);
   registerContaConversionRoutes(app, connection, now, onDayClosed);
   registerMonthClosingRoutes(app, connection, now, onMonthClosed);
+  registerDayReportRoutes(app, connection, now);
 
   if (webDistDir && fs.existsSync(webDistDir)) {
     await app.register(fastifyStatic, { root: webDistDir });

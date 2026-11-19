@@ -10,7 +10,10 @@ import { DifferenceBadge } from "./DifferenceBadge";
 export function ClosedDaySummary({
   day,
 }: {
-  day: DayCashClosingResponse & { closing: NonNullable<DayCashClosingResponse["closing"]> };
+  /** The RN-07 terms and the stored closing (also used by the day report, FR-19). */
+  day: Pick<DayCashClosingResponse, "cashSalesCents" | "tillExpensesCents" | "withdrawalsCents"> & {
+    closing: NonNullable<DayCashClosingResponse["closing"]>;
+  };
 }) {
   const { closing } = day;
   return (
