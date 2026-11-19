@@ -5,6 +5,10 @@ import { systemClock, type Clock } from "./clock";
 import type { DatabaseConnection } from "./db/client";
 import { registerHostGuard } from "./http/host-guard";
 import { registerAuditRoutes } from "./modules/audit/audit.routes";
+import {
+  registerCashClosingRoutes,
+  type OnDayClosed,
+} from "./modules/cash-closing/cash-closing.routes";
 import { registerCashWithdrawalRoutes } from "./modules/cash-withdrawals/cash-withdrawals.routes";
 import { registerCategoryRoutes } from "./modules/categories/categories.routes";
 import { registerExpenseRoutes } from "./modules/expenses/expenses.routes";
@@ -20,6 +24,11 @@ export interface BuildAppOptions {
   logger?: boolean;
   /** The current time (ADR 0002). Tests pass a fixed clock. */
   now?: Clock;
+  /**
+   * FR-08: called after a day's closing is committed. The pilot backup (#25) and the daily
+   * export (#21) hook in here; a no-op until then.
+   */
+  onDayClosed?: OnDayClosed;
 }
 
 /** Creates the Fastify app without listening, so tests can call `app.inject()`. */
@@ -28,6 +37,7 @@ export async function buildApp({
   webDistDir,
   logger = false,
   now = systemClock,
+  onDayClosed = () => {},
 }: BuildAppOptions): Promise<FastifyInstance> {
   const app = Fastify({ logger });
 
@@ -39,6 +49,7 @@ export async function buildApp({
   registerSalesRoutes(app, connection, now);
   registerExpenseRoutes(app, connection, now);
   registerCashWithdrawalRoutes(app, connection, now);
+  registerCashClosingRoutes(app, connection, now, onDayClosed);
 
   if (webDistDir && fs.existsSync(webDistDir)) {
     await app.register(fastifyStatic, { root: webDistDir });

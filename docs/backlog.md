@@ -48,7 +48,7 @@ Ordered backlog for the MVP (spec §9.1). Each item is one small PR / GitHub iss
 | [x] | M1 | [#6](#6--refunds-estornos) | Refunds (estornos) | FR-04; RN-04 | #5 |
 | [x] | M2 | [#7](#7--general-expenses-saídas-diárias) | General expenses (saídas diárias) | FR-06; RN-08, RN-14, RN-15 | #2, #4 |
 | [x] | M2 | [#8](#8--cash-withdrawals-sangrias) | Cash withdrawals (sangrias) | FR-07; RN-14 | #4 |
-| [ ] | M2 | [#9](#9--close-the-day-cash-closing) | Close the day (cash closing) | FR-08; RN-07, RN-14 | #6, #7, #8 |
+| [x] | M2 | [#9](#9--close-the-day-cash-closing) | Close the day (cash closing) | FR-08; RN-07, RN-14 | #6, #7, #8 |
 | [ ] | M2 | [#10](#10--reopen-a-day) | Reopen a day | FR-09; RN-14 | #9 |
 | [ ] | M2 | [#15](#15--day-report) | Day report | FR-19; RN-05, RN-07 | #9 |
 | [ ] | M3 | [#25](#25--pilot-database-backup) | Pilot database backup | slice of FR-31 | #9 |
@@ -619,6 +619,18 @@ O sistema deve permitir estornar, total ou parcialmente, uma venda de um dia ant
 
 - Measure CS-4 (≤ 3 min) manually.
 - Interim rule until #13 ships: a fixed bill paid with cash from the till is recorded as a sangria with an observation starting with "CONTA:" (see #13).
+
+**Done notes (follow-ups)**
+
+- Migration `0009_add_cash_closing`: `days` gets `opening_cash_cents`, `expected_cash_cents`, `counted_cash_cents`, `difference_cents` and `note`; `payment_methods` gets `is_cash` (default false), set by the migration on the seeded "Dinheiro" (`name_key = 'dinheiro'`). RN-07 finds cash sales by this flag, never by name, so renaming Dinheiro changes nothing.
+- Core `packages/core/src/cash-closing/`: `expectedCashCents()`, `cashDifferenceCents()`, `cashDifferenceLabel()` ("Sobra de …" / "Falta de …" / "Sem diferença"), `closeDayBlock()` (future, closed month, already closed, no movement), `closeDayInputSchema`, `dayCashClosingResponseSchema`, `unclosedDaysResponseSchema`, `NO_MOVEMENT_CODE`, `DAY_STATUS_LABELS`. Audit labels for the closing fields.
+- API: `GET /api/days/:date/cash-closing` (RN-07 terms, A-12 suggestion, stored closing, `blocked` message), `POST /api/days/:date/close` (`{ openingCashCents, countedCashCents, note? }`; the server recomputes expected cash; 400 future, 409 `day_closed` for a closed day or month, 409 `no_movement`), `GET /api/days/unclosed` (FR-27 slice). Audit: entity `day`, action `close`, `before: { status: "open" }`, `after` with the terms and the result.
+- Decisions: only days **with movement** (sale/refund, paid expense, sangria) can be closed (A-15). The opening cash is suggested from the counted cash of the latest closed day **before** the date; with none, the field starts empty (first day). A closing with a difference is confirmed in a second step (Enter again or "Fechar mesmo assim"); the note is optional.
+- `buildApp({ onDayClosed })`: called after the commit; a failure is logged and never undoes the closing. **#25** (pilot backup) and **#21** (daily export) hook in here.
+- UI: `/fechamento` (`pages/ClosingPage.tsx`, `components/cash-closing/`), `?data=YYYY-MM-DD` opens a day; Início shows the "Dia não fechado" alert with a "Fechar" link per day. **#23** folds it into the full alert list (and adds "Tudo em dia").
+- **#10:** reopening sets `days.status = 'open'` and keeps the old cash fields until the next closing overwrites them; the closing's audit `before` stays `{ status: "open" }`. Replace the "Reabrir dia" construction card.
+- Follow-up: `is_cash` is not editable in Cadastros. If the owner deletes an unused Dinheiro and creates a new one, its sales would not count as cash. Consider showing/editing the flag on Formas de pagamento (or blocking that delete) before the pilot.
+- CS-4 (≤ 3 min) still to be measured by hand in the dress rehearsal (M2 exit).
 
 **Acceptance criteria** _(verbatim from spec §4)_
 

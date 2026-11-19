@@ -61,6 +61,7 @@ docs/            spec, ADRs, design system
 - **Business rules live in `packages/core`** as pure functions. Cite the spec ID in code comments and test names, e.g. `// RN-07` and `it("RN-04: refund fee is proportional", …)`.
 - **Validation:** Zod schemas in `packages/core`, used by both the server and the web app.
 - **Database writes:** a business change and its audit row (FR-18) go in **one transaction**: call `recordAudit(tx, { entity, entityId, action, before, after, reason })` from `apps/server/src/modules/audit/audit.repository.ts` inside `db.transaction((tx) => …)`. In `before`/`after`, money keys end in `Cents` (`grossCents: 5000`) so the Auditoria screen shows them as R$.
+- **After a day is closed:** `buildApp({ onDayClosed })` runs after the closing commits (FR-08). Hook the pilot backup (#25) and the spreadsheet exports (#21) there; a failure must never undo the closing.
 - **Time on the server:** never call `new Date()` in business code; use the `Clock` passed to the routes (`apps/server/src/clock.ts`). `COLOR_BMS_NOW` sets it only with `NODE_ENV=test` (ADR 0002). The UI gets today from `GET /api/today`.
 - **UI:** follow `docs/design-system.md` (dense, keyboard-first, rainbow only as an accent).
 

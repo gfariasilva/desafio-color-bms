@@ -1,20 +1,78 @@
 import { useQuery } from "@tanstack/react-query";
-import { formatInstant } from "@color-bms/core";
+import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Link } from "react-router-dom";
+import { formatCivilDate, formatInstant } from "@color-bms/core";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { NAV_ITEMS } from "@/config/navigation";
-import { api } from "@/lib/api";
+import { api, QUERY_KEYS } from "@/lib/api";
 
 const home = NAV_ITEMS[0];
 
-/** Início. For now it only shows the system status (walking skeleton). Alerts come in FR-27. */
+/**
+ * FR-27 (pilot slice): the "Dia não fechado" alert: earlier days with movement still open, each
+ * with a link to close it. The other alerts and "Tudo em dia" come in #23.
+ */
+function AlertsCard() {
+  const unclosed = useQuery({
+    queryKey: QUERY_KEYS.unclosedDays,
+    queryFn: api.cashClosing.unclosed,
+  });
+
+  return (
+    <section aria-labelledby="alerts-title" className="mb-4 max-w-xl">
+      <Card>
+        <CardHeader className="p-4 pb-2">
+          <CardTitle id="alerts-title" className="text-base">
+            Alertas
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-4 pt-0">
+          {unclosed.isPending ? <p className="text-muted-foreground">Verificando…</p> : null}
+          {unclosed.isError ? (
+            <p className="text-destructive">Não foi possível verificar os alertas.</p>
+          ) : null}
+          {unclosed.data?.length === 0 ? (
+            <p className="flex items-center gap-2 text-muted-foreground">
+              <CheckCircle2 className="h-4 w-4 text-rainbow-green" aria-hidden />
+              Nenhum dia anterior pendente de fechamento.
+            </p>
+          ) : null}
+          {unclosed.data && unclosed.data.length > 0 ? (
+            <ul className="divide-y">
+              {unclosed.data.map((date) => (
+                <li key={date} className="flex min-h-9 items-center justify-between gap-3 py-1">
+                  <span className="flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-rainbow-orange" aria-hidden />
+                    Dia {formatCivilDate(date)} não fechado
+                  </span>
+                  <Link
+                    to={`/fechamento?data=${date}`}
+                    aria-label={`Fechar o dia ${formatCivilDate(date)}`}
+                    className="rounded-md px-2 py-1 font-medium text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    Fechar
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </CardContent>
+      </Card>
+    </section>
+  );
+}
+
+/** Início: the alerts (FR-27, pilot slice) and the system status. */
 export function HomePage() {
   const health = useQuery({ queryKey: ["health"], queryFn: api.health });
 
   return (
     <>
       <PageHeader title={home?.label ?? "Início"} description={home?.description} />
+
+      <AlertsCard />
 
       <Card className="max-w-xl">
         <CardHeader className="flex-row items-center justify-between space-y-0 p-4 pb-2">
