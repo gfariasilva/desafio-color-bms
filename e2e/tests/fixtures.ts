@@ -20,6 +20,8 @@ const serverEntry = path.join(repoRoot, "apps/server/dist/main.js");
 interface ServerInfo {
   baseURL: string;
   dataDir: string;
+  /** #25: the worker's stand-in for the OneDrive folder; backups go to its _backup-sistema. */
+  oneDriveDir: string;
 }
 
 /** Ids of the RN-12 lists, looked up by name through the public API. */
@@ -59,6 +61,8 @@ export const test = base.extend<
       }
       const port = 3300 + workerInfo.workerIndex;
       const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "color-bms-e2e-"));
+      const oneDriveDir = path.join(dataDir, "OneDrive");
+      fs.mkdirSync(oneDriveDir);
       let output = "";
       const child = spawn(process.execPath, [serverEntry], {
         cwd: repoRoot,
@@ -68,6 +72,7 @@ export const test = base.extend<
           PORT: String(port),
           COLOR_BMS_DATA_DIR: dataDir,
           COLOR_BMS_NOW: TEST_NOW,
+          COLOR_BMS_ONEDRIVE_DIR: oneDriveDir,
         },
         stdio: ["ignore", "pipe", "pipe"],
       });
@@ -76,7 +81,7 @@ export const test = base.extend<
       const baseURL = `http://127.0.0.1:${port}`;
       try {
         await waitForHealth(baseURL, child, () => output);
-        await use({ baseURL, dataDir });
+        await use({ baseURL, dataDir, oneDriveDir });
       } finally {
         // A server that already exited (e.g. crashed at startup) sends no more "exit" events.
         if (child.exitCode === null && child.signalCode === null) {

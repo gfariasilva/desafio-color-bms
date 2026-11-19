@@ -51,7 +51,7 @@ Ordered backlog for the MVP (spec §9.1). Each item is one small PR / GitHub iss
 | [x] | M2 | [#9](#9--close-the-day-cash-closing) | Close the day (cash closing) | FR-08; RN-07, RN-14 | #6, #7, #8 |
 | [x] | M2 | [#10](#10--reopen-a-day) | Reopen a day | FR-09; RN-14 | #9 |
 | [x] | M2 | [#15](#15--day-report) | Day report | FR-19; RN-05, RN-07 | #9 |
-| [ ] | M3 | [#25](#25--pilot-database-backup) | Pilot database backup | slice of FR-31 | #9 |
+| [x] | M3 | [#25](#25--pilot-database-backup) | Pilot database backup | slice of FR-31 | #9 |
 | [ ] | M3 | [#26](#26--pilot-install-on-the-shop-pc) | Pilot install on the shop PC | slice of FR-34 | #25 |
 | [ ] | M3 | [#27](#27--pilot-go-live-and-the-parallel-period) | Pilot go-live and the parallel period | spec §9.5 | #26, #15 |
 | [ ] | M4 | [#20](#20--settings) | Settings | FR-33 | #1 |
@@ -1515,6 +1515,33 @@ A tela inicial mostra os alertas abaixo, cada um com link para resolver:
 - Starting the server with pending migrations writes a local backup **before** migrating; if that backup fails, the server does not migrate and logs why.
 - If the OneDrive folder does not exist, the day still closes (the closing is never blocked) and the failure is visible on Início.
 - The manual restore procedure is tested once on the shop PC before go-live (NFR-07).
+
+**Done notes (follow-ups)**
+
+- Decisions in [ADR 0003](adr/0003-pilot-backup.md).
+- **Core** (`packages/core/src/backup/`):
+  - `backupFileName()` (São Paulo time), `parseBackupFileName()`, `hasBackupOn()`, `latestBackupFile()`
+  - `BACKUP_FOLDER_NAME`
+  - `backupStatusResponseSchema`
+- **Server** (`apps/server/src/modules/backup/`):
+  - `writeBackup()` (`VACUUM INTO` → `.tmp` → fsync → rename)
+  - `createBackupService()`:
+    - `run("day-close")` is chained before `onDayClosed`;
+    - `runOnStartupIfFirstToday()` runs after `listen`;
+    - its status is kept in memory.
+  - `migrateWithBackup()`: `main.ts` calls it instead of `runMigrations()`.
+  - `GET /api/backup/status`.
+  - No migration, no audit rows.
+- **Config:** `COLOR_BMS_ONEDRIVE_DIR` takes precedence; otherwise `oneDriveFolder` comes from `<data dir>/config.json`. `AppConfig.localBackupDir` = `<data dir>/backups`.
+- **UI (Início):**
+  - "Backup pendente: … Nova tentativa no próximo fechamento do dia ou ao reiniciar o sistema." (destructive), and "Pasta do OneDrive não configurada: …" (warning), both in Alertas;
+  - "Último backup" in Status do sistema.
+- **E2E:** every worker's server backs up to a temp "OneDrive" folder (`server.oneDriveDir`); `backup.spec.ts` covers it.
+- **Manual restore:** [`docs/pilot/restaurar-backup.md`](pilot/restaurar-backup.md), with the NFR-07 checklist. **Still to do on the shop PC before go-live** (#26/#27).
+- **Follow-ups:**
+  - A failed day-close backup is not retried after a restart if today already has a backup. #22's queue fixes this.
+  - #26's `atualizar.cmd` backs up through the server's own pre-migration backup on start; a separate "backup now" command is not needed.
+  - Pre-existing, unrelated to this item: the header date (`AppShell`) uses the browser clock, and `GET /api/health` `serverTime` uses `new Date()`, not the server `Clock`. Both ignore `COLOR_BMS_NOW` in E2E/screenshots.
 
 **Spec reference** _(verbatim; only the parts listed under Scope belong to this item)_
 

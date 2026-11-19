@@ -8,7 +8,7 @@ import type { AppDatabase } from "./client";
  * when running from source (src/db/migrate.ts → ../../migrations) and from the bundle
  * (dist/main.js → ../migrations). We pick whichever exists.
  */
-function defaultMigrationsFolder(): string {
+export function defaultMigrationsFolder(): string {
   const here = path.dirname(fileURLToPath(import.meta.url));
   const fromBundle = path.resolve(here, "../migrations");
   const fromSource = path.resolve(here, "../../migrations");
