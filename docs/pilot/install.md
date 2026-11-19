@@ -41,7 +41,7 @@ No admin rights are needed. Running `instalar.cmd` again on an installed PC refu
 
 ## 3. Trial days and training
 
-In trial mode, the header shows **TREINO** and nothing is backed up to OneDrive. Train with made-up data (#27).
+In trial mode, the header shows **TREINO** and nothing is backed up to OneDrive. Train with made-up data (#27): the session and the stopwatch measurements are in [`treinamento.md`](treinamento.md), and the owner's one-page guide is [`guia-rapido.md`](guia-rapido.md).
 
 ## 4. Go-live reset (the 1st of the month, spec §9.5)
 
@@ -52,7 +52,7 @@ In trial mode, the header shows **TREINO** and nothing is backed up to OneDrive.
    - moves `data-treino\` to `arquivo\data-treino-AAAA-MM-DD_HHMM\`;
    - writes `data\config.json`;
    - starts on a fresh `data\`, with seeds only.
-4. Then enter the fee table and the fixed expenses (go-live checklist, #27). The first closing asks for the opening cash, typed by hand (§9.5 item 3).
+4. Then enter the fee table and the fixed expenses ([`go-live-checklist.md`](go-live-checklist.md) §C, #27). The first closing asks for the opening cash, typed by hand (§9.5 item 3). The 2-week parallel period follows: [`conferencia.md`](conferencia.md) and [`resultado-piloto.md`](resultado-piloto.md).
 
 It refuses to run twice, and if `data\color.db` already exists.
 

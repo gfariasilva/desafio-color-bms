@@ -40,6 +40,8 @@ Backups (#25, [ADR 0003](docs/adr/0003-pilot-backup.md)) go to `<OneDrive folder
 
 Pilot install (#26, [ADR 0004](docs/adr/0004-pilot-install.md), [`docs/pilot/install.md`](docs/pilot/install.md)): the zip's `.cmd` scripts only call `app\node\node.exe app\server\dist\pilot\cli.js <command>`. Put all logic and pt-BR messages in `apps/server/src/pilot/`, and keep the `.cmd` files ASCII. A Task Scheduler task starts `launcher.js` at logon, hidden; it restarts the server and writes `<data dir>/logs/`. Trial mode (`data-treino\`, `COLOR_BMS_TRIAL=1`) never backs up to OneDrive. Bump `apps/server/package.json` `version` for each pilot update.
 
+Go-live and the 2-week parallel period (#27, spec §9.5): start from [`docs/pilot/go-live-checklist.md`](docs/pilot/go-live-checklist.md). It links the owner guide (`guia-rapido.md`), the training session (`treinamento.md`), the daily comparison sheet (`conferencia.md`) and the CS-1 to CS-5 record (`resultado-piloto.md`). When the UI changes a flow, update `guia-rapido.md` too.
+
 ## Repository structure
 
 ```
