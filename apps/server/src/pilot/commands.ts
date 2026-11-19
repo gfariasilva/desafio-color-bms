@@ -273,7 +273,8 @@ export async function goLive(ctx: PilotContext, options: GoLiveOptions = {}): Pr
   }
   fs.mkdirSync(layout.realDataDir, { recursive: true });
   if (oneDrive !== null) {
-    // JSON.stringify writes Windows backslashes correctly escaped (config.json, #25).
+    // JSON.stringify writes Windows backslashes correctly escaped (config.json, #25). The
+    // server moves it into Configurações on its first start (#20).
     fs.writeFileSync(
       path.join(layout.realDataDir, "config.json"),
       `${JSON.stringify({ oneDriveFolder: oneDrive }, null, 2)}\n`,
@@ -285,7 +286,7 @@ export async function goLive(ctx: PilotContext, options: GoLiveOptions = {}): Pr
   ctx.print("Uso real iniciado. No primeiro fechamento, informe o troco inicial à mão.");
   if (oneDrive === null) {
     ctx.print("ATENÇÃO: sem pasta do OneDrive, o sistema está sem backup.");
-    ctx.print(`Configure-a em ${path.join(layout.realDataDir, "config.json")}.`);
+    ctx.print("Configure-a no sistema, em Configurações > Pasta do OneDrive.");
   } else {
     ctx.print(`Backups em ${path.join(oneDrive, "_backup-sistema")}.`);
   }

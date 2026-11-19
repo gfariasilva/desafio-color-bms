@@ -115,7 +115,7 @@ describe("#25: Início shows the state of the backup", () => {
     ).toBeInTheDocument();
   });
 
-  it("#25: no OneDrive folder configured", async () => {
+  it("#25/#20: no OneDrive folder configured, with a link to Configurações", async () => {
     backupStatus = { configured: false, folder: null, lastSuccess: null, lastFailure: null };
     renderAt("/");
     const alerts = await screen.findByRole("region", { name: "Alertas" });
@@ -124,6 +124,23 @@ describe("#25: Início shows the state of the backup", () => {
         "Pasta do OneDrive não configurada: os backups não estão sendo gravados.",
       ),
     ).toBeInTheDocument();
+    // #20: the notice links to Configurações, where the folder is set (FR-33).
+    expect(within(alerts).getByRole("link", { name: "Configurar" })).toHaveAttribute(
+      "href",
+      "/configuracoes",
+    );
+  });
+
+  it("#26/#20: in trial mode, no 'não configurada' prompt and no Configurar link", async () => {
+    backupStatus = { configured: false, folder: null, lastSuccess: null, lastFailure: null };
+    healthBody = { ...healthBody, trial: true };
+    renderAt("/");
+    const alerts = await screen.findByRole("region", { name: "Alertas" });
+    expect(
+      await within(alerts).findByText("Modo treino: sem backup no OneDrive."),
+    ).toBeInTheDocument();
+    expect(within(alerts).queryByText(/não configurada/)).not.toBeInTheDocument();
+    expect(within(alerts).queryByRole("link", { name: "Configurar" })).not.toBeInTheDocument();
   });
 
   it("#25: the system status shows the time of the last backup", async () => {

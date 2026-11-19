@@ -16,16 +16,28 @@ const home = NAV_ITEMS[0];
  */
 function BackupNotices() {
   const status = useQuery({ queryKey: QUERY_KEYS.backupStatus, queryFn: api.backupStatus });
+  // #26: trial mode never backs up, whatever the folder: no "configure it" prompt then.
+  const health = useQuery({ queryKey: QUERY_KEYS.health, queryFn: api.health });
   if (status.isError) {
     return <p className="mb-2 text-destructive">Não foi possível verificar o backup.</p>;
   }
   if (!status.data) return null;
   const { configured, lastFailure } = status.data;
+  if (!configured && health.data?.trial) {
+    return <p className="mb-2 text-muted-foreground">Modo treino: sem backup no OneDrive.</p>;
+  }
   if (!configured) {
     return (
       <p className="mb-2 flex items-center gap-2">
         <AlertTriangle className="h-4 w-4 shrink-0 text-rainbow-orange" aria-hidden />
-        Pasta do OneDrive não configurada: os backups não estão sendo gravados.
+        <span>Pasta do OneDrive não configurada: os backups não estão sendo gravados.</span>
+        {/* FR-27: each alert links to where it is fixed (FR-33, Configurações). */}
+        <Link
+          to="/configuracoes"
+          className="rounded-md px-2 py-1 font-medium text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Configurar
+        </Link>
       </p>
     );
   }

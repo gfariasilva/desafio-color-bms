@@ -50,7 +50,7 @@ In trial mode, the header shows **TREINO** and nothing is backed up to OneDrive.
 3. It:
    - stops the system;
    - moves `data-treino\` to `arquivo\data-treino-AAAA-MM-DD_HHMM\`;
-   - writes `data\config.json`;
+   - writes `data\config.json`, which the server imports into Configurações on its first start (#20); later changes are made in Configurações › Pasta do OneDrive;
    - starts on a fresh `data\`, with seeds only.
 4. Then enter the fee table and the fixed expenses ([`go-live-checklist.md`](go-live-checklist.md) §C, #27). The first closing asks for the opening cash, typed by hand (§9.5 item 3). The 2-week parallel period follows: [`conferencia.md`](conferencia.md) and [`resultado-piloto.md`](resultado-piloto.md).
 

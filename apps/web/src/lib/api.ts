@@ -43,6 +43,11 @@ import {
   healthResponseSchema,
   backupStatusResponseSchema,
   type BackupStatusResponse,
+  folderTestResponseSchema,
+  settingsResponseSchema,
+  type FolderTestResponse,
+  type SettingsInput,
+  type SettingsResponse,
   dayReportResponseSchema,
   type DayReportResponse,
   monthGeneralExpensesResponseSchema,
@@ -203,6 +208,8 @@ export const QUERY_KEYS = {
   health: ["health"],
   /** #25: the pilot backup's state, shown on Início. */
   backupStatus: ["backup", "status"],
+  /** FR-33: Configurações. */
+  settings: ["settings"],
   /** FR-16: followed by the month: ["cashClosing", "month", "2026-10"]. */
   monthClosing: ["cashClosing", "month"],
   /** FR-19: followed by the civil date: ["reports", "day", "2026-11-18"]. */
@@ -218,6 +225,14 @@ export const api = {
   /** #25 (slice of FR-31): last backup and the latest failure. */
   backupStatus: (): Promise<BackupStatusResponse> =>
     getJson("/api/backup/status", backupStatusResponseSchema),
+  /** FR-33: the settings in effect (defaults filled in). */
+  settings: (): Promise<SettingsResponse> => getJson("/api/settings", settingsResponseSchema),
+  /** FR-33: saves the settings; a new folder that fails "Testar" is refused (422). */
+  saveSettings: (input: SettingsInput): Promise<SettingsResponse> =>
+    requestJson("PUT", "/api/settings", input, settingsResponseSchema),
+  /** FR-33 "Testar": writes and deletes a test file in the folder; never saves. */
+  testOneDriveFolder: (folder: string): Promise<FolderTestResponse> =>
+    requestJson("POST", "/api/settings/onedrive-folder/test", { folder }, folderTestResponseSchema),
   /** FR-18: read-only audit log, newest first. */
   audit: (query: Partial<AuditQuery>): Promise<AuditListResponse> =>
     getJson(`/api/audit${toQueryString(query)}`, auditListResponseSchema),

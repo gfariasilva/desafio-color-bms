@@ -124,7 +124,7 @@ export type FolderProbe =
   | { state: "ok"; path: string }
   | { state: "not-writable"; path: string; detail: string }
   | { state: "missing"; path: string }
-  /** OneDrive only: no folder set (config.json or COLOR_BMS_ONEDRIVE_DIR). */
+  /** OneDrive only: no folder set in Configurações (FR-33). */
   | { state: "not-configured" }
   /** OneDrive only: trial mode never backs up to OneDrive. */
   | { state: "trial" };

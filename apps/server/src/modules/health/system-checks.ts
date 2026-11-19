@@ -14,8 +14,11 @@ import {
 /** #26: what the server knows about where it runs; given by main.ts (absent in unit tests). */
 export interface SystemInfo {
   dataDir: string;
-  /** The OneDrive folder (spec §7.2 `<pasta>`), or null when not configured. */
-  oneDriveFolder: string | null;
+  /**
+   * The OneDrive folder (spec §7.2 `<pasta>`), or null when not configured. A function is read
+   * at every check, so a change in Configurações (FR-33, #20) shows at once.
+   */
+  oneDriveFolder: string | null | (() => string | null);
   port: number;
   /** Trial mode: the training data folder, never backed up to OneDrive. */
   trial: boolean;
@@ -52,7 +55,8 @@ function probeFolder(dir: string, reportPath = dir): FolderProbe {
  */
 function probeOneDrive(info: SystemInfo): FolderProbe {
   if (info.trial) return { state: "trial" };
-  const folder = info.oneDriveFolder;
+  const folder =
+    typeof info.oneDriveFolder === "function" ? info.oneDriveFolder() : info.oneDriveFolder;
   if (folder === null) return { state: "not-configured" };
   const root = probeFolder(folder);
   if (root.state !== "ok") return root;

@@ -33,3 +33,4 @@ export * from "./reports/month-income";
 export * from "./reports/month-general-expenses";
 export * from "./backup/backup-files";
 export * from "./system/startup-checks";
+export * from "./settings/settings";

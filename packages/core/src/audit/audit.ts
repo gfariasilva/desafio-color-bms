@@ -6,6 +6,7 @@ import { EXPENSE_STATUS_LABELS } from "../fixed-expenses/fixed-expenses";
 import { formatCents } from "../format/currency";
 import { MACHINE_USAGE_LABELS } from "../payments/payment-methods";
 import { formatRatePercent } from "../payments/rate";
+import { SETTING_LABELS } from "../settings/settings";
 import { formatCivilDate, formatYearMonth } from "../format/date";
 import { isCivilDate } from "../time/civil-date";
 import { isYearMonth } from "../time/year-month";
@@ -199,6 +200,8 @@ export const AUDIT_FIELD_LABELS: Record<string, string> = {
   installmentNumber: "Parcela",
   // FR-16: how many fixed expenses of the month were still pending when it was closed.
   pendingFixedExpenses: "Despesas fixas pendentes",
+  // FR-33: settings (one audit row per key; the key is also the entity id).
+  ...SETTING_LABELS,
 };
 
 /** pt-BR labels for coded values, per field (e.g. an expense category's group). */

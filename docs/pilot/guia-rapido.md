@@ -50,6 +50,11 @@ Dinheiro **retirado** da gaveta que **não é despesa** (ex.: levar para o banco
 
 Depois de fechado, o dia não aceita mudanças. O sistema faz o **backup no OneDrive** sozinho.
 
+## Configurações (Alt+9)
+
+- **Pasta do OneDrive**: onde ficam os backups. Mudou a pasta? Digite o caminho, clique em **Testar** (deve aparecer "Pasta OK") e tecle **Enter** para salvar.
+- **Limite da diferença de caixa** e **antecedência das contas a vencer**: os avisos da tela inicial.
+
 ## Reabrir um dia (Alt+5)
 
 Para corrigir um dia já fechado: escolha a **Data** → **Reabrir dia** → escreva o **motivo** → **Enter**. Corrija e **feche o dia de novo**.
