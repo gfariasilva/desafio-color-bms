@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { DAY_STATUS_LABELS } from "../cash-closing/cash-closing";
 import { EXPENSE_CATEGORY_GROUP_LABELS } from "../catalog/categories";
+import { FIXED_EXPENSE_GROUP_LABELS } from "../fixed-expenses/fixed-expense-templates";
 import { formatCents } from "../format/currency";
 import { MACHINE_USAGE_LABELS } from "../payments/payment-methods";
 import { formatRatePercent } from "../payments/rate";
@@ -29,6 +30,7 @@ export const AUDIT_ENTITIES = [
   "payment_method",
   "card_machine",
   "card_fee",
+  "fixed_expense_template",
   "setting",
   "backup",
 ] as const;
@@ -46,6 +48,7 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntity, string> = {
   payment_method: "Forma de pagamento",
   card_machine: "Maquininha",
   card_fee: "Taxa de maquininha",
+  fixed_expense_template: "Modelo de despesa fixa",
   setting: "Configuração",
   backup: "Backup",
 };
@@ -180,11 +183,21 @@ export const AUDIT_FIELD_LABELS: Record<string, string> = {
   expectedCashCents: "Dinheiro esperado",
   countedCashCents: "Dinheiro contado",
   differenceCents: "Diferença",
+  templateGroup: "Grupo",
+  subgroup: "Subgrupo",
+  dueDay: "Dia de vencimento",
+  expectedAmountCents: "Valor previsto",
+  isLoan: "Empréstimo",
+  installmentsTotal: "Total de parcelas",
+  installmentsRemaining: "Parcelas restantes",
 };
 
 /** pt-BR labels for coded values, per field (e.g. an expense category's group). */
 const AUDIT_VALUE_LABELS: Record<string, Record<string, string>> = {
   group: EXPENSE_CATEGORY_GROUP_LABELS,
+  // A fixed-expense template's group (FR-10): a key of its own, since "general" is
+  // "Geral" for expense categories but "Gerais" for templates.
+  templateGroup: FIXED_EXPENSE_GROUP_LABELS,
   machineUsage: MACHINE_USAGE_LABELS,
   // A day's status (FR-08 closing, FR-09 reopening).
   status: DAY_STATUS_LABELS,

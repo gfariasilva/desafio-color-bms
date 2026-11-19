@@ -56,7 +56,7 @@ Ordered backlog for the MVP (spec §9.1). Each item is one small PR / GitHub iss
 | [ ] | M3 | [#27](#27--pilot-go-live-and-the-parallel-period) | Pilot go-live and the parallel period | spec §9.5 | #26, #15 |
 | [ ] | M4 | [#20](#20--settings) | Settings | FR-33 | #1 |
 | [ ] | M4 | [#21](#21--daily-spreadsheet-export-and-the-retry-queue) | Daily spreadsheet export and the retry queue | FR-28, FR-30 | #15, #20 |
-| [ ] | M4 | [#11](#11--fixed-expense-templates) | Fixed-expense templates | FR-10; RN-12 | #1 |
+| [x] | M4 | [#11](#11--fixed-expense-templates) | Fixed-expense templates | FR-10; RN-12 | #1 |
 | [ ] | M4 | [#12](#12--generate-the-months-fixed-expenses) | Generate the month's fixed expenses | FR-11 | #11 |
 | [ ] | M4 | [#13](#13--pay-or-dismiss-a-fixed-expense-loan-installments) | Pay or dismiss a fixed expense; loan installments | FR-12, FR-13; RN-09, RN-07, RN-14 | #12, #9 |
 | [ ] | M5 | [#14](#14--close-and-reopen-the-month) | Close and reopen the month | FR-16, FR-17; RN-14 | #10, #13 |
@@ -738,6 +738,17 @@ Diferença = Dinheiro contado − Dinheiro esperado   (>0 sobra, <0 falta)
 **Technical notes**
 
 - The salary amount is personal data (NFR-09): store it only locally, nothing more is needed.
+
+**Done notes (follow-ups)**
+
+- Table `fixed_expense_templates`, seeded by `0011_seed_fixed_expense_templates.sql` (RN-12). "Telefonia – Vivo fixo/móvel" are stored as subgroup **Telefonia** + name **Vivo fixo** / **Vivo móvel**; `fixedExpenseTemplateLabel()` shows them joined with " – ".
+- **The seeded templates have no due day, amount or installments yet ("a preencher", Q-05/Q-06).** `due_day` is nullable only for that reason: the API never accepts a template without a due day, and an edit cannot clear it. The owner fills them in at installation (§9.5).
+- Loans are templates with `isLoan`. A loan has its total and remaining installments **both or neither** (neither = "a preencher", Q-06), with 0 ≤ remaining ≤ total; the rule is `findTemplateLoanError()` in core and a CHECK in the table. The seeded "Empréstimos" is a loan with empty installments; one template per real loan.
+- Names are unique by subgroup + name, ignoring case and accents (`fixedExpenseTemplateNameKey()`, stored in `name_key`), so #12 never generates the same bill twice.
+- No delete (FR-10 lists none): `registerOrderedListRoutes()` now registers DELETE only when the repository has `remove`.
+- Audit entity `fixed_expense_template`. The group is audited as `templateGroup`, not `group`, because `group: "general"` already reads "Geral" for expense categories.
+- **#12** must: generate from `isTemplateGenerated()` (active, and not a loan with 0 remaining); decide what to do with a template whose **due day is still empty** (suggestion: generate without a due date and flag it, or skip it with an alert on Início); add the expense → template link (`fixed_expense_template_id`); handle a loan with empty installments (generate, no "parcela n de N"); and replace the `it.todo` in `apps/server/test/fixed-expense-templates.test.ts` (deactivated template → no entry, past entries kept).
+- UI: `/despesas-fixas` is now a hub (link to Modelos, "em construção" cards for #12/#13); the month's bills will be a second link card.
 
 **Acceptance criteria** _(verbatim from spec §4)_
 

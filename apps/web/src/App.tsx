@@ -6,6 +6,8 @@ import { AuditPage } from "@/pages/AuditPage";
 import { CatalogPage } from "@/pages/CatalogPage";
 import { CardFeesPage } from "@/pages/CardFeesPage";
 import { ExpensesPage } from "@/pages/ExpensesPage";
+import { FixedExpensesPage } from "@/pages/FixedExpensesPage";
+import { FixedExpenseTemplatesPage } from "@/pages/FixedExpenseTemplatesPage";
 import { CatalogListPage } from "@/pages/CatalogListPage";
 import { ClosingPage } from "@/pages/ClosingPage";
 import { HomePage } from "@/pages/HomePage";
@@ -18,6 +20,7 @@ const BUILT_AREAS = new Set([
   "/",
   "/vendas",
   "/despesas",
+  "/despesas-fixas",
   "/fechamento",
   "/cadastros",
   "/configuracoes",
@@ -33,6 +36,8 @@ export function AppRoutes() {
         <Route index element={<HomePage />} />
         <Route path="vendas" element={<SalesPage />} />
         <Route path="despesas" element={<ExpensesPage />} />
+        <Route path="despesas-fixas" element={<FixedExpensesPage />} />
+        <Route path="despesas-fixas/modelos" element={<FixedExpenseTemplatesPage />} />
         <Route path="fechamento" element={<ClosingPage />} />
         <Route path="cadastros" element={<CatalogPage />} />
         <Route path="cadastros/abas" element={<CatalogListPage kind="sale" />} />

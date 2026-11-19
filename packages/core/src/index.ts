@@ -22,3 +22,4 @@ export * from "./cash-withdrawals/cash-withdrawal-totals";
 export * from "./cash-closing/cash-closing";
 export * from "./cash-closing/cash-closing-rules";
 export * from "./cash-closing/reopen-day";
+export * from "./fixed-expenses/fixed-expense-templates";

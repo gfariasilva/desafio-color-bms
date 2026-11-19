@@ -340,3 +340,55 @@ export const cashWithdrawals = sqliteTable(
     check("cash_withdrawals_amount_check", sql`${table.amountCents} > 0`),
   ],
 );
+
+/**
+ * Fixed-expense templates, "modelos de despesa fixa" (spec §6.1 "ModeloDespesaFixa", FR-10).
+ * Seeded with RN-12 by the `seed_fixed_expense_templates` migration. #12 generates one
+ * fixed expense per active template every month. Never deleted: deactivated instead.
+ */
+export const fixedExpenseTemplates = sqliteTable(
+  "fixed_expense_templates",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    name: text("name").notNull(),
+    /**
+     * `fixedExpenseTemplateNameKey()` from @color-bms/core (subgroup + name, ignoring case and
+     * accents): unique. A stored copy: if that rule changes, a data migration must recompute it.
+     */
+    nameKey: text("name_key").notNull(),
+    /** One of FIXED_EXPENSE_GROUPS from @color-bms/core: Gerais or Taxas governo. */
+    group: text("template_group", { enum: ["general", "government_fees"] }).notNull(),
+    /** Optional subgroup, e.g. "Telefonia". */
+    subgroup: text("subgroup"),
+    /** 1..31. Null only on seeded templates until the owner fills it in (Q-05). */
+    dueDay: integer("due_day"),
+    /** Expected amount in integer cents; optional. */
+    expectedAmountCents: integer("expected_amount_cents"),
+    /** Loans ("Empréstimos") count their installments down (FR-13). */
+    isLoan: integer("is_loan", { mode: "boolean" }).notNull().default(false),
+    /** Loans only: total installments; null while still to be filled in (Q-06). */
+    installmentsTotal: integer("installments_total"),
+    /** Loans only: installments left, 0..total; null while still to be filled in (Q-06). */
+    installmentsRemaining: integer("installments_remaining"),
+    /** Display order, 1-based, across both groups. */
+    sortOrder: integer("sort_order").notNull(),
+    /** Inactive templates are not generated (FR-10) but their past entries stay. */
+    active: integer("active", { mode: "boolean" }).notNull().default(true),
+  },
+  (table) => [
+    uniqueIndex("fixed_expense_templates_name_key_unique").on(table.nameKey),
+    check(
+      "fixed_expense_templates_due_day_check",
+      sql`${table.dueDay} is null or ${table.dueDay} between 1 and 31`,
+    ),
+    check(
+      "fixed_expense_templates_expected_amount_check",
+      sql`${table.expectedAmountCents} is null or ${table.expectedAmountCents} > 0`,
+    ),
+    // FR-10: only loans have installments, both or neither, and 0 <= remaining <= total.
+    check(
+      "fixed_expense_templates_installments_check",
+      sql`(${table.installmentsTotal} is null and ${table.installmentsRemaining} is null) or (${table.isLoan} = 1 and ${table.installmentsTotal} >= 1 and ${table.installmentsRemaining} between 0 and ${table.installmentsTotal})`,
+    ),
+  ],
+);

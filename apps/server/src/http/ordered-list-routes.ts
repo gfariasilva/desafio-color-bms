@@ -9,7 +9,8 @@ export interface OrderedListRepository<TCreate, TUpdate> {
   create(input: TCreate): unknown;
   update(id: number, changes: TUpdate): unknown;
   reorder(ids: number[]): unknown[];
-  remove(id: number): void;
+  /** Lists without a delete (FR-10 fixed-expense templates) leave it out: no DELETE route. */
+  remove?(id: number): void;
 }
 
 export interface OrderedListRoutesOptions<TCreate, TUpdate> {
@@ -27,7 +28,8 @@ export interface OrderedListRoutesOptions<TCreate, TUpdate> {
 /**
  * FR-14 / FR-15: the endpoints every ordered master-data list has:
  * GET (?active=true for the entry forms, ?active=false for only the deactivated ones),
- * POST, PUT /order, PATCH /:id and DELETE /:id. Business errors become pt-BR answers.
+ * POST, PUT /order, PATCH /:id and DELETE /:id (only when the repository can remove).
+ * Business errors become pt-BR answers.
  */
 export function registerOrderedListRoutes<TCreate, TUpdate>(
   app: FastifyInstance,
@@ -75,11 +77,13 @@ export function registerOrderedListRoutes<TCreate, TUpdate>(
     }
   });
 
+  const remove = repository.remove;
+  if (!remove) return;
   app.delete<{ Params: { id: string } }>(`${url}/:id`, async (request, reply) => {
     const id = parseId(request.params.id);
     if (id === null) return reply.code(404).send(notFound);
     try {
-      repository.remove(id);
+      remove(id);
       return reply.code(204).send();
     } catch (error) {
       return sendError(reply, error);

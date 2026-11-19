@@ -12,6 +12,7 @@ import {
 import { registerCashWithdrawalRoutes } from "./modules/cash-withdrawals/cash-withdrawals.routes";
 import { registerCategoryRoutes } from "./modules/categories/categories.routes";
 import { registerExpenseRoutes } from "./modules/expenses/expenses.routes";
+import { registerFixedExpenseTemplateRoutes } from "./modules/fixed-expense-templates/fixed-expense-templates.routes";
 import { registerPaymentRoutes } from "./modules/payments/payments.routes";
 import { registerHealthRoutes } from "./modules/health/health.routes";
 import { registerSalesRoutes } from "./modules/sales/sales.routes";
@@ -46,6 +47,7 @@ export async function buildApp({
   registerAuditRoutes(app, connection);
   registerCategoryRoutes(app, connection);
   registerPaymentRoutes(app, connection);
+  registerFixedExpenseTemplateRoutes(app, connection, now);
   registerSalesRoutes(app, connection, now);
   registerExpenseRoutes(app, connection, now);
   registerCashWithdrawalRoutes(app, connection, now);
