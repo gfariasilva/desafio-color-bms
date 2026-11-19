@@ -19,6 +19,7 @@ import {
   type ExpensePaymentMeans,
   type ParsedCreateExpenseInput,
   type ParsedUpdateExpenseInput,
+  type YearMonth,
 } from "@color-bms/core";
 import type { AppDatabase, AppTransaction } from "../../db/client";
 import { expenseCategories, expenses } from "../../db/schema";
@@ -70,17 +71,22 @@ function findExpense(db: AppDatabase | Tx, id: number): Expense | undefined {
   return selectExpenses(db, eq(expenses.id, id))[0];
 }
 
+/** RN-08: the general expenses paid in the month ("YYYY-MM"), in registration order. */
+export function listGeneralExpensesOfMonth(db: AppDatabase, yearMonth: YearMonth): Expense[] {
+  // Civil dates compare correctly as text: the whole month is "YYYY-MM-01" … "YYYY-MM-31".
+  return selectExpenses(
+    db,
+    and(gte(expenses.paymentDate, `${yearMonth}-01`), lte(expenses.paymentDate, `${yearMonth}-31`)),
+  );
+}
+
 /**
  * FR-06: the day's general expenses, their total, the part paid from the till (RN-07) and
  * the general expenses of the month (RN-08), plus the RN-14 lock message.
  */
 export function getDayExpenses(db: AppDatabase, date: CivilDate): DayExpensesResponse {
   const yearMonth = monthOf(date);
-  // Civil dates compare correctly as text: the whole month is "YYYY-MM-01" … "YYYY-MM-31".
-  const monthRows = selectExpenses(
-    db,
-    and(gte(expenses.paymentDate, `${yearMonth}-01`), lte(expenses.paymentDate, `${yearMonth}-31`)),
-  );
+  const monthRows = listGeneralExpensesOfMonth(db, yearMonth);
   const dayRows = monthRows.filter((expense) => expense.paymentDate === date);
   return {
     date,

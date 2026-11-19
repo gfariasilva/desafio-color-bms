@@ -43,6 +43,10 @@ import {
   healthResponseSchema,
   dayReportResponseSchema,
   type DayReportResponse,
+  monthGeneralExpensesResponseSchema,
+  monthIncomeResponseSchema,
+  type MonthGeneralExpensesResponse,
+  type MonthIncomeResponse,
   dayCashClosingResponseSchema,
   unclosedDaysResponseSchema,
   type CloseDayInput,
@@ -197,6 +201,10 @@ export const QUERY_KEYS = {
   monthClosing: ["cashClosing", "month"],
   /** FR-19: followed by the civil date: ["reports", "day", "2026-11-18"]. */
   dayReport: ["reports", "day"],
+  /** FR-20: followed by the month: ["reports", "monthIncome", "2026-10"]. */
+  monthIncomeReport: ["reports", "monthIncome"],
+  /** FR-21: followed by the month: ["reports", "monthGeneralExpenses", "2026-10"]. */
+  monthGeneralExpensesReport: ["reports", "monthGeneralExpenses"],
 } as const;
 
 export const api = {
@@ -250,10 +258,20 @@ export const api = {
       requestJson("DELETE", `/api/cash-withdrawals/${id}`, undefined),
   },
 
-  /** FR-19: the day report (matrix, expenses, sangrias, cash closing). */
+  /** FR-19: the day report; FR-20 / FR-21: the month reports (income, general expenses). */
   reports: {
     day: (date: string): Promise<DayReportResponse> =>
       getJson(`/api/days/${encodeURIComponent(date)}/report`, dayReportResponseSchema),
+    monthIncome: (yearMonth: string): Promise<MonthIncomeResponse> =>
+      getJson(
+        `/api/months/${encodeURIComponent(yearMonth)}/reports/income`,
+        monthIncomeResponseSchema,
+      ),
+    monthGeneralExpenses: (yearMonth: string): Promise<MonthGeneralExpensesResponse> =>
+      getJson(
+        `/api/months/${encodeURIComponent(yearMonth)}/reports/general-expenses`,
+        monthGeneralExpensesResponseSchema,
+      ),
   },
 
   /** FR-08: the cash closing of a day; FR-27: the earlier days left open. */

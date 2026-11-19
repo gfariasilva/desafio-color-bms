@@ -24,6 +24,7 @@ import {
   type OnMonthClosed,
 } from "./modules/month-closing/month-closing.routes";
 import { registerDayReportRoutes } from "./modules/reports/day-report.routes";
+import { registerMonthReportRoutes } from "./modules/reports/month-reports.routes";
 import { registerHealthRoutes } from "./modules/health/health.routes";
 import { registerSalesRoutes } from "./modules/sales/sales.routes";
 import packageJson from "../package.json" with { type: "json" };
@@ -74,6 +75,7 @@ export async function buildApp({
   registerContaConversionRoutes(app, connection, now, onDayClosed);
   registerMonthClosingRoutes(app, connection, now, onMonthClosed);
   registerDayReportRoutes(app, connection, now);
+  registerMonthReportRoutes(app, connection, now);
 
   if (webDistDir && fs.existsSync(webDistDir)) {
     await app.register(fastifyStatic, { root: webDistDir });
