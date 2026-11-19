@@ -42,6 +42,10 @@ export interface SalesContext {
   dayClosedCalls: string[];
   /** Optional extra work the `onDayClosed` hook does in a test (e.g. throw, read the DB). */
   afterDayClosed?: (date: string) => void | Promise<void>;
+  /** FR-16: the months passed to the app's `onMonthClosed` hook, in call order. */
+  monthClosedCalls: string[];
+  /** Optional extra work the `onMonthClosed` hook does in a test (e.g. throw). */
+  afterMonthClosed?: (yearMonth: string) => void | Promise<void>;
 }
 
 /**
@@ -59,12 +63,18 @@ export function useSalesApp(): SalesContext {
     runMigrations(context.connection.db);
     context.dayClosedCalls = [];
     context.afterDayClosed = undefined;
+    context.monthClosedCalls = [];
+    context.afterMonthClosed = undefined;
     context.app = await buildApp({
       connection: context.connection,
       now: () => NOW,
       onDayClosed: (date) => {
         context.dayClosedCalls.push(date);
         return context.afterDayClosed?.(date);
+      },
+      onMonthClosed: (yearMonth) => {
+        context.monthClosedCalls.push(yearMonth);
+        return context.afterMonthClosed?.(yearMonth);
       },
     });
     const app = context.app;

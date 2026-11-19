@@ -4,14 +4,15 @@ import { useSearchParams } from "react-router-dom";
 import {
   formatCivilDate,
   isCivilDate,
+  monthOf,
   type CloseDayInput,
   type DayCashClosingResponse,
   type ReopenDayInput,
 } from "@color-bms/core";
 import { CashClosingForm } from "@/components/cash-closing/CashClosingForm";
 import { ClosedDaySummary } from "@/components/cash-closing/ClosedDaySummary";
+import { MonthClosingSection } from "@/components/cash-closing/MonthClosingSection";
 import { ReopenDayPanel } from "@/components/cash-closing/ReopenDayPanel";
-import { UpcomingCard } from "@/components/layout/HubCards";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -29,6 +30,8 @@ const area = NAV_ITEMS.find((item) => item.path === "/fechamento");
  *
  * FR-09: a closed day offers "Reabrir dia" (confirmation + reason) while its month is open;
  * once reopened, the closing form shows again, since a new closing is required.
+ *
+ * FR-16 / FR-17: below, "Fechamento do mês" for the month of the chosen day (or another one).
  */
 export function ClosingPage() {
   const queryClient = useQueryClient();
@@ -174,9 +177,13 @@ export function ClosingPage() {
         ) : null}
       </section>
 
-      <div className="mt-8 grid max-w-xl gap-2">
-        <UpcomingCard label="Fechamento do mês" requirements="FR-16, FR-17" />
-      </div>
+      {today.data ? (
+        <MonthClosingSection
+          today={today.data}
+          initialMonth={monthOf(date ?? today.data)}
+          onChanged={refreshDayScreens}
+        />
+      ) : null}
     </>
   );
 }

@@ -84,7 +84,7 @@ function dayCashTerms(db: Db, date: CivilDate): DayCashTerms {
  * A-15: the dates with movement: any sale or refund, any **paid** expense (by payment date)
  * or any sangria. Only these days need a closing. As SQL, so callers can filter it.
  */
-const MOVEMENT_DATES_SQL = sql`
+export const MOVEMENT_DATES_SQL = sql`
   select ${sales.date} as date from ${sales}
   union select ${expenses.paymentDate} from ${expenses}
     where ${expenses.status} = 'paid' and ${expenses.paymentDate} is not null

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { formatCents, type DayCashClosingResponse } from "@color-bms/core";
@@ -72,6 +72,20 @@ beforeEach(() => {
   fetchMock.mockReset();
   fetchMock.mockImplementation(async (input, init) => {
     const url = String(input);
+    // FR-16: the "Fechamento do mês" section below the day (its own tests are in
+    // MonthClosingPanel.test.tsx).
+    if (url.startsWith("/api/months/")) {
+      return json({
+        yearMonth: "2026-11",
+        status: "open",
+        closedAt: null,
+        lastDate: "2026-11-30",
+        pendingDays: [],
+        pendingFixedExpenses: [],
+        closeBlocked:
+          "O mês 11/2026 ainda não terminou. Ele pode ser fechado a partir de 30/11/2026.",
+      });
+    }
     if (init?.method === "POST" && url.endsWith("/reopen")) {
       posts.push({ url, body: JSON.parse(String(init.body)) });
       if (reopenError) return json(reopenError.body, reopenError.status);
@@ -96,6 +110,8 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+/** The day's section (the month's section below has its own status line). */
+const daySection = () => within(screen.getByRole("region", { name: "Fechamento de caixa" }));
 const opening = () => screen.getByLabelText("Troco inicial (R$)");
 const counted = () => screen.getByLabelText("Dinheiro contado (R$)");
 const note = () => screen.getByLabelText("Observação");
@@ -156,7 +172,7 @@ describe("FR-08: close the day (Fechamento page)", () => {
         },
       ]),
     );
-    expect(await screen.findByRole("status")).toHaveTextContent("Dia 18/11/2026 fechado.");
+    expect(await daySection().findByRole("status")).toHaveTextContent("Dia 18/11/2026 fechado.");
     expect(await screen.findByText("Dia fechado")).toBeInTheDocument();
   });
 
@@ -283,7 +299,7 @@ describe("FR-09: reopen a day (Fechamento page)", () => {
         { url: `/api/days/${TODAY}/reopen`, body: { reason: "venda esquecida" } },
       ]),
     );
-    expect(await screen.findByRole("status")).toHaveTextContent(
+    expect(await daySection().findByRole("status")).toHaveTextContent(
       "Dia 18/11/2026 reaberto. Corrija os lançamentos e feche o dia de novo.",
     );
     // FR-09: a new closing is required (FR-08).

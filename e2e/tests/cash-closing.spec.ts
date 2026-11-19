@@ -1,4 +1,4 @@
-import type { APIRequestContext } from "@playwright/test";
+import type { APIRequestContext, Page } from "@playwright/test";
 import type { ExpenseCategory } from "@color-bms/core";
 import { chars, expect, pressKeys, test, type Catalog } from "./fixtures";
 
@@ -7,6 +7,9 @@ import { chars, expect, pressKeys, test, type Catalog } from "./fixtures";
  * CS-4). Each test uses its own past dates, so tests sharing a worker's database never see
  * each other's movement. CS-4 (≤ 3 min) is measured by hand.
  */
+
+/** The day's closing (the month's section below has its own status line, FR-16). */
+const daySection = (page: Page) => page.getByRole("region", { name: "Fechamento de caixa" });
 
 async function post(api: APIRequestContext, url: string, data: unknown, status = 201) {
   const response = await api.post(url, { data });
@@ -78,7 +81,7 @@ test("FR-08: close a day with a cash sale, an expense from the till and a sangri
   await page.keyboard.type("troco dado a mais");
   await page.keyboard.press("Enter");
 
-  await expect(page.getByRole("status")).toHaveText("Dia 15/09/2026 fechado.");
+  await expect(daySection(page).getByRole("status")).toHaveText("Dia 15/09/2026 fechado.");
   await expect(page.getByText("Dia fechado")).toBeVisible();
   await expect(page.getByTestId("counted-cash")).toHaveText("R$ 70,00");
   await expect(page.getByTestId("difference")).toHaveText("Falta de R$ 5,00");
@@ -134,7 +137,7 @@ test("FR-08: first day of use: the opening cash is typed; no difference closes a
   await expect(page.getByTestId("difference")).toHaveText("Sem diferença");
   await page.keyboard.press("Enter");
 
-  await expect(page.getByRole("status")).toHaveText("Dia 01/09/2026 fechado.");
+  await expect(daySection(page).getByRole("status")).toHaveText("Dia 01/09/2026 fechado.");
   await expect(page.getByText("Dia fechado")).toBeVisible();
 });
 
@@ -173,7 +176,7 @@ test("FR-09: reopen a closed day with a reason, keyboard only, and close it agai
   await page.keyboard.type("venda esquecida");
   await page.keyboard.press("Enter");
 
-  await expect(page.getByRole("status")).toHaveText(
+  await expect(daySection(page).getByRole("status")).toHaveText(
     "Dia 22/09/2026 reaberto. Corrija os lançamentos e feche o dia de novo.",
   );
   await expect(page.getByText("Dia fechado")).toHaveCount(0);
@@ -202,6 +205,6 @@ test("FR-09: reopen a closed day with a reason, keyboard only, and close it agai
   await expect(page.getByTestId("difference")).toHaveText("Sem diferença");
   await page.keyboard.press("Enter");
 
-  await expect(page.getByRole("status")).toHaveText("Dia 22/09/2026 fechado.");
+  await expect(daySection(page).getByRole("status")).toHaveText("Dia 22/09/2026 fechado.");
   await expect(page.getByTestId("counted-cash")).toHaveText("R$ 35,00");
 });

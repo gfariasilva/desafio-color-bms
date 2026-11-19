@@ -19,6 +19,10 @@ import {
 import { registerContaConversionRoutes } from "./modules/fixed-expenses/conta-conversion.routes";
 import { registerFixedExpenseTemplateRoutes } from "./modules/fixed-expense-templates/fixed-expense-templates.routes";
 import { registerPaymentRoutes } from "./modules/payments/payments.routes";
+import {
+  registerMonthClosingRoutes,
+  type OnMonthClosed,
+} from "./modules/month-closing/month-closing.routes";
 import { registerHealthRoutes } from "./modules/health/health.routes";
 import { registerSalesRoutes } from "./modules/sales/sales.routes";
 import packageJson from "../package.json" with { type: "json" };
@@ -35,6 +39,11 @@ export interface BuildAppOptions {
    * export (#21) hook in here; a no-op until then.
    */
   onDayClosed?: OnDayClosed;
+  /**
+   * FR-16: called after a month's closing is committed. The final monthly spreadsheet (#28)
+   * and the backup (#22) hook in here; a no-op until then. A failure never undoes the closing.
+   */
+  onMonthClosed?: OnMonthClosed;
 }
 
 /** Creates the Fastify app without listening, so tests can call `app.inject()`. */
@@ -44,6 +53,7 @@ export async function buildApp({
   logger = false,
   now = systemClock,
   onDayClosed = () => {},
+  onMonthClosed = () => {},
 }: BuildAppOptions): Promise<FastifyInstance> {
   const app = Fastify({ logger });
 
@@ -61,6 +71,7 @@ export async function buildApp({
   registerCashWithdrawalRoutes(app, connection, now);
   registerCashClosingRoutes(app, connection, now, onDayClosed);
   registerContaConversionRoutes(app, connection, now, onDayClosed);
+  registerMonthClosingRoutes(app, connection, now, onMonthClosed);
 
   if (webDistDir && fs.existsSync(webDistDir)) {
     await app.register(fastifyStatic, { root: webDistDir });

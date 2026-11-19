@@ -197,6 +197,8 @@ export const AUDIT_FIELD_LABELS: Record<string, string> = {
   dueDate: "Vencimento",
   expenseStatus: "Situação",
   installmentNumber: "Parcela",
+  // FR-16: how many fixed expenses of the month were still pending when it was closed.
+  pendingFixedExpenses: "Despesas fixas pendentes",
 };
 
 /** pt-BR labels for coded values, per field (e.g. an expense category's group). */
