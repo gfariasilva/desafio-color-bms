@@ -5,6 +5,7 @@ import { loadConfig } from "./config";
 import { openDatabase } from "./db/client";
 import { migrateWithBackup } from "./modules/backup/backup-before-migrations";
 import { createBackupService } from "./modules/backup/backup.service";
+import { createExportQueue } from "./modules/export/export-queue.service";
 import { runSystemChecks, type SystemInfo } from "./modules/health/system-checks";
 import { isAbsoluteFolderPath } from "@color-bms/core";
 import { createSettingsStore } from "./modules/settings/settings.repository";
@@ -59,6 +60,16 @@ async function main(): Promise<void> {
     log: { info: (message) => log.info(message), error: (message) => log.error(message) },
   });
 
+  // FR-28 / FR-30 (#21): the daily spreadsheets for the OneDrive folder, with retries.
+  // Trial mode never exports (#26), like the backup.
+  const exports = createExportQueue({
+    connection,
+    folder: () => settings.backupFolder(),
+    enabled: !config.trial,
+    now,
+    log: { info: (message) => log.info(message), error: (message) => log.error(message) },
+  });
+
   // #26: shown on Início (startup checks) and logged below.
   const system: SystemInfo = {
     dataDir: config.dataDir,
@@ -73,6 +84,7 @@ async function main(): Promise<void> {
     logger: true,
     now,
     backup,
+    exports,
     system,
     settings,
   });
@@ -116,6 +128,8 @@ async function main(): Promise<void> {
       app.log.warn(`Startup check ${check.id}: ${check.message}`);
   }
   await backup.runOnStartupIfFirstToday();
+  // FR-30: retry the pending exports now ("ao abrir o sistema"), then every 5 minutes.
+  exports.start();
   // FR-31: the shop PC may stay on for days; check every hour whether today has a backup.
   setInterval(() => void backup.runOnStartupIfFirstToday(), 60 * 60 * 1000).unref();
 }

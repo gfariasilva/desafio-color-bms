@@ -42,7 +42,9 @@ import {
   type UpdateSaleCategoryInput,
   healthResponseSchema,
   backupStatusResponseSchema,
+  exportQueueStatusResponseSchema,
   type BackupStatusResponse,
+  type ExportQueueStatusResponse,
   folderTestResponseSchema,
   settingsResponseSchema,
   type FolderTestResponse,
@@ -208,6 +210,8 @@ export const QUERY_KEYS = {
   health: ["health"],
   /** #25: the pilot backup's state, shown on Início. */
   backupStatus: ["backup", "status"],
+  /** FR-30 (#21): the export queue (daily spreadsheets), shown on Início. */
+  exportStatus: ["exports", "status"],
   /** FR-33: Configurações. */
   settings: ["settings"],
   /** FR-16: followed by the month: ["cashClosing", "month", "2026-10"]. */
@@ -225,6 +229,12 @@ export const api = {
   /** #25 (slice of FR-31): last backup and the latest failure. */
   backupStatus: (): Promise<BackupStatusResponse> =>
     getJson("/api/backup/status", backupStatusResponseSchema),
+  /** FR-30: the exports not written yet ("Backup pendente"). */
+  exportStatus: (): Promise<ExportQueueStatusResponse> =>
+    getJson("/api/exports/status", exportQueueStatusResponseSchema),
+  /** FR-30 "Tentar agora": tries every pending export now and returns the new state. */
+  retryExports: (): Promise<ExportQueueStatusResponse> =>
+    requestJson("POST", "/api/exports/retry", undefined, exportQueueStatusResponseSchema),
   /** FR-33: the settings in effect (defaults filled in). */
   settings: (): Promise<SettingsResponse> => getJson("/api/settings", settingsResponseSchema),
   /** FR-33: saves the settings; a new folder that fails "Testar" is refused (422). */

@@ -407,3 +407,38 @@ export const fixedExpenseTemplates = sqliteTable(
     ),
   ],
 );
+
+/**
+ * The export queue (spec §6.1 "ItemFilaExportação", FR-30). One row per file to write to the
+ * OneDrive folder: the daily spreadsheet (FR-28, #21), later the monthly one (FR-29, #28) and
+ * the DB backup (FR-31, #22). A failed item keeps its error and is retried every 5 minutes and
+ * at startup. Done items stay as history. System state, not business data: no audit rows.
+ */
+export const exportQueue = sqliteTable(
+  "export_queue",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    kind: text("kind", {
+      enum: ["daily_spreadsheet", "monthly_spreadsheet", "db_backup"],
+    }).notNull(),
+    /** Civil date "YYYY-MM-DD" (daily) or "YYYY-MM" (monthly) the file is about. */
+    reference: text("reference").notNull(),
+    status: text("status", { enum: ["pending", "done", "failed"] }).notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    /** pt-BR message of the last failure, shown on Início; null once done. */
+    lastError: text("last_error"),
+    /** Why it failed ("file_in_use" | "folder" | "other"), so the UI points to the fix (§7.4). */
+    lastErrorCause: text("last_error_cause", { enum: ["file_in_use", "folder", "other"] }),
+    /** ISO-8601 UTC instants. */
+    createdAt: text("created_at").notNull(),
+    lastAttemptAt: text("last_attempt_at"),
+    doneAt: text("done_at"),
+  },
+  (table) => [
+    // At most one open item per file: closing a day again reuses it (FR-28).
+    uniqueIndex("export_queue_open_item_unique")
+      .on(table.kind, table.reference)
+      .where(sql`${table.status} <> 'done'`),
+    index("export_queue_status_idx").on(table.status),
+  ],
+);

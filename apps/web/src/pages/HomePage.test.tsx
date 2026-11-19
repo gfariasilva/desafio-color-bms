@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppRoutes, ROUTER_FUTURE } from "@/App";
@@ -18,6 +18,10 @@ function renderAt(path: string) {
 let unclosed: string[];
 let backupStatus: unknown;
 let healthBody: Record<string, unknown>;
+let exportStatus: Record<string, unknown>;
+/** FR-30: the answer of POST /api/exports/retry ("Tentar agora"). */
+let retryAnswer: Record<string, unknown>;
+const retryCalls: string[] = [];
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 
 beforeEach(() => {
@@ -30,6 +34,9 @@ beforeEach(() => {
     trial: false,
     checks: [],
   };
+  exportStatus = { enabled: true, items: [], hasFailures: false };
+  retryAnswer = exportStatus;
+  retryCalls.length = 0;
   backupStatus = {
     configured: true,
     folder: "C:\\OneDrive\\Color\\_backup-sistema",
@@ -38,8 +45,13 @@ beforeEach(() => {
   };
   vi.stubGlobal(
     "fetch",
-    vi.fn(async (input: RequestInfo | URL) => {
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
+      if (url.startsWith("/api/exports/retry") && init?.method === "POST") {
+        retryCalls.push(url);
+        return json(retryAnswer);
+      }
+      if (url.startsWith("/api/exports/status")) return json(exportStatus);
       if (url.startsWith("/api/days/unclosed")) return json({ days: unclosed });
       if (url.startsWith("/api/backup/status")) return json(backupStatus);
       if (url.startsWith("/api/health")) return json(healthBody);
@@ -186,5 +198,88 @@ describe("#26: Início shows the startup checks", () => {
     renderAt("/");
     expect(await screen.findByText("Versão")).toBeInTheDocument();
     expect(screen.queryByRole("list", { name: "Verificações" })).not.toBeInTheDocument();
+  });
+});
+
+const failedItem = {
+  id: 1,
+  kind: "daily_spreadsheet",
+  reference: "2026-11-17",
+  status: "failed",
+  attempts: 3,
+  fileName: "Diária 2026-11-17.xlsx",
+  lastError:
+    "O arquivo Diária 2026-11-17.xlsx está aberto no Excel (ou em uso pelo OneDrive). Feche o arquivo",
+  lastErrorCause: "file_in_use",
+  createdAt: "2026-11-17T22:00:00.000Z",
+  lastAttemptAt: "2026-11-18T13:05:00.000Z",
+};
+
+describe("FR-30: Início shows the exports that could not be written", () => {
+  it("FR-30: a failed export shows Backup pendente with the file, the reason and the next try", async () => {
+    exportStatus = { enabled: true, items: [failedItem], hasFailures: true };
+    renderAt("/");
+    const alerts = await screen.findByRole("region", { name: "Alertas" });
+    const notice = await within(alerts).findByRole("group", { name: "Backup pendente" });
+    expect(notice).toHaveTextContent(
+      "Backup pendente: 1 planilha não foi gravada no OneDrive. Nova tentativa a cada 5 minutos.",
+    );
+    expect(notice).toHaveTextContent(
+      "Diária 2026-11-17.xlsx: O arquivo Diária 2026-11-17.xlsx está aberto no Excel (ou em uso pelo OneDrive). Feche o arquivo. Última tentativa em 18/11/2026 10:05.",
+    );
+    // The file is the problem, not the folder: no link to Configurações.
+    expect(within(notice).queryByRole("link")).toBeNull();
+  });
+
+  it("FR-30: a folder problem links to Configurações (spec §7.4)", async () => {
+    exportStatus = {
+      enabled: true,
+      hasFailures: true,
+      items: [
+        {
+          ...failedItem,
+          lastError:
+            "A pasta do OneDrive não existe: D:\\OneDrive. Verifique a pasta em Configurações",
+          lastErrorCause: "folder",
+        },
+      ],
+    };
+    renderAt("/");
+    const notice = await screen.findByRole("group", { name: "Backup pendente" });
+    expect(within(notice).getByRole("link", { name: "Verificar a pasta" })).toHaveAttribute(
+      "href",
+      "/configuracoes",
+    );
+  });
+
+  it("FR-30: Tentar agora retries now, and the alert goes away when it works", async () => {
+    exportStatus = { enabled: true, items: [failedItem], hasFailures: true };
+    retryAnswer = { enabled: true, items: [], hasFailures: false };
+    renderAt("/");
+    // A real <button>: reachable with Tab and pressed with Enter (NFR-05).
+    const button = await screen.findByRole("button", { name: "Tentar agora" });
+    expect(button.tagName).toBe("BUTTON");
+    fireEvent.click(button);
+    await vi.waitFor(() => expect(retryCalls).toEqual(["/api/exports/retry"]));
+    await vi.waitFor(() =>
+      expect(screen.queryByRole("group", { name: "Backup pendente" })).toBeNull(),
+    );
+  });
+
+  it("FR-30: when Tentar agora fails again, it says so", async () => {
+    exportStatus = { enabled: true, items: [failedItem], hasFailures: true };
+    retryAnswer = { enabled: true, items: [{ ...failedItem, attempts: 4 }], hasFailures: true };
+    renderAt("/");
+    fireEvent.click(await screen.findByRole("button", { name: "Tentar agora" }));
+    expect(
+      await screen.findByText("Ainda não foi possível gravar. Verifique o motivo acima."),
+    ).toBeInTheDocument();
+  });
+
+  it("FR-30: nothing pending, no notice", async () => {
+    renderAt("/");
+    await screen.findByRole("region", { name: "Alertas" });
+    await screen.findByText("Nenhum dia anterior pendente de fechamento.");
+    expect(screen.queryByRole("group", { name: "Backup pendente" })).toBeNull();
   });
 });

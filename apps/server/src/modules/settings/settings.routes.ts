@@ -8,7 +8,6 @@ import {
 } from "@color-bms/core";
 import type { Clock } from "../../clock";
 import { parseOr400 } from "../../http/route-helpers";
-import type { BackupService } from "../backup/backup.service";
 import { testFolderWrite } from "./folder-test";
 import type { SettingsStore } from "./settings.repository";
 
@@ -19,8 +18,9 @@ export const FOLDER_TEST_FAILED_CODE = "folder_test_failed";
 export function registerSettingsRoutes(
   app: FastifyInstance,
   store: SettingsStore,
-  backup: BackupService,
   clock: Clock,
+  /** The OneDrive folder changed: back up and retry the exports there (FR-31, FR-30). */
+  onFolderChanged: () => Promise<void>,
 ): void {
   app.get("/api/settings", async (): Promise<SettingsResponse> => store.read());
 
@@ -42,8 +42,9 @@ export function registerSettingsRoutes(
     }
 
     const changed = store.save(input, clock());
-    // FR-31: the new folder applies at once; it gets today's backup if it has none yet.
-    if (changed.includes("oneDriveFolder")) void backup.folderChanged();
+    // FR-31 / FR-30: the new folder applies at once: today's backup if it has none yet, and
+    // the pending exports. Never throws.
+    if (changed.includes("oneDriveFolder")) void onFolderChanged();
     return store.read();
   });
 

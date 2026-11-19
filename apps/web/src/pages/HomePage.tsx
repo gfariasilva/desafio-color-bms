@@ -1,9 +1,21 @@
-import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2, DatabaseBackup, XCircle } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  DatabaseBackup,
+  FileSpreadsheet,
+  XCircle,
+} from "lucide-react";
 import { Link } from "react-router-dom";
-import { formatCivilDate, formatInstant, type StartupCheck } from "@color-bms/core";
+import {
+  EXPORT_RETRY_MINUTES,
+  formatCivilDate,
+  formatInstant,
+  type StartupCheck,
+} from "@color-bms/core";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { NAV_ITEMS } from "@/config/navigation";
 import { api, QUERY_KEYS } from "@/lib/api";
@@ -55,6 +67,81 @@ function BackupNotices() {
 }
 
 /**
+ * FR-30 (#21): the spreadsheets that could not be written to the OneDrive folder ("Backup
+ * pendente", the FR-27 alert name): each file with its reason and last try, the automatic
+ * retry, a "Tentar agora" button, and a link to Configurações when the folder is the problem
+ * (spec §7.4). #23 folds it into the alert list.
+ */
+function ExportNotices() {
+  const queryClient = useQueryClient();
+  const status = useQuery({
+    queryKey: QUERY_KEYS.exportStatus,
+    queryFn: api.exportStatus,
+    // The server retries every 5 minutes: check now and then, so a fixed problem disappears.
+    refetchInterval: 60_000,
+  });
+  const retry = useMutation({
+    mutationFn: api.retryExports,
+    onSuccess: (data) => queryClient.setQueryData(QUERY_KEYS.exportStatus, data),
+  });
+  if (status.isError) {
+    return <p className="mb-2 text-destructive">Não foi possível verificar as planilhas.</p>;
+  }
+  const failed = status.data?.items.filter((item) => item.status === "failed") ?? [];
+  if (failed.length === 0) return null;
+  const folderProblem = failed.some((item) => item.lastErrorCause === "folder");
+
+  return (
+    <div role="group" aria-label="Backup pendente" className="mb-2 text-destructive">
+      <p className="flex items-start gap-2">
+        <FileSpreadsheet className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+        <span>
+          <strong>Backup pendente:</strong>{" "}
+          {failed.length === 1
+            ? "1 planilha não foi gravada"
+            : `${failed.length} planilhas não foram gravadas`}{" "}
+          no OneDrive. Nova tentativa a cada {EXPORT_RETRY_MINUTES} minutos.
+        </span>
+      </p>
+      <ul className="ml-6 list-disc">
+        {failed.map((item) => (
+          <li key={item.id} className="break-words">
+            {item.fileName}: {item.lastError}.
+            {item.lastAttemptAt ? ` Última tentativa em ${formatInstant(item.lastAttemptAt)}.` : ""}
+          </li>
+        ))}
+      </ul>
+      <div className="ml-6 mt-1 flex flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="text-foreground"
+          disabled={retry.isPending}
+          onClick={() => retry.mutate()}
+        >
+          {retry.isPending ? "Tentando…" : "Tentar agora"}
+        </Button>
+        {folderProblem ? (
+          <Link
+            to="/configuracoes"
+            className="rounded-md px-2 py-1 font-medium text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Verificar a pasta
+          </Link>
+        ) : null}
+        <span role="status" className="text-sm">
+          {retry.isError ? "Não foi possível tentar agora." : null}
+          {retry.isSuccess && retry.data.hasFailures
+            ? "Ainda não foi possível gravar. Verifique o motivo acima."
+            : null}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/**
  * FR-27 (pilot slice): the "Dia não fechado" alert: earlier days with movement still open, each
  * with a link to close it, and the backup notices (#25). The other alerts and "Tudo em dia"
  * come in #23.
@@ -75,6 +162,7 @@ function AlertsCard() {
         </CardHeader>
         <CardContent className="p-4 pt-0">
           <BackupNotices />
+          <ExportNotices />
           {unclosed.isPending ? <p className="text-muted-foreground">Verificando…</p> : null}
           {unclosed.isError ? (
             <p className="text-destructive">Não foi possível verificar os alertas.</p>

@@ -92,6 +92,20 @@
       "when": 1795090823063,
       "tag": "0012_add_fixed_expense_template_link",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1795112321749,
+      "tag": "0013_create_export_queue",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1795112325058,
+      "tag": "0014_queue_closed_days",
+      "breakpoints": true
     }
   ]
 }
