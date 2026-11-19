@@ -32,6 +32,11 @@ describe("#25: OneDrive folder setting (config.json or COLOR_BMS_ONEDRIVE_DIR)",
     );
   });
 
+  it("accepts a config.json saved with a UTF-8 byte-order mark (PowerShell 5)", () => {
+    writeConfigFile("\uFEFF" + JSON.stringify({ oneDriveFolder: "C:\\OneDrive\\Color" }));
+    expect(loadConfig({ COLOR_BMS_DATA_DIR: dataDir }).oneDriveFolder).toBe("C:\\OneDrive\\Color");
+  });
+
   it("the environment variable wins over the file", () => {
     writeConfigFile(JSON.stringify({ oneDriveFolder: "/from/file" }));
     const config = loadConfig({ COLOR_BMS_DATA_DIR: dataDir, COLOR_BMS_ONEDRIVE_DIR: "/from/env" });

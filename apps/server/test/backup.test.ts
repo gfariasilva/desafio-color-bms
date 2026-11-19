@@ -4,6 +4,7 @@ import path from "node:path";
 import Database from "better-sqlite3";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { backupStatusResponseSchema, type BackupStatusResponse } from "@color-bms/core";
+import { buildApp } from "../src/app";
 import { openDatabase } from "../src/db/client";
 import { defaultMigrationsFolder, runMigrations } from "../src/db/migrate";
 import { migrateWithBackup } from "../src/modules/backup/backup-before-migrations";
@@ -123,8 +124,6 @@ describe("FR-31 (#25): backup on day close", () => {
   });
 
   it("#25: no folder configured → the status says so and nothing is written", async () => {
-    configuredFolder = null;
-    // The app was built before this test changed the folder: build a service directly.
     const service = createBackupService({
       sqlite: ctx.connection.sqlite,
       folder: null,
@@ -141,7 +140,85 @@ describe("FR-31 (#25): backup on day close", () => {
   });
 });
 
+describe("#25: buildApp without a backup service", () => {
+  it("GET /api/backup/status says the backup is not configured", async () => {
+    const connection = openDatabase(path.join(tempDir, "default.db"));
+    runMigrations(connection.db);
+    const app = await buildApp({ connection, now: () => NOW });
+    try {
+      const response = await app.inject({ method: "GET", url: "/api/backup/status" });
+      expect(response.statusCode, response.body).toBe(200);
+      expect(backupStatusResponseSchema.parse(response.json())).toEqual({
+        configured: false,
+        folder: null,
+        lastSuccess: null,
+        lastFailure: null,
+      });
+    } finally {
+      await app.close();
+      connection.sqlite.close();
+    }
+  });
+});
+
+describe("#25: failure messages name the cause", () => {
+  it('a OneDrive path that is a file is "não é uma pasta"', async () => {
+    const notFolder = path.join(tempDir, "arquivo.txt");
+    fs.writeFileSync(notFolder, "");
+    const service = createBackupService({
+      sqlite: ctx.connection.sqlite,
+      folder: notFolder,
+      now: () => NOW,
+      log: silentLog,
+    });
+    await service.run("day-close");
+    expect(service.status().lastFailure?.message).toBe(
+      `O caminho do OneDrive não é uma pasta: ${notFolder}`,
+    );
+  });
+
+  it('EPERM when replacing a file OneDrive is syncing reads as "em uso", not permission', async () => {
+    const spy = vi.spyOn(fs, "renameSync").mockImplementationOnce(() => {
+      throw Object.assign(new Error("operation not permitted"), { code: "EPERM" });
+    });
+    try {
+      const service = createBackupService({
+        sqlite: ctx.connection.sqlite,
+        folder: oneDrive,
+        now: () => NOW,
+        log: silentLog,
+      });
+      await service.run("day-close");
+      expect(service.status().lastFailure?.message).toBe(
+        `O arquivo de backup está em uso em ${backupFolder()}`,
+      );
+      // The temp file is cleaned up.
+      expect(fs.readdirSync(backupFolder())).toEqual([]);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});
+
 describe("FR-31 (#25): backup on the first start of the day", () => {
+  it("FR-31: a server left running backs up again on the next day (hourly check)", async () => {
+    let current = NOW;
+    const service = createBackupService({
+      sqlite: ctx.connection.sqlite,
+      folder: oneDrive,
+      now: () => current,
+      log: silentLog,
+    });
+    await service.runOnStartupIfFirstToday();
+    await service.runOnStartupIfFirstToday(); // same day: nothing new
+    current = new Date("2026-11-19T12:00:00.000Z"); // 09:00 next day in São Paulo
+    await service.runOnStartupIfFirstToday();
+    expect(fs.readdirSync(backupFolder()).sort()).toEqual([
+      BACKUP_NAME,
+      "color-2026-11-19_0900.db",
+    ]);
+  });
+
   it("FR-31: startup backs up when the folder has no backup of today", async () => {
     const service = createBackupService({
       sqlite: ctx.connection.sqlite,

@@ -38,8 +38,16 @@ export function writeBackup(sqlite: Database.Database, dir: string, now: Date): 
     } finally {
       fs.closeSync(fd);
     }
-    // Two backups in the same minute: the newer snapshot replaces the older one.
-    fs.renameSync(tempFile, file);
+    // Two backups in the same minute: the newer snapshot replaces the older one. On Windows,
+    // replacing a file that OneDrive is still syncing fails with EPERM/EBUSY: the file is in use.
+    try {
+      fs.renameSync(tempFile, file);
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === "EPERM" || code === "EBUSY")
+        throw Object.assign(error as Error, { code: "EBUSY" });
+      throw error;
+    }
   } catch (error) {
     fs.rmSync(tempFile, { force: true });
     throw error;
@@ -55,7 +63,10 @@ export interface BackupLog {
 export interface BackupService {
   /** FR-31: backs up now. Never throws: a failure is logged and kept in `status()`. */
   run(trigger: BackupTrigger): Promise<void>;
-  /** FR-31: at startup, backs up only when the folder has no backup of today yet. */
+  /**
+   * FR-31: backs up only when the folder has no backup of today yet. Called at startup and
+   * hourly, so a PC left on overnight still gets its "first start of the day" backup.
+   */
   runOnStartupIfFirstToday(): Promise<void>;
   status(): BackupStatusResponse;
 }
@@ -81,6 +92,7 @@ function backupInstant(name: string): string {
 function failureMessage(error: unknown, folder: string, backupDir: string): string {
   const code = (error as NodeJS.ErrnoException | undefined)?.code;
   if (code === "ROOT_MISSING") return `A pasta do OneDrive não existe: ${folder}`;
+  if (code === "ROOT_NOT_FOLDER") return `O caminho do OneDrive não é uma pasta: ${folder}`;
   if (code === "EACCES" || code === "EPERM") return `Sem permissão para gravar em ${backupDir}`;
   if (code === "EBUSY") return `O arquivo de backup está em uso em ${backupDir}`;
   if (code === "ENOSPC") return "Disco cheio: não há espaço para gravar o backup";
@@ -116,12 +128,19 @@ export function createBackupService({
 
   async function run(trigger: BackupTrigger): Promise<void> {
     if (folder === null || backupDir === null) return; // Not configured: shown on Início.
+    // Yield first: after a day close this runs before Fastify sends the reply, and the
+    // synchronous VACUUM INTO must never delay the closing's answer.
+    await new Promise((resolve) => setImmediate(resolve));
     const at = now();
     try {
       // Never create the OneDrive folder itself: a missing one means a wrong setting, or
       // OneDrive not set up (spec §7.4). Only `_backup-sistema` inside it is created.
-      if (!fs.statSync(folder, { throwIfNoEntry: false })?.isDirectory()) {
+      const stat = fs.statSync(folder, { throwIfNoEntry: false });
+      if (!stat) {
         throw Object.assign(new Error(`Folder not found: ${folder}`), { code: "ROOT_MISSING" });
+      }
+      if (!stat.isDirectory()) {
+        throw Object.assign(new Error(`Not a folder: ${folder}`), { code: "ROOT_NOT_FOLDER" });
       }
       const file = writeBackup(sqlite, backupDir, at);
       lastSuccess = { at: at.toISOString(), file: path.basename(file) };

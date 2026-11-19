@@ -28,7 +28,13 @@ Arquivos terminados em `.tmp` são gravações interrompidas: **não use**.
 
 Fazer **uma vez no PC da loja**, antes do go-live (#27):
 
-- [ ] Configurar a pasta do OneDrive (`config.json` na pasta de dados) e reiniciar o sistema.
+- [ ] Configurar a pasta do OneDrive (`config.json` na pasta de dados) e reiniciar o sistema. Exemplo de `config.json` (no JSON, cada `\` do caminho é escrita **dobrada**, `\\`, ou use `/`):
+
+  ```json
+  { "oneDriveFolder": "C:\\Users\\dono\\OneDrive\\Color" }
+  ```
+
+  Depois de reiniciar, Início não deve mostrar "Pasta do OneDrive não configurada".
 - [ ] Registrar uma venda de teste, fechar o dia e ver o arquivo novo em `_backup-sistema\`.
 - [ ] Registrar uma segunda venda de teste (sem fechar).
 - [ ] Restaurar o backup pelo passo a passo acima.

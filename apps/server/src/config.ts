@@ -45,7 +45,8 @@ function readOneDriveFolder(dataDir: string, warn: (message: string) => void): s
   }
   let parsed: unknown;
   try {
-    parsed = JSON.parse(text);
+    // Windows tools (PowerShell 5, older Notepad) may save UTF-8 with a byte-order mark.
+    parsed = JSON.parse(text.replace(/^\uFEFF/, ""));
   } catch (error) {
     warn(`Ignoring ${file}: invalid JSON (${(error as Error).message}).`);
     return null;

@@ -51,6 +51,8 @@ async function main(): Promise<void> {
   await app.listen({ host: config.host, port: config.port });
   app.log.info(`Database: ${config.databaseFile}`);
   await backup.runOnStartupIfFirstToday();
+  // FR-31: the shop PC may stay on for days; check every hour whether today has a backup.
+  setInterval(() => void backup.runOnStartupIfFirstToday(), 60 * 60 * 1000).unref();
 }
 
 main().catch((error: unknown) => {

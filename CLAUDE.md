@@ -34,7 +34,7 @@ npm run db:generate -w @color-bms/server -- --name <what_changed>   # new migrat
 
 Dev data lives in `apps/server/.data/` (git-ignored). Override it with `COLOR_BMS_DATA_DIR`.
 
-Backups (#25, [ADR 0003](docs/adr/0003-pilot-backup.md)) go to `<OneDrive folder>/_backup-sistema/`. The folder comes from `COLOR_BMS_ONEDRIVE_DIR`, or else from `{ "oneDriveFolder": "…" }` in `<data dir>/config.json`. Unset means no backup, and Início says so. Before pending migrations, a local backup goes to `<data dir>/backups/`. Manual restore: [`docs/pilot/restaurar-backup.md`](docs/pilot/restaurar-backup.md).
+Backups (#25, [ADR 0003](docs/adr/0003-pilot-backup.md)) go to `<OneDrive folder>/_backup-sistema/`. The folder comes from `COLOR_BMS_ONEDRIVE_DIR`, or else from `{ "oneDriveFolder": "C:\\Users\\dono\\OneDrive\\Color" }` in `<data dir>/config.json` (JSON: double every backslash, or use `/`). Unset means no backup, and Início says so. Before pending migrations, a local backup goes to `<data dir>/backups/`. Manual restore: [`docs/pilot/restaurar-backup.md`](docs/pilot/restaurar-backup.md).
 
 ## Repository structure
 

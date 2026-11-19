@@ -16,6 +16,9 @@ const home = NAV_ITEMS[0];
  */
 function BackupNotices() {
   const status = useQuery({ queryKey: QUERY_KEYS.backupStatus, queryFn: api.backupStatus });
+  if (status.isError) {
+    return <p className="mb-2 text-destructive">Não foi possível verificar o backup.</p>;
+  }
   if (!status.data) return null;
   const { configured, lastFailure } = status.data;
   if (!configured) {

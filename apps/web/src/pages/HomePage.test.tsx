@@ -96,6 +96,23 @@ describe("#25: Início shows the state of the backup", () => {
     );
   });
 
+  it("#25: a failed status request is shown, not hidden", async () => {
+    backupStatus = undefined;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.startsWith("/api/days/unclosed")) return json({ days: [] });
+        return json({ error: "erro" }, 500);
+      }),
+    );
+    renderAt("/");
+    const alerts = await screen.findByRole("region", { name: "Alertas" });
+    expect(
+      await within(alerts).findByText("Não foi possível verificar o backup."),
+    ).toBeInTheDocument();
+  });
+
   it("#25: no OneDrive folder configured", async () => {
     backupStatus = { configured: false, folder: null, lastSuccess: null, lastFailure: null };
     renderAt("/");
