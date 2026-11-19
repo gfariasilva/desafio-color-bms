@@ -31,6 +31,7 @@ export function ReportMonthStatus({
   todayFailed,
   monthText,
   yearMonth,
+  currentMonth,
   isLoading,
   isError,
   what,
@@ -38,6 +39,8 @@ export function ReportMonthStatus({
   todayFailed: boolean;
   monthText: string;
   yearMonth: string | null;
+  /** Known once today has loaded: a field cleared after that needs a hint. */
+  currentMonth: string | undefined;
   isLoading: boolean;
   isError: boolean;
   /** e.g. "o relatório de entradas". */
@@ -50,7 +53,8 @@ export function ReportMonthStatus({
           Não foi possível carregar o mês atual. Recarregue a página.
         </p>
       ) : null}
-      {yearMonth === null && monthText !== "" ? (
+      {/* An invalid or cleared field (Delete in a month input empties it) hides the report. */}
+      {yearMonth === null && (monthText !== "" || currentMonth !== undefined) ? (
         <p role="alert" className="text-sm text-destructive">
           Escolha um mês válido.
         </p>

@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import {
   formatCents,
   formatCivilDate,
@@ -41,6 +42,11 @@ export function MonthIncomeReportPage() {
         title="Relatório do mês – Entradas"
         description="Entradas por dia e aba, totais por forma de pagamento, taxas e líquido."
       />
+      <p className="-mt-3 mb-4">
+        <Link to="/relatorios" className="text-primary underline-offset-4 hover:underline">
+          ← Relatórios
+        </Link>
+      </p>
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <ReportMonthField {...month} />
       </div>
@@ -114,10 +120,11 @@ function MonthIncomeGrid({ report }: { report: MonthIncomeResponse }) {
             <TableHead>Dia</TableHead>
             {report.tabs.map((tab) => (
               <TableHead key={tab.saleCategoryId} className="text-right">
-                <span className="inline-flex items-center gap-1.5">
+                {/* Wrapped names keep the dot next to their first line. */}
+                <span className="inline-flex items-start justify-end gap-1.5 text-right">
                   <span
                     aria-hidden
-                    className="h-2 w-2 shrink-0 rounded-full"
+                    className="mt-1.5 h-2 w-2 shrink-0 rounded-full"
                     style={{ backgroundColor: categoryColor(tab.order - 1) }}
                   />
                   {tab.name}

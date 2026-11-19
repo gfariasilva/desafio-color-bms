@@ -201,6 +201,18 @@ describe("FR-20: Relatórios › Mês – Entradas", () => {
     ]);
   });
 
+  it("FR-20: links back to Relatórios; a cleared month field says what to do", async () => {
+    renderAt("/relatorios/mes/entradas?mes=2026-10");
+    expect(await screen.findByRole("link", { name: "← Relatórios" })).toHaveAttribute(
+      "href",
+      "/relatorios",
+    );
+    const month = await screen.findByLabelText("Mês");
+    await screen.findByTestId("month-gross");
+    fireEvent.change(month, { target: { value: "" } });
+    expect(await screen.findByRole("alert")).toHaveTextContent("Escolha um mês válido.");
+  });
+
   it("FR-20: choosing another month loads it", async () => {
     renderAt("/relatorios/mes/entradas?mes=2026-10");
     const month = await screen.findByLabelText("Mês");

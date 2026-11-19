@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { SaleCategory } from "../catalog/categories";
 import type { PaymentMethod } from "../payments/payment-methods";
+import { calculateSaleAmounts } from "../sales/sale-amounts";
 import { buildMonthIncome, monthReportDays, type MonthIncomeRow } from "./month-income";
 
 const tabs: SaleCategory[] = [
@@ -174,7 +175,9 @@ describe("buildMonthIncome (FR-20, RN-06)", () => {
     for (let day = 1; day <= 20; day++) {
       const date = `2026-10-${String(day).padStart(2, "0")}`;
       rows.push(row(date, 1, 10, 1000 + day * 37));
-      rows.push(row(date, 2, 12, 2000 + day * 11, Math.round((2000 + day * 11) * 0.0379)));
+      // RN-02: the fee of a 3,79% sale, in integer cents (half-up, per sale).
+      const credit = 2000 + day * 11;
+      rows.push(row(date, 2, 12, credit, calculateSaleAmounts(credit, 37900).feeCents));
       rows.push(row(date, 3, 11, 333 * day, 7));
       if (day % 5 === 0) rows.push(row(date, 2, 10, -500));
     }

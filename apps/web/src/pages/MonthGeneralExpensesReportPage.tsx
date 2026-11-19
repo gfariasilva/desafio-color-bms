@@ -1,5 +1,6 @@
 import { Fragment, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import {
   EXPENSE_CATEGORY_GROUP_LABELS,
@@ -49,6 +50,11 @@ export function MonthGeneralExpensesReportPage() {
         title="Relatório do mês – Despesas gerais"
         description="Total de cada categoria pela data de pagamento, com o grupo Fornecedores de materiais e o total geral."
       />
+      <p className="-mt-3 mb-4">
+        <Link to="/relatorios" className="text-primary underline-offset-4 hover:underline">
+          ← Relatórios
+        </Link>
+      </p>
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <ReportMonthField {...month} />
       </div>
