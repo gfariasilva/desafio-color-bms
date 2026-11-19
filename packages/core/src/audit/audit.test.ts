@@ -68,6 +68,24 @@ describe("describeAuditChanges (FR-18: before and after values)", () => {
     ]);
   });
 
+  it("FR-11: a one-off fixed entry shows its type, month, group, due date and status in pt-BR", () => {
+    expect(
+      describeAuditChanges(null, {
+        expenseType: "fixed",
+        referenceMonth: "2026-11",
+        templateGroup: "government_fees",
+        dueDate: "2026-11-25",
+        expenseStatus: "pending",
+      }),
+    ).toEqual([
+      { field: "expenseType", label: "Tipo", before: null, after: "Fixa" },
+      { field: "referenceMonth", label: "Mês de referência", before: null, after: "11/2026" },
+      { field: "templateGroup", label: "Grupo", before: null, after: "Taxas governo" },
+      { field: "dueDate", label: "Vencimento", before: null, after: "25/11/2026" },
+      { field: "expenseStatus", label: "Situação", before: null, after: "Pendente" },
+    ]);
+  });
+
   it("formats civil dates as dd/mm/aaaa and keeps unknown fields by their key", () => {
     expect(describeAuditChanges({ date: "2026-11-18" }, { date: "2026-11-19", xyz: 3 })).toEqual([
       { field: "date", label: "Data", before: "18/11/2026", after: "19/11/2026" },

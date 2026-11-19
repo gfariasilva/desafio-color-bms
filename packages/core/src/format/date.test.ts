@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { formatCivilDate, formatInstant, formatInstantTime, formatYearMonth } from "./date";
+import {
+  formatCivilDate,
+  formatInstant,
+  formatInstantTime,
+  formatYearMonth,
+  formatYearMonthLong,
+} from "./date";
 
 describe("formatYearMonth", () => {
   it("formats a month as mm/aaaa", () => {
@@ -41,5 +47,17 @@ describe("formatInstantTime", () => {
   it("shows the São Paulo time of an instant", () => {
     expect(formatInstantTime("2026-11-18T22:03:00Z")).toBe("19:03");
     expect(formatInstantTime("2026-11-19T02:59:00Z")).toBe("23:59");
+  });
+});
+
+describe("formatYearMonthLong", () => {
+  it("formats a month with its pt-BR name", () => {
+    expect(formatYearMonthLong("2026-11")).toBe("novembro de 2026");
+    expect(formatYearMonthLong("2027-03")).toBe("março de 2027");
+    expect(formatYearMonthLong("2027-01")).toBe("janeiro de 2027");
+  });
+
+  it("throws on an invalid month", () => {
+    expect(() => formatYearMonthLong("2026-13")).toThrow(RangeError);
   });
 });

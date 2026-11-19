@@ -2,11 +2,13 @@ import { z } from "zod";
 import { DAY_STATUS_LABELS } from "../cash-closing/cash-closing";
 import { EXPENSE_CATEGORY_GROUP_LABELS } from "../catalog/categories";
 import { FIXED_EXPENSE_GROUP_LABELS } from "../fixed-expenses/fixed-expense-templates";
+import { EXPENSE_STATUS_LABELS } from "../fixed-expenses/fixed-expenses";
 import { formatCents } from "../format/currency";
 import { MACHINE_USAGE_LABELS } from "../payments/payment-methods";
 import { formatRatePercent } from "../payments/rate";
-import { formatCivilDate } from "../format/date";
+import { formatCivilDate, formatYearMonth } from "../format/date";
 import { isCivilDate } from "../time/civil-date";
+import { isYearMonth } from "../time/year-month";
 
 /**
  * FR-18: audit log. Every business write records one entry in the same transaction:
@@ -190,6 +192,10 @@ export const AUDIT_FIELD_LABELS: Record<string, string> = {
   isLoan: "Empréstimo",
   installmentsTotal: "Total de parcelas",
   installmentsRemaining: "Parcelas restantes",
+  expenseType: "Tipo",
+  referenceMonth: "Mês de referência",
+  dueDate: "Vencimento",
+  expenseStatus: "Situação",
 };
 
 /** pt-BR labels for coded values, per field (e.g. an expense category's group). */
@@ -201,6 +207,9 @@ const AUDIT_VALUE_LABELS: Record<string, Record<string, string>> = {
   machineUsage: MACHINE_USAGE_LABELS,
   // A day's status (FR-08 closing, FR-09 reopening).
   status: DAY_STATUS_LABELS,
+  // A fixed expense (FR-11, FR-12): its type and status.
+  expenseType: { general: "Geral", fixed: "Fixa" },
+  expenseStatus: EXPENSE_STATUS_LABELS,
 };
 
 /**
@@ -224,6 +233,9 @@ function formatAuditValue(field: string, value: unknown): string {
   const valueLabels = Object.hasOwn(AUDIT_VALUE_LABELS, field) ? AUDIT_VALUE_LABELS[field] : null;
   if (typeof value === "string" && valueLabels && Object.hasOwn(valueLabels, value)) {
     return valueLabels[value] ?? value;
+  }
+  if (typeof value === "string" && field === "referenceMonth" && isYearMonth(value)) {
+    return formatYearMonth(value);
   }
   if (typeof value === "string") return isCivilDate(value) ? formatCivilDate(value) : value;
   if (typeof value === "number") return String(value);

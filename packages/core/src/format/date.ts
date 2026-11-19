@@ -53,3 +53,31 @@ export function formatYearMonth(yearMonth: string): string {
 export function formatInstantTime(instant: string | Date): string {
   return formatInstant(instant).slice(-5);
 }
+
+const MONTH_NAMES = [
+  "janeiro",
+  "fevereiro",
+  "março",
+  "abril",
+  "maio",
+  "junho",
+  "julho",
+  "agosto",
+  "setembro",
+  "outubro",
+  "novembro",
+  "dezembro",
+] as const;
+
+/**
+ * Formats a month ("YYYY-MM") with its pt-BR name, e.g. for a page title.
+ *
+ * @example formatYearMonthLong("2026-11") // "novembro de 2026"
+ */
+export function formatYearMonthLong(yearMonth: string): string {
+  const [year, month] = yearMonth.split("-");
+  const name = MONTH_NAMES[Number(month) - 1];
+  if (!year || !name)
+    throw new RangeError(`formatYearMonthLong expects "YYYY-MM", received "${yearMonth}"`);
+  return `${name} de ${year}`;
+}
