@@ -275,6 +275,35 @@ describe("Despesas fixas › Modelos (FR-10)", () => {
     });
   });
 
+  it("FR-10: an empty Nome is reported before a malformed amount", async () => {
+    await openPage();
+    fill("Dia de vencimento", "10");
+    fill("Valor previsto (R$)", "abc");
+    submit();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Informe o nome.");
+    expect(writes()).toHaveLength(0);
+  });
+
+  it("FR-10: a subgroup typed in another case reuses the existing spelling", async () => {
+    await openPage();
+    fill("Nome", "Internet");
+    fill("Subgrupo", "TELEFONIA");
+    fill("Dia de vencimento", "15");
+    submit();
+    await waitFor(() => expect(writes()).toHaveLength(1));
+    expect(writes()[0]?.body).toMatchObject({ subgroup: "Telefonia" });
+  });
+
+  it("FR-10: the save confirmation goes away when another action starts", async () => {
+    await openPage();
+    fill("Nome", "Internet");
+    fill("Dia de vencimento", "15");
+    submit();
+    expect(await screen.findByRole("status")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Desativar Luz" }));
+    await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument());
+  });
+
   it("FR-10: templates have no delete button", async () => {
     await openPage();
     expect(screen.queryByRole("button", { name: /Excluir/ })).not.toBeInTheDocument();

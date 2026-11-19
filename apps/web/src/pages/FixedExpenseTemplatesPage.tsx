@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowDown, ArrowUp, Pencil } from "lucide-react";
 import {
+  categoryNameKey,
   createFixedExpenseTemplateInputSchema,
   FIXED_EXPENSE_GROUP_LABELS,
   FIXED_EXPENSE_GROUPS,
@@ -78,6 +79,9 @@ function formFromTemplate(template: FixedExpenseTemplate): FormState {
 }
 
 const AMOUNT_MESSAGE = "Informe o valor previsto, por exemplo 200,00, ou deixe em branco.";
+
+/** Form fields that come before Valor previsto (for the order of the error messages). */
+const FIELDS_BEFORE_AMOUNT = ["name", "group", "subgroup", "dueDay"];
 
 /** An empty number field is "not filled in" (null); anything else goes to the schema. */
 function numberOrNull(text: string): number | null {
@@ -166,6 +170,7 @@ export function FixedExpenseTemplatesPage() {
   const setActive = useMutation({
     mutationFn: ({ template, active }: { template: FixedExpenseTemplate; active: boolean }) =>
       api.fixedExpenseTemplates.update(template.id, { active }),
+    onMutate: () => setSaved(null),
     onSuccess: async () => {
       setListError(null);
       await refresh();
@@ -175,6 +180,7 @@ export function FixedExpenseTemplatesPage() {
 
   const reorder = useMutation({
     mutationFn: (ids: number[]) => api.fixedExpenseTemplates.reorder(ids),
+    onMutate: () => setSaved(null),
     onSuccess: async () => {
       setListError(null);
       await refresh();
@@ -192,25 +198,34 @@ export function FixedExpenseTemplatesPage() {
     event.preventDefault();
     setSaved(null);
 
-    let expectedAmountCents: number | null = null;
-    if (form.expectedAmount.trim() !== "") {
-      expectedAmountCents = parseMoneyText(form.expectedAmount);
-      if (expectedAmountCents === null) return setFormError(AMOUNT_MESSAGE);
-    }
+    // An amount that is not a number is checked after the earlier fields, so the first
+    // message is always about the first field to fix.
+    const amountText = form.expectedAmount.trim();
+    const amountCents = amountText === "" ? null : parseMoneyText(amountText);
+    const amountIsMalformed = amountText !== "" && amountCents === null;
+
+    // A subgroup typed in another case/accent reuses the existing spelling ("telefonia" →
+    // "Telefonia"), so the same subgroup never shows up twice.
+    const subgroupKey = categoryNameKey(form.subgroup);
+    const subgroup = subgroups.find((known) => categoryNameKey(known) === subgroupKey);
 
     // The same schema as the server, so the messages are the same (FR-10).
     const parsed = createFixedExpenseTemplateInputSchema.safeParse({
       name: form.name,
       group: form.group,
-      subgroup: form.subgroup,
+      subgroup: subgroup ?? form.subgroup,
       dueDay: numberOrNull(form.dueDay),
-      expectedAmountCents,
+      expectedAmountCents: amountCents,
       isLoan: form.isLoan,
       installmentsTotal: form.isLoan ? numberOrNull(form.installmentsTotal) : null,
       installmentsRemaining: form.isLoan ? numberOrNull(form.installmentsRemaining) : null,
     });
+    const firstIssue = parsed.success ? undefined : parsed.error.issues[0];
+    const issueBeforeAmount =
+      firstIssue !== undefined && FIELDS_BEFORE_AMOUNT.includes(String(firstIssue.path[0]));
+    if (amountIsMalformed && !issueBeforeAmount) return setFormError(AMOUNT_MESSAGE);
     if (!parsed.success) {
-      return setFormError(parsed.error.issues[0]?.message ?? "Dados inválidos.");
+      return setFormError(firstIssue?.message ?? "Dados inválidos.");
     }
     const input = parsed.data;
 

@@ -77,13 +77,13 @@ export function registerOrderedListRoutes<TCreate, TUpdate>(
     }
   });
 
-  const remove = repository.remove;
-  if (!remove) return;
+  if (!repository.remove) return;
   app.delete<{ Params: { id: string } }>(`${url}/:id`, async (request, reply) => {
     const id = parseId(request.params.id);
     if (id === null) return reply.code(404).send(notFound);
     try {
-      remove(id);
+      // Called on the repository (not detached), so a class-based one keeps its `this`.
+      repository.remove?.(id);
       return reply.code(204).send();
     } catch (error) {
       return sendError(reply, error);
