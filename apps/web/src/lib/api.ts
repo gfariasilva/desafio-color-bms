@@ -45,6 +45,9 @@ import {
   unclosedDaysResponseSchema,
   type CloseDayInput,
   type ReopenDayInput,
+  monthClosingResponseSchema,
+  type MonthClosingResponse,
+  type ReopenMonthInput,
   type DayCashClosingResponse,
   cashWithdrawalSchema,
   dayCashWithdrawalsResponseSchema,
@@ -188,6 +191,8 @@ export const QUERY_KEYS = {
   cashClosingDay: ["cashClosing", "day"],
   /** FR-27: earlier days with movement still open. */
   unclosedDays: ["cashClosing", "unclosed"],
+  /** FR-16: followed by the month: ["cashClosing", "month", "2026-10"]. */
+  monthClosing: ["cashClosing", "month"],
 } as const;
 
 export const api = {
@@ -262,6 +267,26 @@ export const api = {
       ),
     unclosed: (): Promise<string[]> =>
       getJson("/api/days/unclosed", unclosedDaysResponseSchema).then((r) => r.days),
+  },
+
+  /** FR-16: close a month; FR-17: reopen it with a reason. */
+  monthClosing: {
+    month: (yearMonth: string): Promise<MonthClosingResponse> =>
+      getJson(`/api/months/${encodeURIComponent(yearMonth)}/closing`, monthClosingResponseSchema),
+    close: (yearMonth: string): Promise<MonthClosingResponse> =>
+      requestJson(
+        "POST",
+        `/api/months/${encodeURIComponent(yearMonth)}/close`,
+        {},
+        monthClosingResponseSchema,
+      ),
+    reopen: (yearMonth: string, input: ReopenMonthInput): Promise<MonthClosingResponse> =>
+      requestJson(
+        "POST",
+        `/api/months/${encodeURIComponent(yearMonth)}/reopen`,
+        input,
+        monthClosingResponseSchema,
+      ),
   },
 
   /** FR-14: sale tabs (abas), in display order. */

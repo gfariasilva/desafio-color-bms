@@ -59,7 +59,7 @@ Ordered backlog for the MVP (spec §9.1). Each item is one small PR / GitHub iss
 | [x] | M4 | [#11](#11--fixed-expense-templates) | Fixed-expense templates | FR-10; RN-12 | #1 |
 | [x] | M4 | [#12](#12--generate-the-months-fixed-expenses) | Generate the month's fixed expenses | FR-11 | #11 |
 | [x] | M4 | [#13](#13--pay-or-dismiss-a-fixed-expense-loan-installments) | Pay or dismiss a fixed expense; loan installments | FR-12, FR-13; RN-09, RN-07, RN-14 | #12, #9 |
-| [ ] | M5 | [#14](#14--close-and-reopen-the-month) | Close and reopen the month | FR-16, FR-17; RN-14 | #10, #13 |
+| [x] | M5 | [#14](#14--close-and-reopen-the-month) | Close and reopen the month | FR-16, FR-17; RN-14 | #10, #13 |
 | [ ] | M5 | [#16](#16--month-reports-income-and-general-expenses) | Month reports: income and general expenses | FR-20, FR-21; RN-06, RN-08 | #6, #7 |
 | [ ] | M5 | [#17](#17--month-reports-fixed-expenses-and-monthly-summary) | Month reports: fixed expenses and monthly summary | FR-22, FR-23; RN-09, RN-10 | #13, #16 |
 | [ ] | M5 | [#28](#28--monthly-spreadsheet-export) | Monthly spreadsheet export | FR-29 | #17, #21 |
@@ -934,6 +934,16 @@ Diferença = Dinheiro contado − Dinheiro esperado   (>0 sobra, <0 falta)
 **Out of scope**
 
 - Final monthly spreadsheet and backup on close: hook point `onMonthClosed`, wired in #28 (spreadsheet) and #22 (backup).
+
+**Done notes (follow-ups)**
+
+- **No migration:** closing upserts the `months` row (`status`, `closed_at`); reopening sets it back to open with `closed_at = null`. RN-14 locks were already enforced by every module through `periodStatus`; tests now prove them through the real endpoint.
+- Core `cash-closing/month-closing.ts`: `monthParamsSchema`, `reopenMonthInputSchema` (motivo required, trimmed, max 200), `closeMonthBlock()` (already closed → not ended → pending days), `reopenMonthBlock()`, `lastDateOfMonth()`, `monthClosingResponseSchema`, codes `PENDING_DAYS_CODE`, `MONTH_ALREADY_CLOSED_CODE`, `MONTH_NOT_CLOSED_CODE`. Audit label `pendingFixedExpenses` → "Despesas fixas pendentes".
+- Decisions (approved): a month can be closed **only from its last day on** (400 "O mês 11/2026 ainda não terminou. Ele pode ser fechado a partir de 30/11/2026."), so closing never locks days still to come. A month with no movement can be closed. Pending fixed expenses of the reference month are listed before confirming and never block (FR-16); they stay pending.
+- API (`modules/month-closing/`): `GET /api/months/:yearMonth/closing` (`status`, `closedAt`, `lastDate`, `pendingDays` (A-15, via the shared `MOVEMENT_DATES_SQL`), `pendingFixedExpenses`, `closeBlocked`), `POST …/close` (400 not ended; 409 `pending_days` listing the days; 409 `month_already_closed`), `POST …/reopen` (`{ reason }`; 409 `month_not_closed`). Audit: entity `month`, `close` (`{status:"open"}` → `{status:"closed", pendingFixedExpenses: n}`) and `reopen` (with the reason), each in the same transaction as the write.
+- **`buildApp({ onMonthClosed })`** runs after the closing commits (not awaited, failures only logged): **#28** (final monthly spreadsheet) and **#22** (backup) hook in there. Reopening queues nothing; a re-closing calls it again, so #28 must overwrite the earlier file.
+- UI: "Fechamento do mês" section under the day on `/fechamento` (`components/cash-closing/MonthClosingSection.tsx`, `MonthClosingPanel.tsx`): starts on the month of the chosen day, ◀ ▶ to other months (not past the current one). Pending days are links to `?data=`; "Fechar mês" opens an in-place "Tem certeza?" card (Enter confirms, Esc cancels); a closed month shows "Mês fechado" + "Reabrir mês" (reason card). `ReopenDayPanel` now wraps a shared `ReopenPanel`. Screenshots in `docs/screenshots/fr-16/`.
+- Follow-ups: **#23** could alert "mês anterior não fechado" from day 1 of a month (`GET /api/months/:ym/closing` gives what it needs). The Fechamento page's two status lines are now scoped by section in tests (`region` "Fechamento de caixa" / "Fechamento do mês").
 
 **Acceptance criteria** _(verbatim from spec §4)_
 
