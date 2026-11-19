@@ -26,3 +26,4 @@ export * from "./cash-closing/reopen-day";
 export * from "./fixed-expenses/fixed-expense-templates";
 export * from "./fixed-expenses/month-generation";
 export * from "./fixed-expenses/fixed-expenses";
+export * from "./fixed-expenses/fixed-expense-payment";

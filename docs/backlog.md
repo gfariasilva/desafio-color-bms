@@ -58,7 +58,7 @@ Ordered backlog for the MVP (spec §9.1). Each item is one small PR / GitHub iss
 | [ ] | M4 | [#21](#21--daily-spreadsheet-export-and-the-retry-queue) | Daily spreadsheet export and the retry queue | FR-28, FR-30 | #15, #20 |
 | [x] | M4 | [#11](#11--fixed-expense-templates) | Fixed-expense templates | FR-10; RN-12 | #1 |
 | [x] | M4 | [#12](#12--generate-the-months-fixed-expenses) | Generate the month's fixed expenses | FR-11 | #11 |
-| [ ] | M4 | [#13](#13--pay-or-dismiss-a-fixed-expense-loan-installments) | Pay or dismiss a fixed expense; loan installments | FR-12, FR-13; RN-09, RN-07, RN-14 | #12, #9 |
+| [x] | M4 | [#13](#13--pay-or-dismiss-a-fixed-expense-loan-installments) | Pay or dismiss a fixed expense; loan installments | FR-12, FR-13; RN-09, RN-07, RN-14 | #12, #9 |
 | [ ] | M5 | [#14](#14--close-and-reopen-the-month) | Close and reopen the month | FR-16, FR-17; RN-14 | #10, #13 |
 | [ ] | M5 | [#16](#16--month-reports-income-and-general-expenses) | Month reports: income and general expenses | FR-20, FR-21; RN-06, RN-08 | #6, #7 |
 | [ ] | M5 | [#17](#17--month-reports-fixed-expenses-and-monthly-summary) | Month reports: fixed expenses and monthly summary | FR-22, FR-23; RN-09, RN-10 | #13, #16 |
@@ -860,6 +860,19 @@ Carga inicial (ver RN-12):
 
 - Payment date cannot fall on a closed day (A-16).
 - RN-14 still applies to the conversion: the screen reopens the day (FR-09, reason pre-filled "Conversão CONTA: piloto"), converts, and closes it again. Expected cash is unchanged (a till withdrawal becomes a till payment), so the re-closing keeps the same counted cash and difference; test that.
+
+**Done notes (follow-ups)**
+
+- **No migration:** the `expenses` columns from #7/#12 cover payments. The rules are enforced in code (SQLite cannot add a CHECK without rebuilding the table).
+- Core `fixed-expenses/fixed-expense-payment.ts`: `payFixedExpenseInputSchema`, `fixedExpenseStatusChangeInputSchema` (optional reason), `payFixedExpenseBlock` / `dismissFixedExpenseBlock` / `undoFixedExpenseBlock` (`{ kind: "status" | "future" | "locked", message }`), `loanPayment` / `loanUndo` (FR-13), `fixedExpensesOfMonthCents` (RN-09), `contaBillName`, `convertContaInputSchema`, `contaCandidatesResponseSchema`, `CONTA_CONVERSION_REASON`. Audit label `installmentNumber` → "Parcela".
+- API: `POST /api/fixed-expenses/:id/pay` (`{ amountCents, paymentDate, paymentMeans, paidFromTill? }`; 400 future/invalid, 404, 409 wrong status, 409 `day_closed` for a closed payment day or month), `POST …/:id/dismiss` and `POST …/:id/undo` (`{ reason? }`). `GET /api/fixed-expenses` adds `paidTotalCents` (RN-09, by payment date). `GET /api/conta-conversions` and `POST /api/conta-conversions/:withdrawalId` (`{ target: "existing", fixedExpenseId } | { target: "one_off", name, group }`).
+- Audit: `expense` `update` with `before`/`after` status and payment fields (name and month in both); a loan also writes a `fixed_expense_template` `update` of `installmentsRemaining` with the reason "Pagamento da parcela n de N (FR-13)." (or "… desfeito").
+- Decisions (approved): **Desfazer** (paid → pending, only while the payment day is open) and **Reativar** (dismissed → pending, only while the reference month is open). A dismissal is blocked in a closed reference month; a payment only looks at the payment date (October's bill can be paid in November). **FR-13 countdown:** the installment number is set **at payment** (`total − remaining + 1`), so two pending installments are numbered in the order they are paid; with 0 left or blank installments (Q-06) the payment is recorded with no number and no countdown, and undoing it gives nothing back. Undoing a counted payment gives one installment back (never above the total); undoing payments out of order can leave two entries with the same number (rare; fix by hand in the template).
+- **CONTA: conversion:** one transaction. On a closed day it records the reopen (reason "Conversão CONTA: piloto"), deletes the sangria (audit `delete`, same reason), pays the target (Dinheiro, from the till, same date and amount), then closes the day again with the same opening and counted cash and note; the closing passes the stored expected cash, so a changed RN-07 would roll everything back. `onDayClosed` runs after a re-closing. The panel starts on "Nova conta avulsa: <name after CONTA:>" (group Gerais) and never pre-picks a pending bill, so "CONTA: Luz outubro" cannot pay November's Luz by accident. A new one-off bill gets the sangria's month as reference month and its date as due date.
+- `closeDay` / `reopenDay` / `createOneOffFixedExpense` / `payFixedExpense` have `…InTransaction` variants for this; `runAfterDayClosed()` in `cash-closing.routes.ts` is the shared after-commit hook call.
+- UI: on `/despesas-fixas/mes`, Pagamento column and row actions, the pay card, "Pago no mês" under the totals, and the "Sangrias “CONTA:” do piloto" panel. Screenshots in `docs/screenshots/fr-12/`.
+- **#14:** the month warning about pending bills can use `status = 'pending'` by `reference_month`. **#17:** RN-09 is `fixedExpensesOfMonthCents`. **#23:** dismissed entries are already out of "a vencer"/"vencida" by status.
+- **#26/#27 (owner guide):** remove the interim "CONTA:" rule once the conversion is done on the shop PC.
 
 **Acceptance criteria** _(verbatim from spec §4)_
 

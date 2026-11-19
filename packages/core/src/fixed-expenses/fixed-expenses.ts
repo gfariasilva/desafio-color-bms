@@ -17,7 +17,7 @@ import { FIXED_EXPENSE_GROUPS } from "./fixed-expense-templates";
  * FR-11: the month's fixed expenses ("contas do mês"): one pending entry per template,
  * generated once a month (`planMonthFixedExpenses`), plus one-off entries the owner adds.
  * They live in the `expenses` table with `type: "fixed"` (spec §6.1 "Despesa").
- * Paying and dismissing them is FR-12 (#13).
+ * Paying and dismissing them is FR-12 (`fixed-expense-payment.ts`).
  */
 
 /** Spec §6.1 "Despesa": the status labels shown in the UI and the audit log. */
@@ -121,7 +121,7 @@ export const fixedExpenseSchema = z.object({
   dueDate: z.string().nullable(),
   expectedAmountCents: z.number().int().nullable(),
   status: z.enum(EXPENSE_STATUSES),
-  /** Filled in when paid (FR-12, #13). */
+  /** Filled in when paid (FR-12). */
   amountCents: z.number().int().nullable(),
   paymentDate: z.string().nullable(),
   paymentMeans: z.enum(EXPENSE_PAYMENT_MEANS).nullable(),
@@ -152,5 +152,7 @@ export const monthFixedExpensesResponseSchema = z.object({
   expenses: z.array(fixedExpenseSchema),
   /** Informative: Σ expected amounts, dismissed entries excluded. */
   expectedTotalCents: z.number().int(),
+  /** RN-09: Σ fixed expenses paid in this month (by payment date, any reference month). */
+  paidTotalCents: z.number().int(),
 });
 export type MonthFixedExpensesResponse = z.infer<typeof monthFixedExpensesResponseSchema>;

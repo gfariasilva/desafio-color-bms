@@ -1,4 +1,8 @@
 import {
+  contaCandidatesResponseSchema,
+  type ContaCandidatesResponse,
+  type ConvertContaInput,
+  type PayFixedExpenseInput,
   fixedExpenseSchema,
   monthFixedExpensesResponseSchema,
   type CreateOneOffFixedExpenseInput,
@@ -163,6 +167,8 @@ export const QUERY_KEYS = {
   fixedExpenses: ["fixedExpenses"],
   /** FR-11: followed by the month: ["fixedExpenses", "month", "2026-11"]. */
   fixedExpensesMonth: ["fixedExpenses", "month"],
+  /** #13: the CONTA: sangrias left to convert (under fixedExpenses: a payment refreshes it). */
+  contaConversions: ["fixedExpenses", "contaConversions"],
   today: ["today"],
   /** Prefix of every sales query; any sale change invalidates it all. */
   sales: ["sales"],
@@ -341,6 +347,23 @@ export const api = {
       getJson(`/api/fixed-expenses${toQueryString({ month })}`, monthFixedExpensesResponseSchema),
     createOneOff: (input: CreateOneOffFixedExpenseInput): Promise<FixedExpense> =>
       requestJson("POST", "/api/fixed-expenses", input, fixedExpenseSchema),
+    /** FR-12 / FR-13: pays a pending bill (a loan counts one installment down). */
+    pay: (id: number, input: PayFixedExpenseInput): Promise<FixedExpense> =>
+      requestJson("POST", `/api/fixed-expenses/${id}/pay`, input, fixedExpenseSchema),
+    /** FR-12: "não se aplica no mês": out of every total and alert. */
+    dismiss: (id: number): Promise<FixedExpense> =>
+      requestJson("POST", `/api/fixed-expenses/${id}/dismiss`, {}, fixedExpenseSchema),
+    /** FR-12: back to pending ("Desfazer pagamento" / "Reativar"). */
+    undo: (id: number): Promise<FixedExpense> =>
+      requestJson("POST", `/api/fixed-expenses/${id}/undo`, {}, fixedExpenseSchema),
+  },
+
+  /** #13: the pilot's "CONTA:" sangrias, converted into paid fixed expenses. */
+  contaConversions: {
+    list: (): Promise<ContaCandidatesResponse> =>
+      getJson("/api/conta-conversions", contaCandidatesResponseSchema),
+    convert: (withdrawalId: number, input: ConvertContaInput): Promise<FixedExpense> =>
+      requestJson("POST", `/api/conta-conversions/${withdrawalId}`, input, fixedExpenseSchema),
   },
 
   /** FR-10: fixed-expense templates (modelos), in display order. No delete. */

@@ -196,6 +196,7 @@ export const AUDIT_FIELD_LABELS: Record<string, string> = {
   referenceMonth: "Mês de referência",
   dueDate: "Vencimento",
   expenseStatus: "Situação",
+  installmentNumber: "Parcela",
 };
 
 /** pt-BR labels for coded values, per field (e.g. an expense category's group). */

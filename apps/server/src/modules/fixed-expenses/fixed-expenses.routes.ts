@@ -1,18 +1,26 @@
 import type { FastifyInstance } from "fastify";
 import {
   createOneOffFixedExpenseInputSchema,
+  FIXED_EXPENSE_PAYMENT_TEXTS,
+  fixedExpenseStatusChangeInputSchema,
   monthFixedExpensesQuerySchema,
+  payFixedExpenseInputSchema,
   monthOf,
   todayCivilDate,
 } from "@color-bms/core";
 import type { Clock } from "../../clock";
 import type { DatabaseConnection } from "../../db/client";
-import { parseOr400, sendError } from "../../http/route-helpers";
+import { parseId, parseOr400, sendError } from "../../http/route-helpers";
 import {
   createOneOffFixedExpense,
+  dismissFixedExpense,
   ensureMonthFixedExpenses,
   getMonthFixedExpenses,
+  payFixedExpense,
+  undoFixedExpense,
 } from "./fixed-expenses.repository";
+
+const NOT_FOUND = { error: FIXED_EXPENSE_PAYMENT_TEXTS.notFound };
 
 /**
  * FR-11: "quando o sistema é aberto em qualquer dia do mês M", the month's fixed expenses are
@@ -49,7 +57,10 @@ export function registerMonthGeneration(
   });
 }
 
-/** FR-11: GET /api/fixed-expenses?month=YYYY-MM (the month's bills), POST (one-off entry). */
+/**
+ * FR-11: GET /api/fixed-expenses?month=YYYY-MM (the month's bills), POST (one-off entry).
+ * FR-12 / FR-13: POST /api/fixed-expenses/:id/pay, /dismiss and /undo.
+ */
 export function registerFixedExpenseRoutes(
   app: FastifyInstance,
   { db }: DatabaseConnection,
@@ -71,4 +82,36 @@ export function registerFixedExpenseRoutes(
       return sendError(reply, error);
     }
   });
+
+  app.post<{ Params: { id: string } }>("/api/fixed-expenses/:id/pay", async (request, reply) => {
+    const id = parseId(request.params.id);
+    if (id === null) return reply.code(404).send(NOT_FOUND);
+    const input = parseOr400(payFixedExpenseInputSchema, request.body, reply);
+    if (!input) return reply;
+    try {
+      return payFixedExpense(db, id, input, clock());
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  for (const [action, change] of [
+    ["dismiss", dismissFixedExpense],
+    ["undo", undoFixedExpense],
+  ] as const) {
+    app.post<{ Params: { id: string } }>(
+      `/api/fixed-expenses/:id/${action}`,
+      async (request, reply) => {
+        const id = parseId(request.params.id);
+        if (id === null) return reply.code(404).send(NOT_FOUND);
+        const input = parseOr400(fixedExpenseStatusChangeInputSchema, request.body, reply);
+        if (!input) return reply;
+        try {
+          return change(db, id, input.reason, clock());
+        } catch (error) {
+          return sendError(reply, error);
+        }
+      },
+    );
+  }
 }

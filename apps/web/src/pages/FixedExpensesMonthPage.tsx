@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import {
   addMonths,
   createOneOffFixedExpenseInputSchema,
+  EXPENSE_PAYMENT_MEANS_LABELS,
   EXPENSE_STATUS_LABELS,
   FIXED_EXPENSE_GROUP_LABELS,
   FIXED_EXPENSE_GROUPS,
@@ -17,7 +18,10 @@ import {
   type ExpenseStatus,
   type FixedExpense,
   type FixedExpenseGroup,
+  type PayFixedExpenseInput,
 } from "@color-bms/core";
+import { ContaConversionPanel } from "@/components/fixed-expenses/ContaConversionPanel";
+import { PayFixedExpenseForm } from "@/components/fixed-expenses/PayFixedExpenseForm";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -64,7 +68,9 @@ function errorMessage(error: unknown): string {
 /**
  * Despesas fixas › Contas do mês (FR-11): the month's bills, generated from the templates on
  * the first day the system is opened in the month, plus one-off bills the owner adds.
- * Paying and dismissing them comes with #13 (FR-12).
+ * FR-12 / FR-13: each pending bill can be paid ("Pagar" opens a compact card above the list)
+ * or dismissed; a payment can be undone and a dismissal reactivated while the period is open.
+ * #13: the pilot's "CONTA:" sangrias are converted here (`ContaConversionPanel`).
  *
  * Keyboard (NFR-05): Conta → Grupo → Vencimento → Valor previsto; Enter adds and focus
  * returns to Conta. "Mês anterior"/"Próximo mês" move between months (never into the future).
@@ -82,6 +88,13 @@ export function FixedExpensesMonthPage() {
     queryFn: () => api.fixedExpenses.month(requestedMonth ?? ""),
   });
   const data = monthQuery.data;
+  const today = useQuery({ queryKey: QUERY_KEYS.today, queryFn: api.today });
+
+  /** FR-12: the bill being paid in the card above the list, if any. */
+  const [paying, setPaying] = useState<FixedExpense | null>(null);
+  const [payError, setPayError] = useState<string | null>(null);
+  /** The row buttons, to return focus to "Pagar" when the card is cancelled. */
+  const rowButtons = useRef(new Map<number, HTMLButtonElement | null>());
 
   const [form, setForm] = useState<FormState>(() => emptyForm());
   const [formError, setFormError] = useState<string | null>(null);
@@ -100,6 +113,80 @@ export function FixedExpensesMonthPage() {
     },
     onError: (error) => setFormError(errorMessage(error)),
   });
+
+  async function refreshAfterPayment() {
+    // A payment or undo also changes the day's closing (RN-07) and the CONTA: candidates.
+    await Promise.all(
+      [QUERY_KEYS.fixedExpenses, QUERY_KEYS.cashClosing].map((queryKey) =>
+        queryClient.invalidateQueries({ queryKey }),
+      ),
+    );
+  }
+
+  const pay = useMutation({
+    mutationFn: ({ id, input }: { id: number; input: PayFixedExpenseInput }) =>
+      api.fixedExpenses.pay(id, input),
+    onSuccess: async (paid) => {
+      setPaying(null);
+      setPayError(null);
+      setFormError(null);
+      const installment = fixedExpenseInstallmentLabel(paid);
+      setSaved(
+        `${paid.label} paga: ${formatCents(paid.amountCents ?? 0)} em ${formatCivilDate(paid.paymentDate ?? "")}${installment ? ` (${installment})` : ""}.`,
+      );
+      await refreshAfterPayment();
+      firstField.current?.focus();
+    },
+    onError: (error) => setPayError(errorMessage(error)),
+  });
+
+  const changeStatus = useMutation({
+    mutationFn: ({ expense, action }: { expense: FixedExpense; action: "dismiss" | "undo" }) =>
+      action === "dismiss"
+        ? api.fixedExpenses.dismiss(expense.id)
+        : api.fixedExpenses.undo(expense.id),
+    onSuccess: async (changed, { expense }) => {
+      setFormError(null);
+      setSaved(
+        changed.status === "dismissed"
+          ? `${changed.label} dispensada.`
+          : expense.status === "paid"
+            ? `Pagamento de ${changed.label} desfeito.`
+            : `${changed.label} reativada.`,
+      );
+      await refreshAfterPayment();
+    },
+    onError: (error) => {
+      setSaved(null);
+      setFormError(errorMessage(error));
+    },
+  });
+
+  function startPaying(expense: FixedExpense) {
+    setSaved(null);
+    setPayError(null);
+    setPaying(expense);
+  }
+
+  function cancelPaying() {
+    const id = paying?.id;
+    setPaying(null);
+    setPayError(null);
+    if (id !== undefined) rowButtons.current.get(id)?.focus();
+  }
+
+  function confirmDismiss(expense: FixedExpense) {
+    const question = `Dispensar ${expense.label} de ${formatYearMonthLong(expense.referenceMonth)}? Ela não se aplica neste mês: sai dos totais e dos alertas. A ação fica registrada na auditoria.`;
+    if (window.confirm(question)) changeStatus.mutate({ expense, action: "dismiss" });
+  }
+
+  function confirmUndo(expense: FixedExpense) {
+    const question =
+      expense.status === "paid"
+        ? `Desfazer o pagamento de ${expense.label} (${formatCents(expense.amountCents ?? 0)} em ${formatCivilDate(expense.paymentDate ?? "")})? A conta volta a pendente.`
+        : `Reativar ${expense.label}? A conta volta a pendente.`;
+    if (window.confirm(question)) changeStatus.mutate({ expense, action: "undo" });
+  }
 
   function set<K extends keyof FormState>(field: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -152,6 +239,71 @@ export function FixedExpensesMonthPage() {
     );
   }
 
+  /** FR-12: what was paid, when and how; "do caixa" when it left the till (RN-07). */
+  function renderPayment(expense: FixedExpense) {
+    if (expense.status !== "paid" || expense.paymentDate === null) return "—";
+    const means = expense.paymentMeans ? EXPENSE_PAYMENT_MEANS_LABELS[expense.paymentMeans] : "";
+    return (
+      <span className="whitespace-nowrap">
+        <span className="tabular-nums">{formatCents(expense.amountCents ?? 0)}</span>
+        <span className="text-muted-foreground">
+          {" "}
+          · {formatCivilDate(expense.paymentDate)} · {means}
+          {expense.paidFromTill ? " do caixa" : ""}
+        </span>
+      </span>
+    );
+  }
+
+  function renderActions(expense: FixedExpense) {
+    const busy = changeStatus.isPending || pay.isPending;
+    if (expense.status === "pending") {
+      return (
+        <span className="flex justify-end gap-1">
+          <Button
+            ref={(button) => {
+              rowButtons.current.set(expense.id, button);
+            }}
+            size="sm"
+            variant="outline"
+            aria-label={`Pagar ${expense.label}`}
+            disabled={busy || !today.data}
+            onClick={() => startPaying(expense)}
+          >
+            Pagar
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            aria-label={`Dispensar ${expense.label}`}
+            disabled={busy}
+            onClick={() => confirmDismiss(expense)}
+          >
+            Dispensar
+          </Button>
+        </span>
+      );
+    }
+    const label = expense.status === "paid" ? "Desfazer" : "Reativar";
+    return (
+      <span className="flex justify-end">
+        <Button
+          size="sm"
+          variant="ghost"
+          aria-label={
+            expense.status === "paid"
+              ? `Desfazer o pagamento de ${expense.label}`
+              : `Reativar ${expense.label}`
+          }
+          disabled={busy}
+          onClick={() => confirmUndo(expense)}
+        >
+          {label}
+        </Button>
+      </span>
+    );
+  }
+
   function renderRow(expense: FixedExpense) {
     const installment = fixedExpenseInstallmentLabel(expense);
     return (
@@ -159,7 +311,7 @@ export function FixedExpensesMonthPage() {
         key={expense.id}
         className={cn(expense.status === "dismissed" && "text-muted-foreground")}
       >
-        <TableCell className="w-60">{renderDueDate(expense)}</TableCell>
+        <TableCell className="w-48">{renderDueDate(expense)}</TableCell>
         <TableCell>
           <span className="flex flex-wrap items-center gap-2">
             {expense.label}
@@ -175,6 +327,8 @@ export function FixedExpensesMonthPage() {
             {EXPENSE_STATUS_LABELS[expense.status]}
           </Badge>
         </TableCell>
+        <TableCell>{renderPayment(expense)}</TableCell>
+        <TableCell className="w-44">{renderActions(expense)}</TableCell>
       </TableRow>
     );
   }
@@ -196,12 +350,16 @@ export function FixedExpensesMonthPage() {
                   <TableHead>Conta</TableHead>
                   <TableHead className="text-right">Valor previsto</TableHead>
                   <TableHead>Situação</TableHead>
+                  <TableHead>Pagamento</TableHead>
+                  <TableHead>
+                    <span className="sr-only">Ações</span>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {rows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-muted-foreground">
+                    <TableCell colSpan={6} className="text-muted-foreground">
                       Nenhuma conta neste grupo.
                     </TableCell>
                   </TableRow>
@@ -237,7 +395,7 @@ export function FixedExpensesMonthPage() {
         </Link>
       </p>
 
-      <div className="max-w-4xl">
+      <div className="max-w-6xl">
         <div className="mb-4 flex items-center gap-2">
           <Button
             variant="outline"
@@ -352,6 +510,25 @@ export function FixedExpensesMonthPage() {
         )}
         {monthQuery.isPending && <p className="text-muted-foreground">Carregando…</p>}
 
+        <ContaConversionPanel
+          onConverted={(text) => {
+            setFormError(null);
+            setSaved(text);
+          }}
+        />
+
+        {paying && today.data && (
+          <PayFixedExpenseForm
+            key={paying.id}
+            expense={paying}
+            today={today.data}
+            pending={pay.isPending}
+            serverError={payError}
+            onSubmit={(input) => pay.mutate({ id: paying.id, input })}
+            onCancel={cancelPaying}
+          />
+        )}
+
         {data && (
           <>
             {!data.generated && (
@@ -364,6 +541,12 @@ export function FixedExpensesMonthPage() {
             </div>
             <p className="mt-3 text-muted-foreground">
               Total previsto do mês (sem as dispensadas): {formatCents(data.expectedTotalCents)}
+            </p>
+            <p className="text-muted-foreground">
+              Pago no mês (pela data do pagamento, inclusive contas de outros meses):{" "}
+              <span className="font-medium text-foreground">
+                {formatCents(data.paidTotalCents)}
+              </span>
             </p>
           </>
         )}
