@@ -12,7 +12,9 @@ import { FixedExpenseTemplatesPage } from "@/pages/FixedExpenseTemplatesPage";
 import { CatalogListPage } from "@/pages/CatalogListPage";
 import { ClosingPage } from "@/pages/ClosingPage";
 import { HomePage } from "@/pages/HomePage";
+import { DayReportPage } from "@/pages/DayReportPage";
 import { PlaceholderPage } from "@/pages/PlaceholderPage";
+import { ReportsPage } from "@/pages/ReportsPage";
 import { SalesPage } from "@/pages/SalesPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 
@@ -23,6 +25,7 @@ const BUILT_AREAS = new Set([
   "/despesas",
   "/despesas-fixas",
   "/fechamento",
+  "/relatorios",
   "/cadastros",
   "/configuracoes",
 ]);
@@ -41,6 +44,8 @@ export function AppRoutes() {
         <Route path="despesas-fixas/modelos" element={<FixedExpenseTemplatesPage />} />
         <Route path="despesas-fixas/mes" element={<FixedExpensesMonthPage />} />
         <Route path="fechamento" element={<ClosingPage />} />
+        <Route path="relatorios" element={<ReportsPage />} />
+        <Route path="relatorios/dia" element={<DayReportPage />} />
         <Route path="cadastros" element={<CatalogPage />} />
         <Route path="cadastros/abas" element={<CatalogListPage kind="sale" />} />
         <Route path="cadastros/categorias-despesa" element={<CatalogListPage kind="expense" />} />

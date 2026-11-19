@@ -50,7 +50,7 @@ Ordered backlog for the MVP (spec §9.1). Each item is one small PR / GitHub iss
 | [x] | M2 | [#8](#8--cash-withdrawals-sangrias) | Cash withdrawals (sangrias) | FR-07; RN-14 | #4 |
 | [x] | M2 | [#9](#9--close-the-day-cash-closing) | Close the day (cash closing) | FR-08; RN-07, RN-14 | #6, #7, #8 |
 | [x] | M2 | [#10](#10--reopen-a-day) | Reopen a day | FR-09; RN-14 | #9 |
-| [ ] | M2 | [#15](#15--day-report) | Day report | FR-19; RN-05, RN-07 | #9 |
+| [x] | M2 | [#15](#15--day-report) | Day report | FR-19; RN-05, RN-07 | #9 |
 | [ ] | M3 | [#25](#25--pilot-database-backup) | Pilot database backup | slice of FR-31 | #9 |
 | [ ] | M3 | [#26](#26--pilot-install-on-the-shop-pc) | Pilot install on the shop PC | slice of FR-34 | #25 |
 | [ ] | M3 | [#27](#27--pilot-go-live-and-the-parallel-period) | Pilot go-live and the parallel period | spec §9.5 | #26, #15 |
@@ -998,6 +998,13 @@ Diferença = Dinheiro contado − Dinheiro esperado   (>0 sobra, <0 falta)
 
 - NFR-04: < 2 s with 5 years of data; add indexes on dates if needed (seed a large test DB).
 - This is the comparison tool of the parallel period, so it is part of milestone M2 (before the pilot).
+
+**Done notes**
+
+- `GET /api/days/:date/report` (`apps/server/src/modules/reports/day-report.repository.ts`) reuses the day queries of FR-05 to FR-08; #21 builds the daily .xlsx from `getDayReport` so file and screen match.
+- "Saídas do dia" = the day's general expenses **plus the fixed expenses paid on that date** (owner decision), so every RN-07 term is visible on the report.
+- NFR-04: ≈ 25 ms for one day on a seeded DB with 5 years × 300 sales/day (548k sales); the existing date indexes are enough, no migration.
+- Follow-up for #21: the FR-19 "matches the exported spreadsheet" criterion is tested here against the day endpoints; add the xlsx-vs-report comparison test in #21.
 
 **Acceptance criteria** _(verbatim from spec §4)_
 

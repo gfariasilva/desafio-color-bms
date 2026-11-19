@@ -41,6 +41,8 @@ import {
   type UpdateExpenseCategoryInput,
   type UpdateSaleCategoryInput,
   healthResponseSchema,
+  dayReportResponseSchema,
+  type DayReportResponse,
   dayCashClosingResponseSchema,
   unclosedDaysResponseSchema,
   type CloseDayInput,
@@ -193,6 +195,8 @@ export const QUERY_KEYS = {
   unclosedDays: ["cashClosing", "unclosed"],
   /** FR-16: followed by the month: ["cashClosing", "month", "2026-10"]. */
   monthClosing: ["cashClosing", "month"],
+  /** FR-19: followed by the civil date: ["reports", "day", "2026-11-18"]. */
+  dayReport: ["reports", "day"],
 } as const;
 
 export const api = {
@@ -244,6 +248,12 @@ export const api = {
       requestJson("PATCH", `/api/cash-withdrawals/${id}`, input, cashWithdrawalSchema),
     remove: (id: number): Promise<void> =>
       requestJson("DELETE", `/api/cash-withdrawals/${id}`, undefined),
+  },
+
+  /** FR-19: the day report (matrix, expenses, sangrias, cash closing). */
+  reports: {
+    day: (date: string): Promise<DayReportResponse> =>
+      getJson(`/api/days/${encodeURIComponent(date)}/report`, dayReportResponseSchema),
   },
 
   /** FR-08: the cash closing of a day; FR-27: the earlier days left open. */
