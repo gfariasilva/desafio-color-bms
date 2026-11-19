@@ -5,6 +5,8 @@ import { systemClock, type Clock } from "./clock";
 import type { DatabaseConnection } from "./db/client";
 import { registerHostGuard } from "./http/host-guard";
 import { registerAuditRoutes } from "./modules/audit/audit.routes";
+import { registerBackupRoutes } from "./modules/backup/backup.routes";
+import { createBackupService, type BackupService } from "./modules/backup/backup.service";
 import {
   registerCashClosingRoutes,
   type OnDayClosed,
@@ -37,10 +39,15 @@ export interface BuildAppOptions {
   /** The current time (ADR 0002). Tests pass a fixed clock. */
   now?: Clock;
   /**
-   * FR-08: called after a day's closing is committed. The pilot backup (#25) and the daily
-   * export (#21) hook in here; a no-op until then.
+   * FR-08: called after a day's closing is committed, after the backup. The daily export (#21)
+   * hooks in here; a no-op until then.
    */
   onDayClosed?: OnDayClosed;
+  /**
+   * #25: the pilot backup to OneDrive, run after every day closing (FR-31) before
+   * `onDayClosed`. Defaults to a service with no folder (nothing is written).
+   */
+  backup?: BackupService;
   /**
    * FR-16: called after a month's closing is committed. The final monthly spreadsheet (#28)
    * and the backup (#22) hook in here; a no-op until then. A failure never undoes the closing.
@@ -56,14 +63,29 @@ export async function buildApp({
   now = systemClock,
   onDayClosed = () => {},
   onMonthClosed = () => {},
+  backup,
 }: BuildAppOptions): Promise<FastifyInstance> {
   const app = Fastify({ logger });
+  const backupService =
+    backup ??
+    createBackupService({
+      sqlite: connection.sqlite,
+      folder: null,
+      now,
+      log: { info: () => {}, error: () => {} },
+    });
+  // FR-31 (#25): back up after each closing; the backup never throws, so the hook chain goes on.
+  const afterDayClosed: OnDayClosed = async (date) => {
+    await backupService.run("day-close");
+    await onDayClosed(date);
+  };
 
   registerHostGuard(app);
   // FR-11: generate the month's fixed expenses now and on the first request of a new month.
   registerMonthGeneration(app, connection, now);
   registerHealthRoutes(app, connection, packageJson.version);
   registerAuditRoutes(app, connection);
+  registerBackupRoutes(app, backupService);
   registerCategoryRoutes(app, connection);
   registerPaymentRoutes(app, connection);
   registerFixedExpenseTemplateRoutes(app, connection, now);
@@ -71,8 +93,8 @@ export async function buildApp({
   registerSalesRoutes(app, connection, now);
   registerExpenseRoutes(app, connection, now);
   registerCashWithdrawalRoutes(app, connection, now);
-  registerCashClosingRoutes(app, connection, now, onDayClosed);
-  registerContaConversionRoutes(app, connection, now, onDayClosed);
+  registerCashClosingRoutes(app, connection, now, afterDayClosed);
+  registerContaConversionRoutes(app, connection, now, afterDayClosed);
   registerMonthClosingRoutes(app, connection, now, onMonthClosed);
   registerDayReportRoutes(app, connection, now);
   registerMonthReportRoutes(app, connection, now);

@@ -17,6 +17,7 @@ import {
 import { buildApp } from "../src/app";
 import { openDatabase, type DatabaseConnection } from "../src/db/client";
 import { runMigrations } from "../src/db/migrate";
+import type { BackupService } from "../src/modules/backup/backup.service";
 
 /** 18/11/2026 at 15:00 in São Paulo (UTC−3). */
 export const NOW = new Date("2026-11-18T18:00:00.000Z");
@@ -53,7 +54,9 @@ export interface SalesContext {
  * the app with a fixed clock. Call at the top level of a test file; read the context inside
  * the tests (it is refilled before each one).
  */
-export function useSalesApp(): SalesContext {
+export function useSalesApp(
+  options: { backup?: (connection: DatabaseConnection) => BackupService } = {},
+): SalesContext {
   const context = {} as SalesContext;
   let tempDir: string;
 
@@ -68,6 +71,7 @@ export function useSalesApp(): SalesContext {
     context.app = await buildApp({
       connection: context.connection,
       now: () => NOW,
+      backup: options.backup?.(context.connection),
       onDayClosed: (date) => {
         context.dayClosedCalls.push(date);
         return context.afterDayClosed?.(date);

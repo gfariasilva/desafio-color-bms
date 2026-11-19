@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, DatabaseBackup } from "lucide-react";
 import { Link } from "react-router-dom";
 import { formatCivilDate, formatInstant } from "@color-bms/core";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -11,8 +11,41 @@ import { api, QUERY_KEYS } from "@/lib/api";
 const home = NAV_ITEMS[0];
 
 /**
+ * #25: the pilot backup's notices. A failure shows "Backup pendente" (the FR-27 alert name)
+ * with the reason; a missing OneDrive folder is a warning. #23 folds them into the alert list.
+ */
+function BackupNotices() {
+  const status = useQuery({ queryKey: QUERY_KEYS.backupStatus, queryFn: api.backupStatus });
+  if (status.isError) {
+    return <p className="mb-2 text-destructive">Não foi possível verificar o backup.</p>;
+  }
+  if (!status.data) return null;
+  const { configured, lastFailure } = status.data;
+  if (!configured) {
+    return (
+      <p className="mb-2 flex items-center gap-2">
+        <AlertTriangle className="h-4 w-4 shrink-0 text-rainbow-orange" aria-hidden />
+        Pasta do OneDrive não configurada: os backups não estão sendo gravados.
+      </p>
+    );
+  }
+  if (!lastFailure) return null;
+  return (
+    <p className="mb-2 flex items-start gap-2 text-destructive">
+      <DatabaseBackup className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+      <span>
+        <strong>Backup pendente:</strong> {lastFailure.message}. Tentativa em{" "}
+        {formatInstant(lastFailure.at)}. Nova tentativa no próximo fechamento do dia ou ao reiniciar
+        o sistema.
+      </span>
+    </p>
+  );
+}
+
+/**
  * FR-27 (pilot slice): the "Dia não fechado" alert: earlier days with movement still open, each
- * with a link to close it. The other alerts and "Tudo em dia" come in #23.
+ * with a link to close it, and the backup notices (#25). The other alerts and "Tudo em dia"
+ * come in #23.
  */
 function AlertsCard() {
   const unclosed = useQuery({
@@ -29,6 +62,7 @@ function AlertsCard() {
           </CardTitle>
         </CardHeader>
         <CardContent className="p-4 pt-0">
+          <BackupNotices />
           {unclosed.isPending ? <p className="text-muted-foreground">Verificando…</p> : null}
           {unclosed.isError ? (
             <p className="text-destructive">Não foi possível verificar os alertas.</p>
@@ -67,6 +101,7 @@ function AlertsCard() {
 /** Início: the alerts (FR-27, pilot slice) and the system status. */
 export function HomePage() {
   const health = useQuery({ queryKey: ["health"], queryFn: api.health });
+  const backup = useQuery({ queryKey: QUERY_KEYS.backupStatus, queryFn: api.backupStatus });
 
   return (
     <>
@@ -92,6 +127,15 @@ export function HomePage() {
               </dd>
               <dt className="text-muted-foreground">Hora do servidor</dt>
               <dd className="tabular-nums">{formatInstant(health.data.serverTime)}</dd>
+              {/* #25: when the newest backup in the OneDrive folder was made. */}
+              {backup.data?.configured && (
+                <>
+                  <dt className="text-muted-foreground">Último backup</dt>
+                  <dd className="tabular-nums">
+                    {backup.data.lastSuccess ? formatInstant(backup.data.lastSuccess.at) : "Nenhum"}
+                  </dd>
+                </>
+              )}
             </dl>
           )}
           {health.isError && (

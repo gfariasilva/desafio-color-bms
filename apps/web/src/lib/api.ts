@@ -41,6 +41,8 @@ import {
   type UpdateExpenseCategoryInput,
   type UpdateSaleCategoryInput,
   healthResponseSchema,
+  backupStatusResponseSchema,
+  type BackupStatusResponse,
   dayReportResponseSchema,
   type DayReportResponse,
   monthGeneralExpensesResponseSchema,
@@ -197,6 +199,8 @@ export const QUERY_KEYS = {
   cashClosingDay: ["cashClosing", "day"],
   /** FR-27: earlier days with movement still open. */
   unclosedDays: ["cashClosing", "unclosed"],
+  /** #25: the pilot backup's state, shown on Início. */
+  backupStatus: ["backup", "status"],
   /** FR-16: followed by the month: ["cashClosing", "month", "2026-10"]. */
   monthClosing: ["cashClosing", "month"],
   /** FR-19: followed by the civil date: ["reports", "day", "2026-11-18"]. */
@@ -209,6 +213,9 @@ export const QUERY_KEYS = {
 
 export const api = {
   health: (): Promise<HealthResponse> => getJson("/api/health", healthResponseSchema),
+  /** #25 (slice of FR-31): last backup and the latest failure. */
+  backupStatus: (): Promise<BackupStatusResponse> =>
+    getJson("/api/backup/status", backupStatusResponseSchema),
   /** FR-18: read-only audit log, newest first. */
   audit: (query: Partial<AuditQuery>): Promise<AuditListResponse> =>
     getJson(`/api/audit${toQueryString(query)}`, auditListResponseSchema),
