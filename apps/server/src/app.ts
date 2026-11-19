@@ -14,6 +14,8 @@ import {
 import { registerCashWithdrawalRoutes } from "./modules/cash-withdrawals/cash-withdrawals.routes";
 import { registerCategoryRoutes } from "./modules/categories/categories.routes";
 import { registerExpenseRoutes } from "./modules/expenses/expenses.routes";
+import { createExportQueue, type ExportQueueService } from "./modules/export/export-queue.service";
+import { registerExportRoutes } from "./modules/export/export.routes";
 import {
   registerFixedExpenseRoutes,
   registerMonthGeneration,
@@ -44,8 +46,8 @@ export interface BuildAppOptions {
   /** The current time (ADR 0002). Tests pass a fixed clock. */
   now?: Clock;
   /**
-   * FR-08: called after a day's closing is committed, after the backup. The daily export (#21)
-   * hooks in here; a no-op until then.
+   * FR-08: called after a day's closing is committed, after the backup and the daily export
+   * (#21). Tests use it to observe closings; a no-op by default.
    */
   onDayClosed?: OnDayClosed;
   /**
@@ -53,6 +55,11 @@ export interface BuildAppOptions {
    * `onDayClosed`. Defaults to a service with no folder (nothing is written).
    */
   backup?: BackupService;
+  /**
+   * FR-28 / FR-30 (#21): the export queue (daily spreadsheet). main.ts passes the real one;
+   * defaults to a disabled queue (nothing is queued or written), like the backup's default.
+   */
+  exports?: ExportQueueService;
   /**
    * FR-16: called after a month's closing is committed. The final monthly spreadsheet (#28)
    * and the backup (#22) hook in here; a no-op until then. A failure never undoes the closing.
@@ -79,6 +86,7 @@ export async function buildApp({
   onDayClosed = () => {},
   onMonthClosed = () => {},
   backup,
+  exports,
   system,
   settings,
 }: BuildAppOptions): Promise<FastifyInstance> {
@@ -93,11 +101,28 @@ export async function buildApp({
     });
   const settingsStore =
     settings ?? createSettingsStore(connection, { envOneDriveFolder: null, trial: false });
-  // FR-31 (#25): back up after each closing; the backup never throws, so the hook chain goes on.
+  const exportQueue =
+    exports ??
+    createExportQueue({
+      connection,
+      folder: () => null,
+      enabled: false,
+      now,
+      log: { info: () => {}, error: () => {} },
+    });
+  // FR-08: after each closing, queue the daily spreadsheet (FR-28) first, so it is in the
+  // database as soon as possible; then the backup (FR-31, #25) and the export run. Neither
+  // throws, so the hook chain goes on.
   const afterDayClosed: OnDayClosed = async (date) => {
+    exportQueue.enqueueDailySpreadsheet(date);
     await backupService.run("day-close");
+    await exportQueue.processPending();
     await onDayClosed(date);
   };
+  // Shutdown: stop the 5-minute retries and let a file being written finish.
+  app.addHook("onClose", async () => {
+    await exportQueue.stop();
+  });
 
   registerHostGuard(app);
   // FR-11: generate the month's fixed expenses now and on the first request of a new month.
@@ -105,7 +130,12 @@ export async function buildApp({
   registerHealthRoutes(app, connection, { version: packageJson.version, now, system });
   registerAuditRoutes(app, connection);
   registerBackupRoutes(app, backupService);
-  registerSettingsRoutes(app, settingsStore, backupService, now);
+  registerExportRoutes(app, exportQueue);
+  // FR-33: a new OneDrive folder gets today's backup (FR-31) and the pending exports (FR-30).
+  registerSettingsRoutes(app, settingsStore, now, async () => {
+    await backupService.folderChanged();
+    await exportQueue.processAll();
+  });
   registerCategoryRoutes(app, connection, now);
   registerPaymentRoutes(app, connection, now);
   registerFixedExpenseTemplateRoutes(app, connection, now);

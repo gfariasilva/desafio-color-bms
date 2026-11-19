@@ -48,7 +48,7 @@ Dinheiro **retirado** da gaveta que **não é despesa** (ex.: levar para o banco
 3. Digite o **Dinheiro contado** → **Enter**.
 4. Se aparecer **diferença**: confira a contagem. Se estiver certa, escreva uma **observação** (ex.: "troco dado a mais") e tecle **Enter** de novo ("Fechar mesmo assim").
 
-Depois de fechado, o dia não aceita mudanças. O sistema faz o **backup no OneDrive** sozinho.
+Depois de fechado, o dia não aceita mudanças. O sistema faz sozinho o **backup no OneDrive** e grava a planilha do dia em `<pasta do OneDrive>\AAAA\MM - Mês\Diária AAAA-MM-DD.xlsx` (ex.: `2026\11 - Novembro\Diária 2026-11-18.xlsx`). Se reabrir e fechar o dia de novo, a planilha é substituída pela versão corrigida. A planilha é só para consulta: o que for mudado nela não volta para o sistema.
 
 ## Configurações (Alt+9)
 
@@ -66,7 +66,8 @@ Totais por aba e por forma de pagamento, despesas, sangrias e o fechamento. Dura
 ## Se algo der errado
 
 - **A tela não abre ou mostra erro de conexão:** espere 1 minuto e recarregue (**F5**). Se continuar, abra a pasta `%LOCALAPPDATA%\ColorBMS` (tecle **Win + R**, cole o caminho e tecle Enter) e dê dois cliques em **`iniciar.cmd`**.
-- **Início mostra um alerta** (backup pendente, dia não fechado, relógio errado): anote ou tire uma foto e avise o desenvolvedor.
+- **Início mostra "Backup pendente: … planilha não foi gravada"**: se a planilha daquele dia estiver aberta no Excel, **feche-a** e clique em **Tentar agora** (o sistema também tenta sozinho a cada 5 minutos). Se o aviso falar da **pasta**, clique em **Verificar a pasta** e confira a pasta do OneDrive em Configurações.
+- **Início mostra outro alerta** (backup do banco pendente, dia não fechado, relógio errado): anote ou tire uma foto e avise o desenvolvedor.
 - **Lançou algo errado e não sabe corrigir:** anote o dia, o valor e o que aconteceu, e avise. Tudo o que é alterado fica registrado na Auditoria; nada se perde.
 - **Nunca** apague nem mova arquivos das pastas `ColorBMS` ou `_backup-sistema`.
 

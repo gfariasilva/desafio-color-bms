@@ -1,6 +1,6 @@
 {
   "name": "@color-bms/server",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "description": "Local Fastify server: REST API, SQLite database, exports and backups",
@@ -16,6 +16,7 @@
     "@fastify/static": "^10.1.11",
     "better-sqlite3": "^13.2.0",
     "drizzle-orm": "^0.45.4",
+    "exceljs": "^4.4.0",
     "fastify": "^5.12.8"
   },
   "devDependencies": {

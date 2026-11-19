@@ -34,3 +34,15 @@ export * from "./reports/month-general-expenses";
 export * from "./backup/backup-files";
 export * from "./system/startup-checks";
 export * from "./settings/settings";
+export * from "./export/export-files";
+export {
+  excelSheetNames,
+  SHEET_NAME_MAX,
+  type SpreadsheetCell,
+  type SpreadsheetModel,
+  type SpreadsheetRow,
+  type SpreadsheetRowStyle,
+  type SpreadsheetSheet,
+} from "./export/spreadsheet-model";
+export * from "./export/daily-spreadsheet";
+export * from "./export/export-queue";

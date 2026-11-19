@@ -55,7 +55,7 @@ Ordered backlog for the MVP (spec §9.1). Each item is one small PR / GitHub iss
 | [x] | M3 | [#26](#26--pilot-install-on-the-shop-pc) | Pilot install on the shop PC | slice of FR-34 | #25 |
 | [x] | M3 | [#27](#27--pilot-go-live-and-the-parallel-period) | Pilot go-live and the parallel period | spec §9.5 | #26, #15 |
 | [x] | M4 | [#20](#20--settings) | Settings | FR-33 | #1 |
-| [ ] | M4 | [#21](#21--daily-spreadsheet-export-and-the-retry-queue) | Daily spreadsheet export and the retry queue | FR-28, FR-30 | #15, #20 |
+| [x] | M4 | [#21](#21--daily-spreadsheet-export-and-the-retry-queue) | Daily spreadsheet export and the retry queue | FR-28, FR-30 | #15, #20 |
 | [x] | M4 | [#11](#11--fixed-expense-templates) | Fixed-expense templates | FR-10; RN-12 | #1 |
 | [x] | M4 | [#12](#12--generate-the-months-fixed-expenses) | Generate the month's fixed expenses | FR-11 | #11 |
 | [x] | M4 | [#13](#13--pay-or-dismiss-a-fixed-expense-loan-installments) | Pay or dismiss a fixed expense; loan installments | FR-12, FR-13; RN-09, RN-07, RN-14 | #12, #9 |
@@ -1305,6 +1305,36 @@ Gera `Diária AAAA-MM-DD.xlsx` (layout em §7.3) na pasta do OneDrive.
   **Quando** uma tentativa dá certo
   **Então** o pedido sai da fila e o alerta some.
 - O proprietário pode forçar "Tentar agora".
+
+**Done notes (follow-ups)**
+
+- **Core** (`packages/core/src/export/`):
+  - `export-files.ts`: `dailySpreadsheetPath()` (`AAAA/MM - Mês/Diária AAAA-MM-DD.xlsx`, §7.2), `monthFolderName()`, `excelDateSerial()` (a civil date as Excel's day number, no `Date` parsing);
+  - `spreadsheet-model.ts`: a library-free model of typed cells (`text | cents | rate | date | integer`) and `excelSheetNames()` (31 characters, no `[]:*?/\`, unique; a tab named "Saídas" becomes "Saídas (2)");
+  - `daily-spreadsheet.ts`: `buildDailySpreadsheet(report, salesTabs)`: the §7.3 layout from the day report (#15) and FR-05's `summarizeDaySales`, so the file matches the screens (FR-19). Refund rows: "Estorno da venda de dd/mm/aaaa · Motivo: …". Fixed expenses paid that day are in "Saídas" as "Despesa fixa". "Hora" is text ("14:03"); money, rates and dates are numbers with formats;
+  - `export-queue.ts`: kinds (`daily_spreadsheet`, `monthly_spreadsheet`, `db_backup`), statuses (`pending`, `failed`, `done`), error causes (`file_in_use`, `folder`, `other`), `exportQueueStatusResponseSchema`, `exportFileName()`.
+- **Database:**
+  - `0013_create_export_queue`: the table, with a partial unique index (one open item per kind + reference). Done items stay as history;
+  - `0014_queue_closed_days`: queues every day already closed, so the pilot days since go-live get their files on the first start after the update.
+  - No audit rows: the queue is system state.
+- **Server** (`apps/server/src/modules/export/`):
+  - `atomic-write.ts` (`writeFileAtomic`: `.tmp` → fsync → rename; EPERM/EBUSY on rename = file in use);
+  - `xlsx-writer.ts` (ExcelJS; `"R$" #,##0.00`, `0.00##%`, `dd/mm/yyyy`; cents become reais only here);
+  - `export-queue.service.ts`:
+    - `enqueueDailySpreadsheet`, `processPending` (after a closing), `processAll` (every 5 min, at startup, new folder, "Tentar agora"), one run at a time;
+    - a day closed again while its file is being written is written again;
+    - a day reopened before its export ran, or without movement, is completed with no file;
+    - the root OneDrive folder is never created; only `AAAA/MM - Mês/` inside it;
+  - `GET /api/exports/status`, `POST /api/exports/retry`;
+  - `buildApp({ exports })` (default: a disabled queue). Wired in `afterDayClosed`: queue → backup → export → `onDayClosed`; `main.ts` calls `start()`; trial mode exports nothing; a folder change in Configurações retries at once (`registerSettingsRoutes` now takes an `onFolderChanged` callback).
+- **UI (Início › Alertas):** "Backup pendente: N planilha(s) não foi(ram) gravada(s) no OneDrive. Nova tentativa a cada 5 minutos.", one line per file with the reason and the last try, **Tentar agora**, and **Verificar a pasta** when the folder is the problem. Refreshed every minute.
+- **E2E:** `daily-export.spec.ts`.
+- **Dependency:** `exceljs` 4.4.0 (ADR 0001). Server version 0.3.0 for the pilot update.
+- **Follow-ups:**
+  - The item is queued right after the closing commits (`onDayClosed`), not in the same transaction: a crash in that instant loses the queue item for that day (re-closing or a manual queue entry fixes it). Moving the insert into the closing transaction would close the gap.
+  - Início shows two "Backup pendente" notices when the folder is missing (the DB backup, #25, and the spreadsheets). #22 moves the DB backup into this queue, and #23 merges the alerts.
+  - On the shop PC, check that a file open in Excel really fails with EBUSY/EPERM, and appears as "aberto no Excel" (only simulated in the tests).
+  - `docs/pilot/guia-rapido.md` explains the new alert.
 
 **Spec §7.2** _(verbatim)_
 
