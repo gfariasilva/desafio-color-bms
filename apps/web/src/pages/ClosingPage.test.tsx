@@ -31,6 +31,7 @@ function openDay(overrides: Partial<DayCashClosingResponse> = {}): DayCashClosin
     status: "open",
     hasMovement: true,
     blocked: null,
+    reopenBlocked: null,
     suggestedOpeningCashCents: 12500,
     suggestedFrom: "2026-11-17",
     cashSalesCents: 4000,
@@ -59,15 +60,24 @@ function closedDay(body: { openingCashCents: number; countedCashCents: number; n
 
 let day: DayCashClosingResponse;
 const posts: { url: string; body: unknown }[] = [];
+/** FR-09: when set, POST …/reopen answers with this error instead of reopening. */
+let reopenError: { status: number; body: unknown } | null = null;
 const fetchMock = vi.fn<typeof fetch>();
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 
 beforeEach(() => {
   posts.length = 0;
+  reopenError = null;
   day = openDay();
   fetchMock.mockReset();
   fetchMock.mockImplementation(async (input, init) => {
     const url = String(input);
+    if (init?.method === "POST" && url.endsWith("/reopen")) {
+      posts.push({ url, body: JSON.parse(String(init.body)) });
+      if (reopenError) return json(reopenError.body, reopenError.status);
+      day = openDay();
+      return json(day);
+    }
     if (init?.method === "POST") {
       const body = JSON.parse(String(init.body)) as Parameters<typeof closedDay>[0];
       posts.push({ url, body });
@@ -235,5 +245,88 @@ describe("FR-08: close the day (Fechamento page)", () => {
     await openPage("/fechamento?data=2026-11-16");
     expect(screen.getByLabelText("Data")).toHaveValue("2026-11-16");
     expect(fetchMock).toHaveBeenCalledWith("/api/days/2026-11-16/cash-closing", expect.anything());
+  });
+});
+
+describe("FR-09: reopen a day (Fechamento page)", () => {
+  const reason = () => screen.getByLabelText("Motivo da reabertura");
+
+  async function openClosedDay() {
+    day = closedDay({ openingCashCents: 12500, countedCashCents: 8500 });
+    renderAt("/fechamento");
+    fireEvent.click(await screen.findByRole("button", { name: "Reabrir dia" }));
+    return screen.getByRole("form", { name: "Reabrir o dia" });
+  }
+
+  it("FR-09: 'Reabrir dia' asks for confirmation and a reason, with focus on the reason", async () => {
+    const form = await openClosedDay();
+    expect(form).toHaveTextContent("Tem certeza?");
+    expect(form).toHaveTextContent("O dia 18/11/2026 volta a aberto");
+    expect(reason()).toHaveFocus();
+    expect(posts).toEqual([]);
+  });
+
+  it("FR-09: the reason is required", async () => {
+    const form = await openClosedDay();
+    fireEvent.submit(form);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Informe o motivo da reabertura.");
+    expect(posts).toEqual([]);
+  });
+
+  it("FR-09: confirming with a reason reopens the day and shows the closing form again", async () => {
+    const form = await openClosedDay();
+    fireEvent.change(reason(), { target: { value: "venda esquecida" } });
+    fireEvent.submit(form);
+
+    await waitFor(() =>
+      expect(posts).toEqual([
+        { url: `/api/days/${TODAY}/reopen`, body: { reason: "venda esquecida" } },
+      ]),
+    );
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Dia 18/11/2026 reaberto. Corrija os lançamentos e feche o dia de novo.",
+    );
+    // FR-09: a new closing is required (FR-08).
+    expect(await screen.findByRole("form", { name: "Fechar o dia" })).toBeInTheDocument();
+    expect(screen.queryByText("Dia fechado")).not.toBeInTheDocument();
+  });
+
+  it("A-12: after a reopening, the opening cash is the one the day was closed with", async () => {
+    day = openDay({ suggestedOpeningCashCents: 10000, suggestedFrom: TODAY });
+    await openPage();
+    expect(opening()).toHaveValue("100,00");
+    expect(screen.getByText("Troco do fechamento anterior deste dia.")).toBeInTheDocument();
+  });
+
+  it("FR-09: Esc cancels and returns focus to 'Reabrir dia'", async () => {
+    await openClosedDay();
+    fireEvent.keyDown(reason(), { key: "Escape" });
+    expect(screen.queryByRole("form", { name: "Reabrir o dia" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reabrir dia" })).toHaveFocus();
+  });
+
+  it("FR-09: shows the server's refusal", async () => {
+    reopenError = {
+      status: 409,
+      body: { error: "O mês 11/2026 está fechado. Reabra o mês antes de reabrir o dia." },
+    };
+    const form = await openClosedDay();
+    fireEvent.change(reason(), { target: { value: "venda esquecida" } });
+    fireEvent.submit(form);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "O mês 11/2026 está fechado. Reabra o mês antes de reabrir o dia.",
+    );
+  });
+
+  it("FR-09: in a closed month, the page says to reopen the month first (FR-17), without the button", async () => {
+    day = {
+      ...closedDay({ openingCashCents: 12500, countedCashCents: 8500 }),
+      reopenBlocked: "O mês 11/2026 está fechado. Reabra o mês antes de reabrir o dia.",
+    };
+    renderAt("/fechamento");
+    expect(
+      await screen.findByText("O mês 11/2026 está fechado. Reabra o mês antes de reabrir o dia."),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reabrir dia" })).not.toBeInTheDocument();
   });
 });

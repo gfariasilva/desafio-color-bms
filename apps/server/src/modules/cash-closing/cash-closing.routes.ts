@@ -2,13 +2,14 @@ import type { FastifyInstance } from "fastify";
 import {
   closeDayInputSchema,
   dayParamsSchema,
+  reopenDayInputSchema,
   type CivilDate,
   type UnclosedDaysResponse,
 } from "@color-bms/core";
 import type { Clock } from "../../clock";
 import type { DatabaseConnection } from "../../db/client";
 import { parseOr400, sendError } from "../../http/route-helpers";
-import { closeDay, getCashClosing, listUnclosedDays } from "./cash-closing.repository";
+import { closeDay, getCashClosing, listUnclosedDays, reopenDay } from "./cash-closing.repository";
 
 /**
  * Runs after a day is closed and committed (FR-08): the place where the daily and monthly
@@ -16,7 +17,7 @@ import { closeDay, getCashClosing, listUnclosedDays } from "./cash-closing.repos
  */
 export type OnDayClosed = (date: CivilDate) => void | Promise<void>;
 
-/** FR-08: the closing screen, closing a day; FR-27: the days left open. */
+/** FR-08: the closing screen, closing a day; FR-09: reopening it; FR-27: the days left open. */
 export function registerCashClosingRoutes(
   app: FastifyInstance,
   { db }: DatabaseConnection,
@@ -56,5 +57,19 @@ export function registerCashClosingRoutes(
         request.log.error({ err: error, date }, "onDayClosed failed");
       });
     return closed;
+  });
+
+  // FR-09: reopen a closed day with a reason. The next closing calls onDayClosed again, which
+  // makes the daily spreadsheet again (FR-28); reopening itself queues nothing.
+  app.post("/api/days/:date/reopen", async (request, reply) => {
+    const params = parseOr400(dayParamsSchema, request.params, reply);
+    if (!params) return reply;
+    const input = parseOr400(reopenDayInputSchema, request.body, reply);
+    if (!input) return reply;
+    try {
+      return reopenDay(db, params.date, input, clock());
+    } catch (error) {
+      return sendError(reply, error);
+    }
   });
 }

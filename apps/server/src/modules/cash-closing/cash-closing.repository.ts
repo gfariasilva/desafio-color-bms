@@ -6,8 +6,11 @@ import {
   cashWithdrawalsOfDayCents,
   closeDayBlock,
   DAY_CLOSED_CODE,
+  DAY_NOT_CLOSED_CODE,
   expectedCashCents,
+  MONTH_CLOSED_CODE,
   NO_MOVEMENT_CODE,
+  reopenDayBlock,
   todayCivilDate,
   type AuditValues,
   type CashClosing,
@@ -15,6 +18,8 @@ import {
   type CloseDayBlock,
   type DayCashClosingResponse,
   type ParsedCloseDayInput,
+  type ParsedReopenDayInput,
+  type ReopenDayBlock,
 } from "@color-bms/core";
 import type { AppDatabase, AppTransaction } from "../../db/client";
 import { cashWithdrawals, days, expenses, paymentMethods, sales } from "../../db/schema";
@@ -23,9 +28,9 @@ import { recordAudit } from "../audit/audit.repository";
 import { periodStatus } from "../periods/period-status";
 
 /**
- * FR-08: the cash closing of a day ("fechamento de caixa"): the RN-07 terms read from the
- * day's records, the stored closing, and closing a day. The checks, the write and its audit
- * row (FR-18) run in one transaction.
+ * FR-08 / FR-09: the cash closing of a day ("fechamento de caixa"): the RN-07 terms read from
+ * the day's records, the stored closing, closing a day and reopening it. The checks, the write
+ * and its audit row (FR-18) run in one transaction.
  */
 
 type Db = AppDatabase | AppTransaction;
@@ -125,16 +130,34 @@ function blockOf(db: Db, date: CivilDate, now: Date): CloseDayBlock | null {
   return closeDayBlock(date, todayCivilDate(now), periodStatus(db, date), hasMovement(db, date));
 }
 
-/** FR-08: what the closing screen shows for a date. */
+/**
+ * A-12: where the opening cash of an open day comes from.
+ * - A reopened day (FR-09) keeps the opening cash it was closed with: suggest it again, so the
+ *   owner does not retype it (`suggestedFrom` is the day itself).
+ * - Otherwise, the counted cash of the latest closing before the date; none on the first day.
+ */
+function openingCashSuggestion(db: Db, date: CivilDate) {
+  const reopened = db
+    .select({ openingCashCents: days.openingCashCents })
+    .from(days)
+    .where(and(eq(days.date, date), eq(days.status, "open"), isNotNull(days.openingCashCents)))
+    .get();
+  if (reopened) return { date, countedCashCents: reopened.openingCashCents };
+  return lastCountBefore(db, date);
+}
+
+/** FR-08 / FR-09: what the closing screen shows for a date. */
 export function getCashClosing(db: Db, date: CivilDate, now: Date): DayCashClosingResponse {
   // better-sqlite3 is synchronous: nothing can write between these reads.
   const closing = storedClosing(db, date);
-  const lastCount = lastCountBefore(db, date);
+  const lastCount = openingCashSuggestion(db, date);
   return {
     date,
     status: closing ? "closed" : "open",
     hasMovement: hasMovement(db, date),
     blocked: blockOf(db, date, now)?.message ?? null,
+    // FR-09: only a closed day can be reopened; say why not before the owner types a reason.
+    reopenBlocked: closing ? (reopenDayBlock(date, periodStatus(db, date))?.message ?? null) : null,
     suggestedOpeningCashCents: lastCount?.countedCashCents ?? null,
     suggestedFrom: lastCount?.date ?? null,
     ...dayCashTerms(db, date),
@@ -208,6 +231,62 @@ export function closeDay(
     recordAudit(
       tx,
       { entity: "day", entityId: date, action: "close", before: { status: "open" }, after },
+      now,
+    );
+    return getCashClosing(tx, date, now);
+  });
+}
+
+/** The HTTP answer of each reason a day cannot be reopened. */
+function reopenBlockError(block: ReopenDayBlock): BusinessError {
+  switch (block.kind) {
+    case "month_closed":
+      return new BusinessError(409, block.message, MONTH_CLOSED_CODE);
+    case "not_closed":
+      return new BusinessError(409, block.message, DAY_NOT_CLOSED_CODE);
+  }
+}
+
+/**
+ * FR-09: reopens a closed day of an open month (RN-14). The day goes back to open, which
+ * unlocks its records; a new closing (FR-08) is required and recomputes the cash fields. The
+ * stored cash fields stay until then, but only `status = 'closed'` counts as a closing.
+ * The previous closing goes to the audit log as `before`, with the owner's reason, in the
+ * same transaction.
+ */
+export function reopenDay(
+  db: AppDatabase,
+  date: CivilDate,
+  input: ParsedReopenDayInput,
+  now: Date,
+): DayCashClosingResponse {
+  return db.transaction((tx) => {
+    const block = reopenDayBlock(date, periodStatus(tx, date));
+    if (block) throw reopenBlockError(block);
+
+    // FR-09 "o fechamento anterior fica no log de auditoria": the same fields as the closing's
+    // own audit row. The day was locked, so its RN-07 terms are still the ones it was closed with.
+    const row = tx.select().from(days).where(eq(days.date, date)).get();
+    const before: AuditValues = {
+      status: "closed",
+      openingCashCents: row?.openingCashCents ?? null,
+      ...dayCashTerms(tx, date),
+      expectedCashCents: row?.expectedCashCents ?? null,
+      countedCashCents: row?.countedCashCents ?? null,
+      differenceCents: row?.differenceCents ?? null,
+      note: row?.note ?? null,
+    };
+    tx.update(days).set({ status: "open", closedAt: null }).where(eq(days.date, date)).run();
+    recordAudit(
+      tx,
+      {
+        entity: "day",
+        entityId: date,
+        action: "reopen",
+        before,
+        after: { status: "open" },
+        reason: input.reason,
+      },
       now,
     );
     return getCashClosing(tx, date, now);

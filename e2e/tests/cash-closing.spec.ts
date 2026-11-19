@@ -137,3 +137,71 @@ test("FR-08: first day of use: the opening cash is typed; no difference closes a
   await expect(page.getByRole("status")).toHaveText("Dia 01/09/2026 fechado.");
   await expect(page.getByText("Dia fechado")).toBeVisible();
 });
+
+test("FR-09: reopen a closed day with a reason, keyboard only, and close it again", async ({
+  page,
+  api,
+  catalog,
+}) => {
+  // A day closed with R$ 10,00 opening + R$ 20,00 cash sale = R$ 30,00 counted.
+  const date = "2026-09-22";
+  await cashSale(api, catalog, date, 2000);
+  await post(
+    api,
+    `/api/days/${date}/close`,
+    { openingCashCents: 1000, countedCashCents: 3000 },
+    200,
+  );
+
+  await page.goto(`/fechamento?data=${date}`);
+  await expect(page.getByText("Dia fechado")).toBeVisible();
+  // From the Data field, Tab walks its day, month and year parts (how many stops depends on the
+  // browser), then reaches "Reabrir dia".
+  await page.getByLabel("Data").focus();
+  const reopenButton = page.getByRole("button", { name: "Reabrir dia" });
+  for (let presses = 0; presses < 6; presses++) {
+    if (await reopenButton.evaluate((button) => button === document.activeElement)) break;
+    await page.keyboard.press("Tab");
+  }
+  await expect(reopenButton).toBeFocused();
+  await page.keyboard.press("Enter");
+
+  // FR-09: confirm and give a reason; Enter reopens.
+  const form = page.getByRole("form", { name: "Reabrir o dia" });
+  await expect(form).toContainText("Tem certeza?");
+  await expect(page.getByLabel("Motivo da reabertura")).toBeFocused();
+  await page.keyboard.type("venda esquecida");
+  await page.keyboard.press("Enter");
+
+  await expect(page.getByRole("status")).toHaveText(
+    "Dia 22/09/2026 reaberto. Corrija os lançamentos e feche o dia de novo.",
+  );
+  await expect(page.getByText("Dia fechado")).toHaveCount(0);
+
+  // RN-14: the day accepts records again (the forgotten R$ 5,00 sale).
+  await cashSale(api, catalog, date, 500);
+
+  // FR-18: the previous closing is in the audit log, with the reason.
+  const audit = (await (await api.get("/api/audit?entity=day&action=reopen")).json()) as {
+    entries: { entityId: string; reason: string; before: Record<string, unknown> }[];
+  };
+  expect(audit.entries.find((entry) => entry.entityId === date)).toMatchObject({
+    reason: "venda esquecida",
+    before: { status: "closed", countedCashCents: 3000, differenceCents: 0 },
+  });
+
+  // FR-08: a new closing. Reload to see the new sale; focus starts on Troco inicial.
+  await page.reload();
+  const opening = page.getByLabel("Troco inicial (R$)");
+  await expect(opening).toBeFocused();
+  await expect(page.getByTestId("cash-sales")).toHaveText("R$ 25,00");
+  // A-12: the opening cash is the one the day was closed with. Tab → contado 35 → Enter.
+  await expect(opening).toHaveValue("10,00");
+  await expect(page.getByText("Troco do fechamento anterior deste dia.")).toBeVisible();
+  await pressKeys(page, ["Tab", ...chars("35")]);
+  await expect(page.getByTestId("difference")).toHaveText("Sem diferença");
+  await page.keyboard.press("Enter");
+
+  await expect(page.getByRole("status")).toHaveText("Dia 22/09/2026 fechado.");
+  await expect(page.getByTestId("counted-cash")).toHaveText("R$ 35,00");
+});

@@ -49,7 +49,7 @@ Ordered backlog for the MVP (spec §9.1). Each item is one small PR / GitHub iss
 | [x] | M2 | [#7](#7--general-expenses-saídas-diárias) | General expenses (saídas diárias) | FR-06; RN-08, RN-14, RN-15 | #2, #4 |
 | [x] | M2 | [#8](#8--cash-withdrawals-sangrias) | Cash withdrawals (sangrias) | FR-07; RN-14 | #4 |
 | [x] | M2 | [#9](#9--close-the-day-cash-closing) | Close the day (cash closing) | FR-08; RN-07, RN-14 | #6, #7, #8 |
-| [ ] | M2 | [#10](#10--reopen-a-day) | Reopen a day | FR-09; RN-14 | #9 |
+| [x] | M2 | [#10](#10--reopen-a-day) | Reopen a day | FR-09; RN-14 | #9 |
 | [ ] | M2 | [#15](#15--day-report) | Day report | FR-19; RN-05, RN-07 | #9 |
 | [ ] | M3 | [#25](#25--pilot-database-backup) | Pilot database backup | slice of FR-31 | #9 |
 | [ ] | M3 | [#26](#26--pilot-install-on-the-shop-pc) | Pilot install on the shop PC | slice of FR-34 | #25 |
@@ -685,6 +685,17 @@ Diferença = Dinheiro contado − Dinheiro esperado   (>0 sobra, <0 falta)
 
 - `POST /api/days/:date/reopen` with a reason; the previous closing goes to the audit log; a new closing is required.
 - Blocked when the month is closed (message pointing to FR-17).
+
+**Done notes (follow-ups)**
+
+- No migration. Reopening sets `days.status = 'open'` and `closed_at = null`; the old cash fields stay until the next closing overwrites them (only `status = 'closed'` counts as a closing).
+- Core `packages/core/src/cash-closing/reopen-day.ts`: `reopenDayInputSchema` (motivo required, trimmed, max 200), `reopenDayBlock()` (closed month first, then "not closed"), `MONTH_CLOSED_CODE`, `DAY_NOT_CLOSED_CODE`. `dayCashClosingResponseSchema` gained `reopenBlocked` (why a closed day cannot be reopened now; null on open days).
+- API: `POST /api/days/:date/reopen` (`{ reason }`) → 200 with the day's closing screen data (open again); 400 invalid date / missing reason; 409 `month_closed` ("O mês MM/AAAA está fechado. Reabra o mês antes de reabrir o dia."); 409 `day_not_closed`. Audit: entity `day`, action `reopen`, `before` = the previous closing with its RN-07 terms (same fields as the closing's `after`), `after: { status: "open" }`, with the reason, in the same transaction.
+- A-12: a reopened day suggests **its own** stored opening cash (`suggestedFrom` = the date itself; the form says "Troco do fechamento anterior deste dia."), so the owner does not retype it.
+- The daily spreadsheet is made again by the next closing (`onDayClosed`); reopening queues nothing. **#21**: the export for a re-closed day must overwrite the earlier file.
+- UI: "Reabrir dia" under a closed day's summary on `/fechamento` (`components/cash-closing/ReopenDayPanel.tsx`): an in-place confirmation card ("Tem certeza?" + Motivo, Enter reopens, Esc cancels). In a closed month the button is replaced by the `reopenBlocked` message. A reopened earlier day is back in the Início "Dia não fechado" alert.
+- **#14** (FR-17): reopening the month leaves its days closed; then `reopenBlocked` becomes null and each day can be reopened here.
+- Follow-up: the RN-14 lock messages on Vendas/Despesas ("Reabra o dia …") could link to `/fechamento?data=…`.
 
 **Acceptance criteria** _(verbatim from spec §4)_
 

@@ -84,8 +84,8 @@ export const cashClosingSchema = z.object({
 export type CashClosing = z.infer<typeof cashClosingSchema>;
 
 /**
- * Response of GET /api/days/:date/cash-closing and of POST /api/days/:date/close: what the
- * closing screen shows (FR-08).
+ * Response of GET /api/days/:date/cash-closing, POST /api/days/:date/close and
+ * POST /api/days/:date/reopen: what the closing screen shows (FR-08, FR-09).
  */
 export const dayCashClosingResponseSchema = z.object({
   date: civilDateSchema("Data inválida."),
@@ -94,9 +94,17 @@ export const dayCashClosingResponseSchema = z.object({
   hasMovement: z.boolean(),
   /** Why the day cannot be closed now (pt-BR), or null. */
   blocked: z.string().nullable(),
-  /** A-12: the counted cash of the latest closing before this date; null on the first day. */
+  /**
+   * FR-09: why a closed day cannot be reopened now (pt-BR, e.g. its month is closed), or null.
+   * Always null on an open day.
+   */
+  reopenBlocked: z.string().nullable(),
+  /**
+   * A-12: the counted cash of the latest closing before this date; null on the first day.
+   * On a reopened day (FR-09): the opening cash it was closed with.
+   */
   suggestedOpeningCashCents: z.number().int().nullable(),
-  /** The date of that closing. */
+  /** The date of that closing (the date itself on a reopened day). */
   suggestedFrom: z.string().nullable(),
   /** RN-07 terms, computed from the day's records. */
   cashSalesCents: z.number().int(),
