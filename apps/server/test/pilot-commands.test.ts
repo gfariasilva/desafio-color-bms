@@ -181,6 +181,20 @@ describe("#26: atualizar.cmd", () => {
     expect(printed.join("\n")).toContain("Atualizado: versão 0.1.0 → 0.2.0.");
   });
 
+  it("#26: a copy that fails leaves the installed app untouched and running", async () => {
+    const layout = await installOld();
+    const usb = makePackage("color-bms-0.2.0", "0.2.0");
+    // A source the copy cannot read: a broken package (e.g. the USB stick was pulled).
+    fs.rmSync(path.join(usb, "app"), { recursive: true, force: true });
+
+    expect(await update(context(usb))).toBe(1);
+
+    expect(read(layout.appDir, "server", "dist", "main.js")).toBe("// 0.1.0");
+    expect(fs.existsSync(layout.newAppDir)).toBe(false);
+    expect(calls).toEqual([]); // never stopped
+    expect(printed.join("\n")).toContain("Nada foi alterado");
+  });
+
   it("#26: a second update replaces the older app.anterior", async () => {
     const layout = await installOld();
     await update(context(makePackage("color-bms-0.2.0", "0.2.0"), { silent: true }));

@@ -16,10 +16,16 @@ if (-not $edge -or -not (Test-Path $edge)) {
   $edge = @("$env:ProgramFiles (x86)\\Microsoft\\Edge\\Application\\msedge.exe", "$env:ProgramFiles\\Microsoft\\Edge\\Application\\msedge.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
 }`;
 
+/**
+ * Runs a script in Windows PowerShell. It goes as `-EncodedCommand` (base64 of UTF-16 LE):
+ * a multi-line script with double quotes, passed as a `-Command` argument, can be mangled by
+ * the command-line quoting of Windows PowerShell 5.1.
+ */
 function powershell(script: string, env: Record<string, string> = {}): string {
+  const encoded = Buffer.from(script, "utf16le").toString("base64");
   return execFileSync(
     "powershell.exe",
-    ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script],
+    ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encoded],
     { env: { ...process.env, ...env }, encoding: "utf8", windowsHide: true },
   ).trim();
 }

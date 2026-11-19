@@ -13,10 +13,7 @@ test("#26: Início shows the startup checks, and no TREINO badge in real use", a
   await page.goto("/");
   const checks = page.getByRole("list", { name: "Verificações" });
   await expect(checks.getByRole("listitem")).toHaveCount(5);
-  // The clock line's status is not asserted: catalog and payment writes still stamp their
-  // audit rows with the OS clock, not COLOR_BMS_NOW (backlog #26 follow-up), so after other
-  // tests in this worker it may (rightly) report records "in the future".
-  await expect(checks).toContainText(/relógio do PC/i);
+  await expect(checks).toContainText("OK: Relógio do PC: 18/11/2026 15:");
   await expect(checks).toContainText(`Porta ${new URL(server.baseURL).port}:`);
   await expect(checks).toContainText(`Pasta de dados gravável: ${server.dataDir}`);
   await expect(checks).toContainText(`Pasta do OneDrive gravável: ${server.oneDriveDir}`);

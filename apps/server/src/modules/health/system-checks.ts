@@ -23,44 +23,41 @@ export interface SystemInfo {
   builtAt: string | null;
 }
 
-/** Writes and removes a small file: the only sure way to know a folder is writable. */
-function probeWritable(dir: string): FolderProbe {
-  const file = path.join(dir, `.teste-gravacao-${process.pid}.tmp`);
-  try {
-    fs.writeFileSync(file, "ok");
-    fs.rmSync(file, { force: true });
-    return { state: "ok", path: dir };
-  } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code ?? (error as Error).message;
-    return { state: "not-writable", path: dir, detail: code };
-  }
-}
-
-function probeDataDir(dir: string): FolderProbe {
-  return fs.existsSync(dir) ? probeWritable(dir) : { state: "missing", path: dir };
+function errorCode(error: unknown): string {
+  return (error as NodeJS.ErrnoException).code ?? (error as Error).message;
 }
 
 /**
- * Like the backup (#25): never create the OneDrive folder itself (a missing one is a wrong
- * setting), only `_backup-sistema` inside it, which is where the backups are written.
+ * Whether a folder exists and may be written, without writing anything: this runs on every
+ * GET /api/health, and a probe file inside OneDrive would be synced (or held by the OneDrive
+ * client and fail to delete). The backup itself reports real write failures (#25). Never
+ * throws: one check must never break the health page.
+ */
+function probeFolder(dir: string, reportPath = dir): FolderProbe {
+  try {
+    const stat = fs.statSync(dir, { throwIfNoEntry: false });
+    if (!stat) return { state: "missing", path: reportPath };
+    if (!stat.isDirectory()) return { state: "not-writable", path: reportPath, detail: "ENOTDIR" };
+    fs.accessSync(dir, fs.constants.W_OK);
+    return { state: "ok", path: reportPath };
+  } catch (error) {
+    return { state: "not-writable", path: reportPath, detail: errorCode(error) };
+  }
+}
+
+/**
+ * Like the backup (#25): the OneDrive folder itself must exist (a missing one is a wrong
+ * setting). Backups go to its `_backup-sistema`, which the backup creates when missing; when it
+ * already exists, that is the folder to check.
  */
 function probeOneDrive(info: SystemInfo): FolderProbe {
   if (info.trial) return { state: "trial" };
   const folder = info.oneDriveFolder;
   if (folder === null) return { state: "not-configured" };
-  const stat = fs.statSync(folder, { throwIfNoEntry: false });
-  if (!stat?.isDirectory()) return { state: "missing", path: folder };
+  const root = probeFolder(folder);
+  if (root.state !== "ok") return root;
   const backupDir = path.join(folder, BACKUP_FOLDER_NAME);
-  try {
-    fs.mkdirSync(backupDir, { recursive: true });
-  } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code ?? (error as Error).message;
-    return { state: "not-writable", path: folder, detail: code };
-  }
-  const probe = probeWritable(backupDir);
-  // Report the OneDrive folder the owner set, not its _backup-sistema subfolder.
-  if (probe.state === "not-writable") return { ...probe, path: folder };
-  return { state: "ok", path: folder };
+  return fs.existsSync(backupDir) ? probeFolder(backupDir, folder) : root;
 }
 
 /**
@@ -86,7 +83,7 @@ export function runSystemChecks(
   if (!info) return checks;
   checks.push(
     portCheck(info.port),
-    folderCheck("dataFolder", probeDataDir(info.dataDir)),
+    folderCheck("dataFolder", probeFolder(info.dataDir)),
     folderCheck("oneDriveFolder", probeOneDrive(info)),
   );
   return checks;

@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { unzipSync } from "fflate";
 import { goLive, install, stop, update, type PilotContext } from "../src/pilot/commands";
 import { waitForHealth, waitForStop } from "../src/pilot/health-wait";
-import { APP_URL, installLayout, readMode } from "../src/pilot/layout";
+import { APP_URL, TASK_NAME, installLayout, readMode } from "../src/pilot/layout";
 import { packagePilot } from "./package-pilot";
 
 /**
@@ -188,8 +188,30 @@ function printLogs(): void {
   }
 }
 
+/**
+ * Never touch a real installation: the smoke test uses the real task name and port 3210, so a
+ * running app would answer in its place (a false pass), and `instalar.cmd /F` would point the
+ * real task at a temp folder that is deleted at the end.
+ */
+async function refuseOnRealInstall(): Promise<void> {
+  if ((await waitForHealth(APP_URL, { timeoutMs: 1_000 })).ok) {
+    throw new Error(`Something already answers on ${APP_URL}: stop it before the smoke test.`);
+  }
+  if (process.platform === "win32") {
+    try {
+      execFileSync("schtasks.exe", ["/Query", "/TN", TASK_NAME], { stdio: "ignore" });
+    } catch {
+      return; // No such task: safe.
+    }
+    throw new Error(
+      `The task "${TASK_NAME}" exists on this PC: run the smoke test elsewhere (CI).`,
+    );
+  }
+}
+
 async function main(): Promise<void> {
   try {
+    await refuseOnRealInstall();
     if (process.platform === "win32") {
       const zipFile =
         process.argv[2] ??

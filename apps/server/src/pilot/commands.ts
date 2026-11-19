@@ -159,11 +159,30 @@ export async function update(ctx: PilotContext): Promise<number> {
   const to = appVersion(source) ?? "?";
   ctx.print(`Atualizando o sistema Color: versão ${from} → ${to} …`);
 
+  // Copy first, while the system still runs: a failed copy (USB stick pulled, disk full)
+  // leaves the installed app\ untouched. Only a complete copy is swapped in.
+  fs.rmSync(layout.newAppDir, { recursive: true, force: true });
+  try {
+    fs.cpSync(source, layout.newAppDir, { recursive: true });
+  } catch (error) {
+    fs.rmSync(layout.newAppDir, { recursive: true, force: true });
+    ctx.print(`ERRO: não foi possível copiar a versão nova (${(error as Error).message}).`);
+    ctx.print("Nada foi alterado; o sistema continua na versão instalada.");
+    return 1;
+  }
+
   if (!(await stopAll(ctx))) return 1;
   // The previous program stays in app.anterior, so the update can be undone by hand.
   fs.rmSync(layout.previousAppDir, { recursive: true, force: true });
   renameWithRetry(layout.appDir, layout.previousAppDir);
-  fs.cpSync(source, layout.appDir, { recursive: true });
+  try {
+    renameWithRetry(layout.newAppDir, layout.appDir);
+  } catch (error) {
+    renameWithRetry(layout.previousAppDir, layout.appDir);
+    ctx.print(`ERRO: não foi possível instalar a versão nova (${(error as Error).message}).`);
+    ctx.print("A versão anterior foi mantida; rode iniciar.cmd.");
+    return 1;
+  }
   copySupportFiles(ctx);
   registerTask(ctx);
 

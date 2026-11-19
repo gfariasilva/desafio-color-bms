@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { systemClock, type Clock } from "../../clock";
 import {
   CARD_FEE_TEXTS,
   cardFeeInForceQuerySchema,
@@ -28,7 +29,7 @@ import {
 } from "./payment-lists.repository";
 
 /** FR-15: the same endpoints as the categories (FR-14), for both payment lists. */
-function registerPaymentLists(app: FastifyInstance, { db }: DatabaseConnection) {
+function registerPaymentLists(app: FastifyInstance, { db }: DatabaseConnection, now: Clock) {
   registerOrderedListRoutes(app, {
     url: "/api/payment-methods",
     key: "paymentMethods",
@@ -37,10 +38,10 @@ function registerPaymentLists(app: FastifyInstance, { db }: DatabaseConnection) 
     updateSchema: updatePaymentMethodInputSchema,
     repository: {
       list: (active) => listPaymentItems(db, "payment_method", active),
-      create: (input) => createPaymentItem(db, "payment_method", input),
-      update: (id, changes) => updatePaymentItem(db, "payment_method", id, changes),
-      reorder: (ids) => reorderPaymentItems(db, "payment_method", ids),
-      remove: (id) => deletePaymentItem(db, "payment_method", id),
+      create: (input) => createPaymentItem(db, "payment_method", input, now()),
+      update: (id, changes) => updatePaymentItem(db, "payment_method", id, changes, now()),
+      reorder: (ids) => reorderPaymentItems(db, "payment_method", ids, now()),
+      remove: (id) => deletePaymentItem(db, "payment_method", id, now()),
     },
   });
 
@@ -52,16 +53,16 @@ function registerPaymentLists(app: FastifyInstance, { db }: DatabaseConnection) 
     updateSchema: updateCardMachineInputSchema,
     repository: {
       list: (active) => listPaymentItems(db, "card_machine", active),
-      create: (input) => createPaymentItem(db, "card_machine", input),
-      update: (id, changes) => updatePaymentItem(db, "card_machine", id, changes),
-      reorder: (ids) => reorderPaymentItems(db, "card_machine", ids),
-      remove: (id) => deletePaymentItem(db, "card_machine", id),
+      create: (input) => createPaymentItem(db, "card_machine", input, now()),
+      update: (id, changes) => updatePaymentItem(db, "card_machine", id, changes, now()),
+      reorder: (ids) => reorderPaymentItems(db, "card_machine", ids, now()),
+      remove: (id) => deletePaymentItem(db, "card_machine", id, now()),
     },
   });
 }
 
 /** FR-15: the fee table, and RN-01's lookup of the fee in force for a sale. */
-function registerCardFees(app: FastifyInstance, { db }: DatabaseConnection) {
+function registerCardFees(app: FastifyInstance, { db }: DatabaseConnection, now: Clock) {
   const url = "/api/card-fees";
   const notFound = { error: CARD_FEE_TEXTS.notFound };
 
@@ -78,7 +79,7 @@ function registerCardFees(app: FastifyInstance, { db }: DatabaseConnection) {
     const input = parseOr400(cardFeeInputSchema, request.body, reply);
     if (!input) return reply;
     try {
-      return reply.code(201).send(createCardFee(db, input));
+      return reply.code(201).send(createCardFee(db, input, now()));
     } catch (error) {
       return sendError(reply, error);
     }
@@ -91,7 +92,7 @@ function registerCardFees(app: FastifyInstance, { db }: DatabaseConnection) {
     const input = parseOr400(cardFeeInputSchema, request.body, reply);
     if (!input) return reply;
     try {
-      return updateCardFee(db, id, input);
+      return updateCardFee(db, id, input, now());
     } catch (error) {
       return sendError(reply, error);
     }
@@ -101,7 +102,7 @@ function registerCardFees(app: FastifyInstance, { db }: DatabaseConnection) {
     const id = parseId(request.params.id);
     if (id === null) return reply.code(404).send(notFound);
     try {
-      deleteCardFee(db, id);
+      deleteCardFee(db, id, now());
       return reply.code(204).send();
     } catch (error) {
       return sendError(reply, error);
@@ -114,7 +115,11 @@ function registerCardFees(app: FastifyInstance, { db }: DatabaseConnection) {
  * DELETE /:id, like the categories), and /api/card-fees (GET, GET /in-force, POST,
  * PUT /:id, DELETE /:id).
  */
-export function registerPaymentRoutes(app: FastifyInstance, connection: DatabaseConnection): void {
-  registerPaymentLists(app, connection);
-  registerCardFees(app, connection);
+export function registerPaymentRoutes(
+  app: FastifyInstance,
+  connection: DatabaseConnection,
+  now: Clock = systemClock,
+): void {
+  registerPaymentLists(app, connection, now);
+  registerCardFees(app, connection, now);
 }

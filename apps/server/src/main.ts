@@ -12,7 +12,15 @@ import packageJson from "../package.json" with { type: "json" };
 
 /** #26: set by tsup at build time (tsup.config.ts); undefined when run from source. */
 declare const __COLOR_BMS_BUILD_TIME__: string | undefined;
-const builtAt = typeof __COLOR_BMS_BUILD_TIME__ === "string" ? __COLOR_BMS_BUILD_TIME__ : null;
+/**
+ * Not used under the test clock (ADR 0002): a fixed COLOR_BMS_NOW is earlier than any later
+ * build, and the clock check would always fail in E2E runs and screenshots.
+ */
+const builtAt =
+  typeof __COLOR_BMS_BUILD_TIME__ === "string" &&
+  !(process.env.NODE_ENV === "test" && process.env.COLOR_BMS_NOW)
+    ? __COLOR_BMS_BUILD_TIME__
+    : null;
 
 async function main(): Promise<void> {
   const config = loadConfig();

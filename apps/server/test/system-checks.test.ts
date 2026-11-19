@@ -67,11 +67,22 @@ describe("#26: startup checks on the health page", () => {
     expect(byId(body.checks, "oneDriveFolder")).toMatchObject({ status: "warning" });
   });
 
-  it("#26: the data folder check writes and removes a probe file", async () => {
-    const body = await health(system());
+  it("#26: the folder checks write nothing (OneDrive would sync a probe file)", async () => {
+    const oneDrive = path.join(tempDir, "OneDrive");
+    fs.mkdirSync(oneDrive);
+    const before = fs.readdirSync(path.join(tempDir, "data")).sort();
+    const body = await health(system({ oneDriveFolder: oneDrive }));
     expect(byId(body.checks, "dataFolder")?.status).toBe("ok");
-    const left = fs.readdirSync(path.join(tempDir, "data")).filter((n) => n.includes("teste"));
-    expect(left).toEqual([]);
+    expect(fs.readdirSync(path.join(tempDir, "data")).sort()).toEqual(before);
+    expect(fs.readdirSync(oneDrive)).toEqual([]);
+  });
+
+  it("#26: a OneDrive path that cannot even be read is an error, never a 500", async () => {
+    const file = path.join(tempDir, "nota.txt");
+    fs.writeFileSync(file, "x");
+    // A parent that is a file: statSync throws ENOTDIR.
+    const body = await health(system({ oneDriveFolder: path.join(file, "Color") }));
+    expect(byId(body.checks, "oneDriveFolder")?.status).toBe("error");
   });
 
   it("#26: a data folder that cannot be written is an error", async () => {
@@ -82,16 +93,15 @@ describe("#26: startup checks on the health page", () => {
     expect(byId(body.checks, "dataFolder")?.message).toContain(notAFolder);
   });
 
-  it("#26: a writable OneDrive folder is ok, and its _backup-sistema is used for the probe", async () => {
+  it("#26: a writable OneDrive folder is ok", async () => {
     const oneDrive = path.join(tempDir, "OneDrive");
-    fs.mkdirSync(oneDrive);
+    fs.mkdirSync(path.join(oneDrive, "_backup-sistema"), { recursive: true });
     const body = await health(system({ oneDriveFolder: oneDrive }));
     expect(byId(body.checks, "oneDriveFolder")).toEqual({
       id: "oneDriveFolder",
       status: "ok",
       message: `Pasta do OneDrive gravável: ${oneDrive}`,
     });
-    expect(fs.readdirSync(path.join(oneDrive, "_backup-sistema"))).toEqual([]);
   });
 
   it("#26: a missing OneDrive folder is an error and is never created", async () => {

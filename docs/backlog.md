@@ -1609,7 +1609,7 @@ A tela inicial mostra os alertas abaixo, cada um com link para resolver:
   - Bump `apps/server/package.json` `version` for every pilot update.
   - In trial mode, Início still shows "Pasta do OneDrive não configurada" under Alertas (true, but expected). #23 can fold it into the trial badge.
   - The header date still uses the browser clock (a #25 follow-up).
-  - The catalog, payment and fee-table routes (`registerCategoryRoutes`, `registerPaymentRoutes`, `createCardFee`) do not receive the `Clock`. Their audit rows use the OS time (`now: Date = new Date()` defaults), against the CLAUDE.md rule. This is harmless in production, but under `COLOR_BMS_NOW` the new clock check reports "records after now". Pass `now` through, then let `e2e/tests/startup-checks.spec.ts` assert the clock line again.
+  - Review fix: the catalog, payment and fee-table routes now take the server `Clock` (their audit rows used the OS time).
 
 **Spec reference** _(verbatim; only the parts listed under Scope belong to this item)_
 

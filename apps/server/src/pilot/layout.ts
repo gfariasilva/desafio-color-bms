@@ -31,6 +31,8 @@ export interface InstallLayout {
   root: string;
   appDir: string;
   previousAppDir: string;
+  /** Where atualizar.cmd copies the new program before swapping it in. */
+  newAppDir: string;
   trialDataDir: string;
   realDataDir: string;
   archiveDir: string;
@@ -59,6 +61,7 @@ export function installLayout(
     root,
     appDir,
     previousAppDir: path.join(root, "app.anterior"),
+    newAppDir: path.join(root, "app.novo"),
     trialDataDir: path.join(root, "data-treino"),
     realDataDir: path.join(root, "data"),
     archiveDir: path.join(root, "arquivo"),

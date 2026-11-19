@@ -16,7 +16,8 @@ const badgeVariants = cva(
         outline: "text-foreground",
         success: "border-transparent bg-rainbow-green text-white",
         // #26: "TREINO" in the header; warnings per the design system (orange + a text label).
-        warning: "border-transparent bg-rainbow-orange text-white",
+        // Dark text: white on this orange is below WCAG AA contrast.
+        warning: "border-transparent bg-rainbow-orange text-orange-950",
       },
     },
     defaultVariants: {

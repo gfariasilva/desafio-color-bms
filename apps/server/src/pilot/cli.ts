@@ -38,7 +38,16 @@ async function main(argv: string[]): Promise<number> {
     windows: windowsOps,
     waitForHealth: (options) => waitForHealth(APP_URL, options),
     waitForStop: (timeoutMs) => waitForStop(APP_URL, timeoutMs),
-    prompt: (question) => rl.question(question),
+    // Silent mode (CI) never waits for an answer: a missing flag fails at once.
+    prompt: (question) =>
+      silent
+        ? Promise.reject(
+            new Error(
+              `modo silencioso sem resposta para "${question.trim()}": ` +
+                "use --confirmar e --pasta-onedrive=<pasta> ou --sem-onedrive",
+            ),
+          )
+        : rl.question(question),
     print: (line) => console.log(line),
     now: systemClock,
     silent,

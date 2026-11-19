@@ -95,8 +95,8 @@ export async function buildApp({
   registerHealthRoutes(app, connection, { version: packageJson.version, now, system });
   registerAuditRoutes(app, connection);
   registerBackupRoutes(app, backupService);
-  registerCategoryRoutes(app, connection);
-  registerPaymentRoutes(app, connection);
+  registerCategoryRoutes(app, connection, now);
+  registerPaymentRoutes(app, connection, now);
   registerFixedExpenseTemplateRoutes(app, connection, now);
   registerFixedExpenseRoutes(app, connection, now);
   registerSalesRoutes(app, connection, now);
