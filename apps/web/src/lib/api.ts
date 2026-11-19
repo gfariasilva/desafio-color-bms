@@ -1,4 +1,9 @@
 import {
+  fixedExpenseSchema,
+  monthFixedExpensesResponseSchema,
+  type CreateOneOffFixedExpenseInput,
+  type FixedExpense,
+  type MonthFixedExpensesResponse,
   fixedExpenseTemplateListResponseSchema,
   fixedExpenseTemplateSchema,
   type CreateFixedExpenseTemplateInput,
@@ -154,6 +159,10 @@ export const QUERY_KEYS = {
   card_fees: ["cardFees"],
   /** FR-10: fixed-expense templates, in display order. */
   fixedExpenseTemplates: ["fixedExpenseTemplates"],
+  /** Prefix of every fixed-expense query; any change (or a template edit) invalidates it. */
+  fixedExpenses: ["fixedExpenses"],
+  /** FR-11: followed by the month: ["fixedExpenses", "month", "2026-11"]. */
+  fixedExpensesMonth: ["fixedExpenses", "month"],
   today: ["today"],
   /** Prefix of every sales query; any sale change invalidates it all. */
   sales: ["sales"],
@@ -324,6 +333,14 @@ export const api = {
       ),
     remove: (id: number): Promise<void> =>
       requestJson("DELETE", `/api/card-machines/${id}`, undefined),
+  },
+
+  /** FR-11: the month's fixed expenses ("contas do mês") and one-off entries. */
+  fixedExpenses: {
+    month: (month: string): Promise<MonthFixedExpensesResponse> =>
+      getJson(`/api/fixed-expenses${toQueryString({ month })}`, monthFixedExpensesResponseSchema),
+    createOneOff: (input: CreateOneOffFixedExpenseInput): Promise<FixedExpense> =>
+      requestJson("POST", "/api/fixed-expenses", input, fixedExpenseSchema),
   },
 
   /** FR-10: fixed-expense templates (modelos), in display order. No delete. */

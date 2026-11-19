@@ -146,8 +146,12 @@ export function FixedExpenseTemplatesPage() {
     return result;
   }, [list]);
 
+  // The month's bills show the template's name and loan total (FR-11), so refresh them too.
   const refresh = () =>
-    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.fixedExpenseTemplates });
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.fixedExpenseTemplates }),
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.fixedExpenses }),
+    ]);
 
   const save = useMutation({
     mutationFn: ({ id, input }: { id: number | null; input: CreateFixedExpenseTemplateInput }) =>

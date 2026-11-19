@@ -12,6 +12,10 @@ import {
 import { registerCashWithdrawalRoutes } from "./modules/cash-withdrawals/cash-withdrawals.routes";
 import { registerCategoryRoutes } from "./modules/categories/categories.routes";
 import { registerExpenseRoutes } from "./modules/expenses/expenses.routes";
+import {
+  registerFixedExpenseRoutes,
+  registerMonthGeneration,
+} from "./modules/fixed-expenses/fixed-expenses.routes";
 import { registerFixedExpenseTemplateRoutes } from "./modules/fixed-expense-templates/fixed-expense-templates.routes";
 import { registerPaymentRoutes } from "./modules/payments/payments.routes";
 import { registerHealthRoutes } from "./modules/health/health.routes";
@@ -43,11 +47,14 @@ export async function buildApp({
   const app = Fastify({ logger });
 
   registerHostGuard(app);
+  // FR-11: generate the month's fixed expenses now and on the first request of a new month.
+  registerMonthGeneration(app, connection, now);
   registerHealthRoutes(app, connection, packageJson.version);
   registerAuditRoutes(app, connection);
   registerCategoryRoutes(app, connection);
   registerPaymentRoutes(app, connection);
   registerFixedExpenseTemplateRoutes(app, connection, now);
+  registerFixedExpenseRoutes(app, connection, now);
   registerSalesRoutes(app, connection, now);
   registerExpenseRoutes(app, connection, now);
   registerCashWithdrawalRoutes(app, connection, now);

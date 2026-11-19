@@ -157,8 +157,15 @@ export function closeDay(ctx: SalesContext, date: string) {
     .run(date, NOW.toISOString());
 }
 
+/**
+ * Marks a month closed by writing its row directly. An upsert: the current month's row may
+ * already exist, written by the fixed-expense generation (FR-11).
+ */
 export function closeMonth(ctx: SalesContext, yearMonth: string) {
   ctx.connection.sqlite
-    .prepare("insert into months (year_month, status, closed_at) values (?, 'closed', ?)")
+    .prepare(
+      `insert into months (year_month, status, closed_at) values (?, 'closed', ?)
+       on conflict (year_month) do update set status = 'closed', closed_at = excluded.closed_at`,
+    )
     .run(yearMonth, NOW.toISOString());
 }

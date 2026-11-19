@@ -1,4 +1,5 @@
 export * from "./time/civil-date";
+export * from "./time/year-month";
 export * from "./format/currency";
 export * from "./format/date";
 export * from "./api/health";
@@ -23,3 +24,5 @@ export * from "./cash-closing/cash-closing";
 export * from "./cash-closing/cash-closing-rules";
 export * from "./cash-closing/reopen-day";
 export * from "./fixed-expenses/fixed-expense-templates";
+export * from "./fixed-expenses/month-generation";
+export * from "./fixed-expenses/fixed-expenses";

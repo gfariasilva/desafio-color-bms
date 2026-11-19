@@ -266,8 +266,8 @@ export const sales = sqliteTable(
 
 /**
  * Expenses, "despesas" (spec §6.1 "Despesa"): general expenses (FR-06, `type: "general"`,
- * born `paid`) and, from #11–#13, fixed expenses (`type: "fixed"`). The columns of fixed
- * expenses are here already, so #12/#13 only add the template link (an additive migration).
+ * born `paid`) and fixed expenses (`type: "fixed"`, FR-11: generated pending every month
+ * from the templates, or added one-off).
  * Totals are never stored (spec §6.3).
  */
 export const expenses = sqliteTable(
@@ -291,20 +291,35 @@ export const expenses = sqliteTable(
     }),
     /** FR-06: paid with cash from the till (only with "cash"); reduces expected cash (RN-07). */
     paidFromTill: integer("paid_from_till", { mode: "boolean" }).notNull().default(false),
-    /** Fixed expenses (#12): the month "YYYY-MM" the bill belongs to. */
+    /** Fixed expenses (FR-11): the month "YYYY-MM" the bill belongs to. */
     referenceMonth: text("reference_month"),
-    /** Fixed expenses (#12): civil date due; may be in the future (RN-15). */
+    /** Fixed expenses (FR-11): civil date due; may be in the future (RN-15). Null: none yet. */
     dueDate: text("due_date"),
-    /** Fixed expenses (#12): expected amount in integer cents, from the template. */
+    /** Fixed expenses (FR-11): expected amount in integer cents, from the template. */
     expectedAmountCents: integer("expected_amount_cents"),
-    /** Fixed expenses (#13): loan installment number. */
+    /** Fixed expenses (FR-13): the loan installment this entry pays ("parcela n de N"). */
     installmentNumber: integer("installment_number"),
     /** ISO-8601 UTC instant when it was registered. */
     createdAt: text("created_at").notNull(),
+    /**
+     * Fixed expenses (FR-11): the template the entry was generated from; null on one-off
+     * entries ("avulsas"), whose name is in `description`.
+     */
+    fixedExpenseTemplateId: integer("fixed_expense_template_id").references(
+      () => fixedExpenseTemplates.id,
+    ),
+    /** Fixed expenses: Gerais or Taxas governo, copied from the template (FR-22 groups by it). */
+    fixedExpenseGroup: text("fixed_expense_group", { enum: ["general", "government_fees"] }),
   },
   (table) => [
     index("expenses_payment_date_idx").on(table.paymentDate),
     index("expenses_expense_category_idx").on(table.expenseCategoryId),
+    index("expenses_reference_month_idx").on(table.referenceMonth),
+    // Spec §6.2: at most one entry per template and reference month (one-offs excepted), so
+    // generating a month twice can never duplicate a bill (FR-11).
+    uniqueIndex("expenses_template_month_unique")
+      .on(table.fixedExpenseTemplateId, table.referenceMonth)
+      .where(sql`${table.fixedExpenseTemplateId} is not null`),
     // FR-06: a general expense is paid, has one category, an amount > 0, a date and a means.
     check(
       "expenses_general_check",

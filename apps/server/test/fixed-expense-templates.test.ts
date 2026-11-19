@@ -336,9 +336,8 @@ describe("FR-10: deactivate, reactivate and no delete", () => {
     expect(await list()).toHaveLength(15);
   });
 
-  it.todo(
-    "FR-10: a deactivated template creates no entry when the next month is generated, and its past entries stay in the reports (#12, #17)",
-  );
+  // FR-10 "a deactivated template creates no entry when the next month is generated, and its
+  // past entries stay" is tested with the month generation, in fixed-expenses.test.ts (#12).
 });
 
 describe("FR-10: reorder", () => {

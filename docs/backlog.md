@@ -57,7 +57,7 @@ Ordered backlog for the MVP (spec §9.1). Each item is one small PR / GitHub iss
 | [ ] | M4 | [#20](#20--settings) | Settings | FR-33 | #1 |
 | [ ] | M4 | [#21](#21--daily-spreadsheet-export-and-the-retry-queue) | Daily spreadsheet export and the retry queue | FR-28, FR-30 | #15, #20 |
 | [x] | M4 | [#11](#11--fixed-expense-templates) | Fixed-expense templates | FR-10; RN-12 | #1 |
-| [ ] | M4 | [#12](#12--generate-the-months-fixed-expenses) | Generate the month's fixed expenses | FR-11 | #11 |
+| [x] | M4 | [#12](#12--generate-the-months-fixed-expenses) | Generate the month's fixed expenses | FR-11 | #11 |
 | [ ] | M4 | [#13](#13--pay-or-dismiss-a-fixed-expense-loan-installments) | Pay or dismiss a fixed expense; loan installments | FR-12, FR-13; RN-09, RN-07, RN-14 | #12, #9 |
 | [ ] | M5 | [#14](#14--close-and-reopen-the-month) | Close and reopen the month | FR-16, FR-17; RN-14 | #10, #13 |
 | [ ] | M5 | [#16](#16--month-reports-income-and-general-expenses) | Month reports: income and general expenses | FR-20, FR-21; RN-06, RN-08 | #6, #7 |
@@ -747,7 +747,7 @@ Diferença = Dinheiro contado − Dinheiro esperado   (>0 sobra, <0 falta)
 - Names are unique by subgroup + name, ignoring case and accents (`fixedExpenseTemplateNameKey()`, stored in `name_key`), so #12 never generates the same bill twice.
 - No delete (FR-10 lists none): `registerOrderedListRoutes()` now registers DELETE only when the repository has `remove`.
 - Audit entity `fixed_expense_template`. The group is audited as `templateGroup`, not `group`, because `group: "general"` already reads "Geral" for expense categories.
-- **#12** must: generate from `isTemplateGenerated()` (active, and not a loan with 0 remaining); decide what to do with a template whose **due day is still empty** (suggestion: generate without a due date and flag it, or skip it with an alert on Início); add the expense → template link (`fixed_expense_template_id`); handle a loan with empty installments (generate, no "parcela n de N"); and replace the `it.todo` in `apps/server/test/fixed-expense-templates.test.ts` (deactivated template → no entry, past entries kept).
+- ~~**#12** must~~ (done in #12): generate from `isTemplateGenerated()` (active, and not a loan with 0 remaining); decide what to do with a template whose **due day is still empty** (suggestion: generate without a due date and flag it, or skip it with an alert on Início); add the expense → template link (`fixed_expense_template_id`); handle a loan with empty installments (generate, no "parcela n de N"); and replace the `it.todo` in `apps/server/test/fixed-expense-templates.test.ts` (deactivated template → no entry, past entries kept).
 - UI: `/despesas-fixas` is now a hub (link to Modelos, "em construção" cards for #12/#13); the month's bills will be a second link card.
 
 **Acceptance criteria** _(verbatim from spec §4)_
@@ -808,6 +808,20 @@ Carga inicial (ver RN-12):
 **Technical notes**
 
 - Run the generation in one transaction at startup and on first request of a new month; test with a fixed `today`.
+
+**Done notes (follow-ups)**
+
+- Migration `0012_add_fixed_expense_template_link` (additive): `expenses.fixed_expense_template_id` (null on one-off entries, whose name is in `description`), `expenses.fixed_expense_group` (copied on every fixed entry, for FR-22), an index on `reference_month` and a **unique partial index** on (template, reference month) where the template is set (spec §6.2: one entry per template and month, one-offs excepted).
+- Core: `time/year-month.ts` (`isYearMonth`, `yearMonthSchema`, `addMonths`, `lastDayOfMonth`), `formatYearMonthLong()`, `fixed-expenses/month-generation.ts` (`dueDateInMonth`, `loanInstallmentNumber`, `planMonthFixedExpenses`) and `fixed-expenses/fixed-expenses.ts` (one-off schema and rule `oneOffFixedExpenseError`, `fixedExpenseSchema`, `monthFixedExpensesResponseSchema`, `fixedExpensesExpectedTotalCents`, `fixedExpenseInstallmentLabel`, `EXPENSE_STATUS_LABELS`).
+- Generation (`ensureMonthFixedExpenses`): one transaction, idempotent through `months.fixed_expenses_generated`; only the **current** month; a closed month is skipped. It runs in `buildApp` (startup) and in an `onRequest` hook on `/api/*` that only rechecks when the month changes (PC left on past midnight). A failure is logged and never blocks the request.
+- Decisions (approved): a template whose **due day is still empty** (Q-05) is generated **without a due date** and shown as "Sem vencimento" with a link to Modelos; filling the template later does **not** update that month's entry. Generated entries get **no audit row** (automatic, not an owner action); an auto-deactivated loan gets a `fixed_expense_template` update row with the reason "Empréstimo sem parcelas restantes (FR-11)"; a one-off entry gets an `expense` create row.
+- Loans: the entry stores `installment_number` = total − remaining + 1 at generation time (null with empty installments).
+- API: `GET /api/fixed-expenses?month=YYYY-MM` (default current month; `generated`, `lock`, `expectedTotalCents`), `POST /api/fixed-expenses` (one-off; month not in the future (400) nor closed (409); due date may be future).
+- UI: `/despesas-fixas/mes` "Contas do mês" (`pages/FixedExpensesMonthPage.tsx`), linked from the hub; month in `?mes=`.
+- **The `months` row of the current month now always exists** (written by the generation): #14 must **upsert** when closing a month (the test helper `closeMonth` already does).
+- **#13:** a pending entry may have no due date and no expected amount (pay it all the same). The stored installment number assumes last month's installment was paid; if it is still pending when the next month is generated, two entries can show the same "parcela n" — decide the countdown with that in mind. Allow editing/deleting a one-off entry, or rely on "dispensar"?
+- **#17 / #23:** entries without a due date are neither "a vencer" nor "vencida"; consider an alert "conta sem vencimento" instead. FR-22 groups by `fixed_expense_group`.
+- Seen while testing (outside #12): the header date in `AppShell` uses the browser clock (`todayCivilDate()`), not `GET /api/today`, so with `COLOR_BMS_NOW` it shows the real date.
 
 **Acceptance criteria** _(verbatim from spec §4)_
 

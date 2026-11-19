@@ -16,3 +16,16 @@ export function periodStatus(db: AppDatabase | AppTransaction, date: CivilDate) 
     .get();
   return { dayClosed: day?.status === "closed", monthClosed: month?.status === "closed" };
 }
+
+/** RN-14: is the month ("YYYY-MM") closed? No row means open. */
+export function monthStatus(db: AppDatabase | AppTransaction, yearMonth: string) {
+  const month = db
+    .select({ status: months.status, fixedExpensesGenerated: months.fixedExpensesGenerated })
+    .from(months)
+    .where(eq(months.yearMonth, yearMonth))
+    .get();
+  return {
+    monthClosed: month?.status === "closed",
+    fixedExpensesGenerated: month?.fixedExpensesGenerated ?? false,
+  };
+}
