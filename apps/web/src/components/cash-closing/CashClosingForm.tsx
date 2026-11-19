@@ -139,9 +139,12 @@ export function CashClosingForm({ day, onClose }: CashClosingFormProps) {
               <div>
                 <label htmlFor="closing-opening">Troco inicial (R$)</label>
                 <p className="text-xs text-muted-foreground">
-                  {day.suggestedFrom
-                    ? `Contado no fechamento de ${formatCivilDate(day.suggestedFrom)}.`
-                    : "Primeiro fechamento: digite o troco inicial."}
+                  {day.suggestedFrom === day.date
+                    ? // FR-09: a reopened day starts with the opening cash it was closed with.
+                      "Troco do fechamento anterior deste dia."
+                    : day.suggestedFrom
+                      ? `Contado no fechamento de ${formatCivilDate(day.suggestedFrom)}.`
+                      : "Primeiro fechamento: digite o troco inicial."}
                 </p>
               </div>
             }

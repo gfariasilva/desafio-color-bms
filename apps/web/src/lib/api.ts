@@ -30,6 +30,7 @@ import {
   dayCashClosingResponseSchema,
   unclosedDaysResponseSchema,
   type CloseDayInput,
+  type ReopenDayInput,
   type DayCashClosingResponse,
   cashWithdrawalSchema,
   dayCashWithdrawalsResponseSchema,
@@ -226,6 +227,14 @@ export const api = {
       requestJson(
         "POST",
         `/api/days/${encodeURIComponent(date)}/close`,
+        input,
+        dayCashClosingResponseSchema,
+      ),
+    /** FR-09: reopen a closed day with a reason; answers with the day, open again. */
+    reopen: (date: string, input: ReopenDayInput): Promise<DayCashClosingResponse> =>
+      requestJson(
+        "POST",
+        `/api/days/${encodeURIComponent(date)}/reopen`,
         input,
         dayCashClosingResponseSchema,
       ),

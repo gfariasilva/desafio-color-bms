@@ -6,9 +6,11 @@ import {
   isCivilDate,
   type CloseDayInput,
   type DayCashClosingResponse,
+  type ReopenDayInput,
 } from "@color-bms/core";
 import { CashClosingForm } from "@/components/cash-closing/CashClosingForm";
 import { ClosedDaySummary } from "@/components/cash-closing/ClosedDaySummary";
+import { ReopenDayPanel } from "@/components/cash-closing/ReopenDayPanel";
 import { UpcomingCard } from "@/components/layout/HubCards";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +26,9 @@ const area = NAV_ITEMS.find((item) => item.path === "/fechamento");
  * day in the link (`?data=YYYY-MM-DD`, from the Início alert, FR-27). An open day with
  * movement shows the closing form; a closed day shows its stored closing; any other day says
  * why it cannot be closed (future, closed month, no movement).
+ *
+ * FR-09: a closed day offers "Reabrir dia" (confirmation + reason) while its month is open;
+ * once reopened, the closing form shows again, since a new closing is required.
  */
 export function ClosingPage() {
   const queryClient = useQueryClient();
@@ -67,7 +72,29 @@ export function ClosingPage() {
     queryClient.setQueryData([...QUERY_KEYS.cashClosingDay, closeDate], closed);
     setSaved(`Dia ${formatCivilDate(closeDate)} fechado.`);
     // RN-14: the day is now locked on every screen; FR-27: it leaves the Início alert.
-    await Promise.all(
+    await refreshDayScreens();
+  }
+
+  async function reopen(reopenDate: string, input: ReopenDayInput) {
+    let reopened: DayCashClosingResponse;
+    try {
+      reopened = await api.cashClosing.reopen(reopenDate, input);
+    } catch (failure) {
+      // The server refused (month closed, already reopened elsewhere): show the day as it is now.
+      void queryClient.invalidateQueries({ queryKey: [...QUERY_KEYS.cashClosingDay, reopenDate] });
+      throw failure;
+    }
+    queryClient.setQueryData([...QUERY_KEYS.cashClosingDay, reopenDate], reopened);
+    setSaved(
+      `Dia ${formatCivilDate(reopenDate)} reaberto. Corrija os lançamentos e feche o dia de novo.`,
+    );
+    // RN-14: the day is unlocked on every screen; FR-27: an earlier day is back in the alert.
+    await refreshDayScreens();
+  }
+
+  /** The screens that show a day's lock or its records. */
+  function refreshDayScreens() {
+    return Promise.all(
       [
         QUERY_KEYS.cashClosing,
         QUERY_KEYS.sales,
@@ -123,7 +150,19 @@ export function ClosingPage() {
           </p>
         ) : null}
         {data?.closing ? (
-          <ClosedDaySummary day={{ ...data, closing: data.closing }} />
+          <>
+            <ClosedDaySummary day={{ ...data, closing: data.closing }} />
+            {data.reopenBlocked ? (
+              // RN-14: a day of a closed month needs the month reopened first (FR-17).
+              <p className="mt-3 text-sm text-muted-foreground">{data.reopenBlocked}</p>
+            ) : (
+              <ReopenDayPanel
+                key={data.date}
+                date={data.date}
+                onReopen={(input) => reopen(data.date, input)}
+              />
+            )}
+          </>
         ) : data?.blocked ? (
           <p className="text-sm text-muted-foreground">{data.blocked}</p>
         ) : data ? (
@@ -136,7 +175,6 @@ export function ClosingPage() {
       </section>
 
       <div className="mt-8 grid max-w-xl gap-2">
-        <UpcomingCard label="Reabrir dia" requirements="FR-09" />
         <UpcomingCard label="Fechamento do mês" requirements="FR-16, FR-17" />
       </div>
     </>

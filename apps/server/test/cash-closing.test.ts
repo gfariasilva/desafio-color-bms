@@ -64,6 +64,7 @@ describe("FR-08: the closing screen data (GET /api/days/:date/cash-closing)", ()
       status: "open",
       hasMovement: true,
       blocked: null,
+      reopenBlocked: null,
       suggestedOpeningCashCents: 12500,
       suggestedFrom: YESTERDAY,
       cashSalesCents: 4000,
