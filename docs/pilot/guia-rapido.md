@@ -63,6 +63,12 @@ Para corrigir um dia já fechado: escolha a **Data** → **Reabrir dia** → esc
 
 Totais por aba e por forma de pagamento, despesas, sangrias e o fechamento. Durante as **2 primeiras semanas**, compare com a planilha do Excel e anote na folha de conferência.
 
+## Conferir o mês (Alt+6 → Mês – Resumo mensal)
+
+O **Resumo mensal** mostra a Entrada mensal, as taxas, as despesas gerais, as despesas fixas pagas no mês e o **Saldo mensal** (em vermelho quando é negativo). As sangrias não entram no saldo. Os links embaixo abrem os detalhes de cada linha.
+
+Em **Mês – Despesas fixas**, cada conta mostra vencimento, previsto, pago, data de pagamento e status. Conta paga **conta no mês em que foi paga**: a conta de outubro paga em novembro aparece em novembro com a etiqueta "Conta de 10/2026". O **Pendente** é só informativo e fica fora do saldo.
+
 ## Se algo der errado
 
 - **A tela não abre ou mostra erro de conexão:** espere 1 minuto e recarregue (**F5**). Se continuar, abra a pasta `%LOCALAPPDATA%\ColorBMS` (tecle **Win + R**, cole o caminho e tecle Enter) e dê dois cliques em **`iniciar.cmd`**.

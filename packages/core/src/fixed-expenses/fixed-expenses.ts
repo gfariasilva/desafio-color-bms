@@ -156,3 +156,18 @@ export const monthFixedExpensesResponseSchema = z.object({
   paidTotalCents: z.number().int(),
 });
 export type MonthFixedExpensesResponse = z.infer<typeof monthFixedExpensesResponseSchema>;
+
+/**
+ * FR-11 list order (also FR-22): Gerais, then Taxas governo; by due date (none last); then
+ * by name.
+ */
+export function compareFixedExpenses(a: FixedExpense, b: FixedExpense): number {
+  const group = FIXED_EXPENSE_GROUPS.indexOf(a.group) - FIXED_EXPENSE_GROUPS.indexOf(b.group);
+  if (group !== 0) return group;
+  if (a.dueDate !== b.dueDate) {
+    if (a.dueDate === null) return 1;
+    if (b.dueDate === null) return -1;
+    return a.dueDate < b.dueDate ? -1 : 1;
+  }
+  return a.label.localeCompare(b.label, "pt-BR") || a.id - b.id;
+}

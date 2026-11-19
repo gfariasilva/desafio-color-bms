@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { monthGeneralExpensesResponseSchema, monthIncomeResponseSchema } from "@color-bms/core";
+import {
+  monthFixedExpensesReportSchema,
+  monthGeneralExpensesResponseSchema,
+  monthIncomeResponseSchema,
+  monthSummaryResponseSchema,
+} from "@color-bms/core";
+import { createCashWithdrawal } from "./cash-withdrawals-fixture";
 import { createExpense, expenseCategoryId } from "./expenses-fixture";
-import { fixedEntry, payEntry } from "./fixed-expenses-fixture";
+import { fixedEntry, getFixedMonth, payEntry, postAction } from "./fixed-expenses-fixture";
 import { createFee, createSale, TODAY, useSalesApp } from "./sales-fixture";
 
 const ctx = useSalesApp();
@@ -22,6 +28,35 @@ async function getGeneralExpenses(yearMonth: string) {
   });
   expect(response.statusCode, response.body).toBe(200);
   return monthGeneralExpensesResponseSchema.parse(response.json());
+}
+
+async function getFixedExpensesReport(yearMonth: string) {
+  const response = await ctx.app.inject({
+    method: "GET",
+    url: `/api/months/${yearMonth}/reports/fixed-expenses`,
+  });
+  expect(response.statusCode, response.body).toBe(200);
+  return monthFixedExpensesReportSchema.parse(response.json());
+}
+
+async function getSummary(yearMonth: string) {
+  const response = await ctx.app.inject({
+    method: "GET",
+    url: `/api/months/${yearMonth}/reports/summary`,
+  });
+  expect(response.statusCode, response.body).toBe(200);
+  return monthSummaryResponseSchema.parse(response.json());
+}
+
+/** FR-11: adds a one-off fixed bill (pending) to a month. */
+async function createOneOff(payload: Record<string, unknown>) {
+  const response = await ctx.app.inject({
+    method: "POST",
+    url: "/api/fixed-expenses",
+    payload: { group: "general", ...payload },
+  });
+  expect(response.statusCode, response.body).toBe(201);
+  return response.json() as { id: number };
 }
 
 const october = (day: number) => `2026-10-${String(day).padStart(2, "0")}`;
@@ -227,6 +262,195 @@ describe("FR-21: Relatório Mês – Despesas gerais (GET /api/months/:yearMonth
     const response = await ctx.app.inject({
       method: "GET",
       url: "/api/months/outubro/reports/general-expenses",
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error).toBe("Mês inválido.");
+  });
+});
+
+describe("FR-22: Relatório Mês – Despesas fixas (GET /api/months/:yearMonth/reports/fixed-expenses)", () => {
+  /**
+   * November (the clock's month, already generated): Luz and DAS paid, Água dismissed, a
+   * pending one-off "Seguro" with an expected amount, and October's one-off "IPTU outubro"
+   * paid on 05/11 (RN-09: it counts in November, the month of its payment date).
+   */
+  async function fillNovember() {
+    const luz = await fixedEntry(ctx, "Luz");
+    await payEntry(ctx, luz.id, { amountCents: 18743, paymentDate: "2026-11-10" });
+    const das = await fixedEntry(ctx, "DAS");
+    await payEntry(ctx, das.id, { amountCents: 30000, paymentDate: "2026-11-17" });
+    const agua = await fixedEntry(ctx, "Água");
+    expect((await postAction(ctx, agua.id, "dismiss")).statusCode).toBe(200);
+    await createOneOff({
+      referenceMonth: "2026-11",
+      description: "Seguro",
+      dueDate: "2026-11-25",
+      expectedAmountCents: 50000,
+    });
+    const iptu = await createOneOff({
+      referenceMonth: "2026-10",
+      description: "IPTU outubro",
+      dueDate: "2026-10-20",
+      expectedAmountCents: 17000,
+    });
+    await payEntry(ctx, iptu.id, { amountCents: 17000, paymentDate: "2026-11-05" });
+    return { iptuId: iptu.id };
+  }
+
+  it("RN-09 / FR-22: total paid by payment date, grouped in Gerais and Taxas governo", async () => {
+    const { iptuId } = await fillNovember();
+    const report = await getFixedExpensesReport("2026-11");
+
+    expect(report.groups.map((group) => group.label)).toEqual(["Gerais", "Taxas governo"]);
+    expect(report.paidTotalCents).toBe(18743 + 30000 + 17000);
+    expect(report.groups.map((group) => group.paidTotalCents)).toEqual([18743 + 17000, 30000]);
+
+    const rows = report.groups.flatMap((group) => group.expenses);
+    const row = (label: string) => rows.find((r) => r.label === label)!;
+    expect(row("Luz")).toMatchObject({
+      status: "paid",
+      amountCents: 18743,
+      paymentDate: "2026-11-10",
+      countsInMonth: true,
+    });
+    expect(row("DAS").group).toBe("government_fees");
+    expect(row("Água")).toMatchObject({ status: "dismissed", countsInMonth: false });
+    expect(rows.find((r) => r.id === iptuId)).toMatchObject({
+      referenceMonth: "2026-10",
+      otherReferenceMonth: true,
+      countsInMonth: true,
+    });
+    // The counted rows add up to the total paid.
+    expect(
+      rows.filter((r) => r.countsInMonth).reduce((sum, r) => sum + (r.amountCents ?? 0), 0),
+    ).toBe(report.paidTotalCents);
+
+    // RN-09: the same figure as "Pago no mês" on Contas do mês (#13).
+    expect((await getFixedMonth(ctx, "2026-11")).paidTotalCents).toBe(report.paidTotalCents);
+  });
+
+  it("FR-22: pending total is informative: Σ expected of the month's pending bills", async () => {
+    await fillNovember();
+    const month = await getFixedMonth(ctx, "2026-11");
+    const pending = month.expenses.filter((entry) => entry.status === "pending");
+    const report = await getFixedExpensesReport("2026-11");
+
+    expect(report.pendingTotalCents).toBe(
+      pending.reduce((sum, entry) => sum + (entry.expectedAmountCents ?? 0), 0),
+    );
+    expect(report.pendingTotalCents).toBeGreaterThanOrEqual(50000);
+    expect(report.pendingWithoutExpectedCount).toBe(
+      pending.filter((entry) => entry.expectedAmountCents === null).length,
+    );
+  });
+
+  it("RN-09: October lists its bill paid in November, without counting it", async () => {
+    const { iptuId } = await fillNovember();
+    const report = await getFixedExpensesReport("2026-10");
+    const rows = report.groups.flatMap((group) => group.expenses);
+    expect(rows.map((r) => r.id)).toEqual([iptuId]);
+    expect(rows[0]).toMatchObject({ countsInMonth: false, otherReferenceMonth: false });
+    expect(report.paidTotalCents).toBe(0);
+    expect(report.pendingTotalCents).toBe(0);
+  });
+
+  it("rejects an invalid month with 400", async () => {
+    const response = await ctx.app.inject({
+      method: "GET",
+      url: "/api/months/2026-00/reports/fixed-expenses",
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error).toBe("Mês inválido.");
+  });
+});
+
+describe("FR-23: Resumo mensal (GET /api/months/:yearMonth/reports/summary)", () => {
+  /** November with sales, a refund, general expenses and fixed bills paid and pending. */
+  async function fillMonth() {
+    await createFee(ctx, { ratePpm: 37900 });
+    await createSale(ctx, { date: "2026-11-03", grossCents: 25000 });
+    const card = await createSale(ctx, {
+      date: "2026-11-04",
+      paymentMethodId: ctx.ids.credit,
+      cardMachineId: ctx.ids.mercadoPago,
+      installments: 1,
+      grossCents: 15000,
+    });
+    const refund = await ctx.app.inject({
+      method: "POST",
+      url: `/api/sales/${card.id}/refunds`,
+      payload: { refundCents: 5000, reason: "defeito" },
+    });
+    expect(refund.statusCode, refund.body).toBe(201);
+    await createExpense(ctx, { paymentDate: "2026-11-02", amountCents: 4500 });
+    await createExpense(ctx, {
+      paymentDate: "2026-11-12",
+      expenseCategoryId: await expenseCategoryId(ctx, "Kalunga"),
+      amountCents: 30000,
+      paymentMeans: "boleto",
+    });
+    const luz = await fixedEntry(ctx, "Luz");
+    await payEntry(ctx, luz.id, { amountCents: 18743, paymentDate: "2026-11-10" });
+    await createOneOff({
+      referenceMonth: "2026-11",
+      description: "Seguro",
+      dueDate: "2026-11-25",
+      expectedAmountCents: 50000,
+    });
+  }
+
+  it("FR-23: each line equals the matching total of the FR-20, FR-21 and FR-22 reports", async () => {
+    await fillMonth();
+    const [summary, income, general, fixed] = await Promise.all([
+      getSummary("2026-11"),
+      getIncome("2026-11"),
+      getGeneralExpenses("2026-11"),
+      getFixedExpensesReport("2026-11"),
+    ]);
+
+    expect(summary.incomeCents).toBe(income.total.grossCents);
+    expect(summary.feesCents).toBe(income.total.feeCents);
+    expect(summary.generalExpensesCents).toBe(general.totalCents);
+    expect(summary.fixedExpensesCents).toBe(fixed.paidTotalCents);
+
+    // RN-06/RN-08/RN-09 with the numbers: 250,00 + 150,00 − 50,00; fee 5,69 − 1,90 (RN-04).
+    expect(summary).toEqual({
+      yearMonth: "2026-11",
+      incomeCents: 35000,
+      feesCents: 379,
+      generalExpensesCents: 34500,
+      fixedExpensesCents: 18743,
+      // RN-10: gerais + fixas; the pending Seguro is not in it.
+      totalExpensesCents: 53243,
+      // RN-10: 350,00 − 3,79 − 532,43.
+      balanceCents: -18622,
+    });
+  });
+
+  it("RN-10: sangrias do not enter the expenses nor the monthly balance", async () => {
+    await fillMonth();
+    const before = await getSummary("2026-11");
+    await createCashWithdrawal(ctx, { date: "2026-11-10", amountCents: 30000 });
+    await createCashWithdrawal(ctx, { date: TODAY, amountCents: 12345, note: "CONTA: Gás" });
+    expect(await getSummary("2026-11")).toEqual(before);
+  });
+
+  it("FR-23: a month without movement has every line at zero", async () => {
+    expect(await getSummary("2026-09")).toEqual({
+      yearMonth: "2026-09",
+      incomeCents: 0,
+      feesCents: 0,
+      generalExpensesCents: 0,
+      fixedExpensesCents: 0,
+      totalExpensesCents: 0,
+      balanceCents: 0,
+    });
+  });
+
+  it("rejects an invalid month with 400", async () => {
+    const response = await ctx.app.inject({
+      method: "GET",
+      url: "/api/months/2026-1/reports/summary",
     });
     expect(response.statusCode).toBe(400);
     expect(response.json().error).toBe("Mês inválido.");

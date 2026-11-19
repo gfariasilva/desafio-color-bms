@@ -10,6 +10,7 @@ import {
   type ContaCandidatesResponse,
   type FixedExpense,
   type ParsedConvertContaInput,
+  compareFixedExpenses,
 } from "@color-bms/core";
 import type { AppDatabase } from "../../db/client";
 import { cashWithdrawals, days, expenses } from "../../db/schema";
@@ -21,7 +22,6 @@ import {
 } from "../cash-closing/cash-closing.repository";
 import { monthStatus, periodStatus } from "../periods/period-status";
 import {
-  compareFixedExpenses,
   createOneOffInTransaction,
   payFixedExpenseInTransaction,
   selectFixedExpenses,

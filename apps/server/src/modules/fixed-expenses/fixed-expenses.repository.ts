@@ -1,9 +1,9 @@
 import { and, eq, gte, lte, type SQL } from "drizzle-orm";
 import {
+  compareFixedExpenses,
   DAY_CLOSED_CODE,
   dismissFixedExpenseBlock,
   EXPENSE_PAYMENT_MEANS_LABELS,
-  FIXED_EXPENSE_GROUPS,
   FIXED_EXPENSE_PAYMENT_TEXTS,
   FIXED_EXPENSE_TEXTS,
   fixedExpensesExpectedTotalCents,
@@ -121,18 +121,6 @@ export function selectFixedExpenses(
     installmentsTotal: template?.isLoan ? template.installmentsTotal : null,
     createdAt: expense.createdAt,
   }));
-}
-
-/** FR-11 list order: Gerais, then Taxas governo; by due date (none last); then by name. */
-export function compareFixedExpenses(a: FixedExpense, b: FixedExpense): number {
-  const group = FIXED_EXPENSE_GROUPS.indexOf(a.group) - FIXED_EXPENSE_GROUPS.indexOf(b.group);
-  if (group !== 0) return group;
-  if (a.dueDate !== b.dueDate) {
-    if (a.dueDate === null) return 1;
-    if (b.dueDate === null) return -1;
-    return a.dueDate < b.dueDate ? -1 : 1;
-  }
-  return a.label.localeCompare(b.label, "pt-BR") || a.id - b.id;
 }
 
 /** FR-11: the fixed expenses of a reference month, for "Contas do mês". */

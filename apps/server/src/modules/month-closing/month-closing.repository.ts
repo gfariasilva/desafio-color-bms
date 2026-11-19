@@ -12,16 +12,14 @@ import {
   type MonthClosingResponse,
   type ParsedReopenMonthInput,
   type YearMonth,
+  compareFixedExpenses,
 } from "@color-bms/core";
 import type { AppDatabase, AppTransaction } from "../../db/client";
 import { days, expenses, months } from "../../db/schema";
 import { BusinessError } from "../../http/route-helpers";
 import { recordAudit } from "../audit/audit.repository";
 import { MOVEMENT_DATES_SQL } from "../cash-closing/cash-closing.repository";
-import {
-  compareFixedExpenses,
-  selectFixedExpenses,
-} from "../fixed-expenses/fixed-expenses.repository";
+import { selectFixedExpenses } from "../fixed-expenses/fixed-expenses.repository";
 import { monthStatus } from "../periods/period-status";
 
 /**
