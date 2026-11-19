@@ -1,4 +1,9 @@
 import {
+  fixedExpenseTemplateListResponseSchema,
+  fixedExpenseTemplateSchema,
+  type CreateFixedExpenseTemplateInput,
+  type FixedExpenseTemplate,
+  type UpdateFixedExpenseTemplateInput,
   cardFeeInForceResponseSchema,
   cardFeeListResponseSchema,
   cardFeeSchema,
@@ -147,6 +152,8 @@ export const QUERY_KEYS = {
   payment_method: ["paymentMethods"],
   card_machine: ["cardMachines"],
   card_fees: ["cardFees"],
+  /** FR-10: fixed-expense templates, in display order. */
+  fixedExpenseTemplates: ["fixedExpenseTemplates"],
   today: ["today"],
   /** Prefix of every sales query; any sale change invalidates it all. */
   sales: ["sales"],
@@ -317,6 +324,30 @@ export const api = {
       ),
     remove: (id: number): Promise<void> =>
       requestJson("DELETE", `/api/card-machines/${id}`, undefined),
+  },
+
+  /** FR-10: fixed-expense templates (modelos), in display order. No delete. */
+  fixedExpenseTemplates: {
+    list: (): Promise<FixedExpenseTemplate[]> =>
+      getJson("/api/fixed-expense-templates", fixedExpenseTemplateListResponseSchema).then(
+        (r) => r.templates,
+      ),
+    create: (input: CreateFixedExpenseTemplateInput): Promise<FixedExpenseTemplate> =>
+      requestJson("POST", "/api/fixed-expense-templates", input, fixedExpenseTemplateSchema),
+    update: (id: number, changes: UpdateFixedExpenseTemplateInput): Promise<FixedExpenseTemplate> =>
+      requestJson(
+        "PATCH",
+        `/api/fixed-expense-templates/${id}`,
+        changes,
+        fixedExpenseTemplateSchema,
+      ),
+    reorder: (ids: number[]): Promise<FixedExpenseTemplate[]> =>
+      requestJson(
+        "PUT",
+        "/api/fixed-expense-templates/order",
+        { ids },
+        fixedExpenseTemplateListResponseSchema,
+      ).then((r) => r.templates),
   },
 
   /** FR-15: the fee table; RN-01 lookup of the fee in force for a sale. */
