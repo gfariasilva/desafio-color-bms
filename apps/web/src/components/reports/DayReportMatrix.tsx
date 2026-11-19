@@ -1,4 +1,3 @@
-import { Fragment } from "react";
 import { formatCents, type DayMatrix, type SaleTotals } from "@color-bms/core";
 import { Card } from "@/components/ui/card";
 import {
@@ -41,21 +40,22 @@ export function DayReportMatrix({ matrix }: { matrix: DayMatrix }) {
             <TableHead className="text-right">Total</TableHead>
           </TableRow>
         </TableHeader>
-        <TableBody>
-          {matrix.tabs.map((tab) => {
-            const name = (
-              <span className="flex items-center gap-2">
-                <span
-                  aria-hidden
-                  className="h-2 w-2 shrink-0 rounded-full"
-                  style={{ backgroundColor: categoryColor(tab.order - 1) }}
-                />
-                {tab.name}
-              </span>
-            );
-            if (!tab.hasSales) {
-              return (
-                <TableRow key={tab.saleCategoryId} className="text-muted-foreground">
+        {/* One <tbody> per tab: its `scope="rowgroup"` name then labels only its own rows. */}
+        {matrix.tabs.map((tab) => {
+          const name = (
+            <span className="flex items-center gap-2">
+              <span
+                aria-hidden
+                className="h-2 w-2 shrink-0 rounded-full"
+                style={{ backgroundColor: categoryColor(tab.order - 1) }}
+              />
+              {tab.name}
+            </span>
+          );
+          if (!tab.hasSales) {
+            return (
+              <TableBody key={tab.saleCategoryId}>
+                <TableRow className="text-muted-foreground">
                   <TableHead scope="row" className="font-normal">
                     {name}
                   </TableHead>
@@ -67,45 +67,45 @@ export function DayReportMatrix({ matrix }: { matrix: DayMatrix }) {
                   ))}
                   <TableCell className="text-right">—</TableCell>
                 </TableRow>
-              );
-            }
-            return (
-              <Fragment key={tab.saleCategoryId}>
-                {MEASURES.map((measure, index) => (
-                  <TableRow
-                    key={measure.key}
-                    className={cn(index < MEASURES.length - 1 && "border-b-0")}
-                  >
-                    {index === 0 ? (
-                      <TableHead
-                        scope="rowgroup"
-                        rowSpan={MEASURES.length}
-                        className="align-top font-medium text-foreground"
-                      >
-                        {name}
-                      </TableHead>
-                    ) : null}
-                    <TableCell className="text-muted-foreground">{measure.label}</TableCell>
-                    {tab.cells.map((cell, column) => (
-                      <TableCell
-                        key={matrix.methods[column]?.paymentMethodId ?? column}
-                        className={cn(
-                          "whitespace-nowrap text-right",
-                          cell[measure.key] === 0 && "text-muted-foreground",
-                        )}
-                      >
-                        {formatCents(cell[measure.key])}
-                      </TableCell>
-                    ))}
-                    <TableCell className="whitespace-nowrap text-right font-medium">
-                      {formatCents(tab.total[measure.key])}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </Fragment>
+              </TableBody>
             );
-          })}
-        </TableBody>
+          }
+          return (
+            <TableBody key={tab.saleCategoryId}>
+              {MEASURES.map((measure, index) => (
+                <TableRow
+                  key={measure.key}
+                  className={cn(index < MEASURES.length - 1 && "border-b-0")}
+                >
+                  {index === 0 ? (
+                    <TableHead
+                      scope="rowgroup"
+                      rowSpan={MEASURES.length}
+                      className="align-top font-medium text-foreground"
+                    >
+                      {name}
+                    </TableHead>
+                  ) : null}
+                  <TableCell className="text-muted-foreground">{measure.label}</TableCell>
+                  {tab.cells.map((cell, column) => (
+                    <TableCell
+                      key={matrix.methods[column]?.paymentMethodId ?? column}
+                      className={cn(
+                        "whitespace-nowrap text-right",
+                        cell[measure.key] === 0 && "text-muted-foreground",
+                      )}
+                    >
+                      {formatCents(cell[measure.key])}
+                    </TableCell>
+                  ))}
+                  <TableCell className="whitespace-nowrap text-right font-medium">
+                    {formatCents(tab.total[measure.key])}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          );
+        })}
         <tfoot className="border-t-2 bg-muted/30 font-medium">
           {MEASURES.map((measure, index) => (
             <TableRow key={measure.key} className={cn(index < MEASURES.length - 1 && "border-b-0")}>

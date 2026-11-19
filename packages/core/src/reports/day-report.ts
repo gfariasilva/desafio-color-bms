@@ -121,7 +121,7 @@ export const dayReportResponseSchema = z.object({
   matrix: dayMatrixSchema,
   /** The day's general expenses ("saídas diárias"), in the order they were registered. */
   expenses: z.array(expenseSchema),
-  /** The fixed expenses paid on this date (any reference month), in the order registered. */
+  /** The fixed expenses paid on this date (any reference month), by name. */
   fixedExpenses: z.array(fixedExpenseSchema),
   /** Σ of the day's general and fixed expenses. */
   expensesTotalCents: z.number().int(),

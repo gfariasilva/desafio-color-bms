@@ -30,6 +30,11 @@ export function DayReportPage() {
 
   const today = useQuery({ queryKey: QUERY_KEYS.today, queryFn: api.today });
 
+  // A new link to another day (while this page is open) opens that day.
+  useEffect(() => {
+    if (linkedDate && isCivilDate(linkedDate)) setDateText(linkedDate);
+  }, [linkedDate]);
+
   // NFR-05: keyboard-first, the date is the only field.
   useEffect(() => dateInput.current?.focus(), []);
 
@@ -74,7 +79,8 @@ export function DayReportPage() {
             onChange={(event) => setDateText(event.target.value)}
           />
         </div>
-        {data ? (
+        {/* A-15: only days with movement are closed; an empty or future day has no status. */}
+        {data && (data.hasMovement || data.closing) ? (
           <Badge variant={data.status === "closed" ? "secondary" : "outline"} className="mb-2">
             {data.status === "closed" ? "Dia fechado" : "Dia aberto"}
           </Badge>

@@ -28,11 +28,13 @@ export function getDayReport(db: AppDatabase, date: CivilDate, now: Date): DayRe
     sales: listSales(db, date),
   });
   const general = getDayExpenses(db, date);
-  // Fixed expenses paid on this date, whatever their reference month (RN-07, RN-09).
+  // Fixed expenses paid on this date, whatever their reference month (RN-07, RN-09). The time
+  // of payment is not stored, so they are listed by name (then id): a stable order that the
+  // daily spreadsheet (#21) repeats.
   const fixed = selectFixedExpenses(
     db,
     and(eq(expenses.paymentDate, date), eq(expenses.status, "paid")),
-  ).sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id - b.id);
+  ).sort((a, b) => a.label.localeCompare(b.label, "pt-BR") || a.id - b.id);
   const withdrawals = getDayCashWithdrawals(db, date);
   const cashClosing = getCashClosing(db, date, now);
 

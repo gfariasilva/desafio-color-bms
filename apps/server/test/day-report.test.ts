@@ -228,6 +228,18 @@ describe("FR-19: the day report (GET /api/days/:date/report)", () => {
       tillExpensesCents: closing.tillExpensesCents,
       withdrawalsCents: closing.withdrawalsCents,
     });
+
+    // The same values computed by hand from the seeded records (independent of the shared
+    // queries): cash 25,00 + 10,00 + 30,00 − 10,00; till 45,00 gasolina + 120,00 Luz.
+    expect(report.cash).toEqual({
+      cashSalesCents: 5500,
+      tillExpensesCents: 16500,
+      withdrawalsCents: 30000,
+    });
+    expect(report.expensesTotalCents).toBe(4500 + 2000 + 12000);
+    expect(report.withdrawalsTotalCents).toBe(30000);
+    // RN-07: 500,00 + 55,00 − 165,00 − 300,00 = 90,00 expected; 90,00 counted.
+    expect(report.closing).toMatchObject({ expectedCashCents: 9000, differenceCents: 0 });
   });
 
   it("FR-19: a day without movement shows every tab at zero and no closing", async () => {
