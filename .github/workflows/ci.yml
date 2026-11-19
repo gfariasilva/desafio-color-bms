@@ -86,3 +86,45 @@ jobs:
           name: playwright-report-windows
           path: e2e/playwright-report
           retention-days: 14
+
+  pilot-package:
+    # #26: the pilot zip for the shop PC (built on Linux: the Windows parts are plain files),
+    # then a smoke test of the same package on Linux (CLI + launcher + server, crash → restart).
+    name: Pilot package (zip + Linux smoke)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run package:pilot
+      - run: npm run pilot:smoke
+      - uses: actions/upload-artifact@v4
+        with:
+          name: color-bms-pilot
+          path: dist-pilot/*.zip
+          retention-days: 30
+
+  pilot-windows:
+    # #26: the real .cmd scripts on Windows: install (Task Scheduler), crash → restart,
+    # update, go-live reset, stop.
+    name: Pilot install smoke (Windows)
+    needs: pilot-package
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: color-bms-pilot
+          path: pilot-zip
+      - shell: pwsh
+        run: |
+          $zip = (Get-ChildItem pilot-zip/*.zip | Select-Object -First 1).FullName
+          npm run pilot:smoke -- "$zip"

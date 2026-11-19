@@ -29,12 +29,16 @@ npm run check          # lint + format:check + typecheck + test (run before sayi
 npm run build          # build web (Vite) and server (tsup)
 npm run e2e            # build, then Playwright E2E tests in e2e/ (ADR 0002; not part of check)
 npm start              # run the built app on http://127.0.0.1:3210
+npm run package:pilot  # build, then dist-pilot/color-bms-<version>.zip for the shop PC (#26)
+npm run pilot:smoke    # the pilot package end to end (install, crash → restart, update, go-live)
 npm run db:generate -w @color-bms/server -- --name <what_changed>   # new migration from schema.ts
 ```
 
 Dev data lives in `apps/server/.data/` (git-ignored). Override it with `COLOR_BMS_DATA_DIR`.
 
 Backups (#25, [ADR 0003](docs/adr/0003-pilot-backup.md)) go to `<OneDrive folder>/_backup-sistema/`. The folder comes from `COLOR_BMS_ONEDRIVE_DIR`, or else from `{ "oneDriveFolder": "C:\\Users\\dono\\OneDrive\\Color" }` in `<data dir>/config.json` (JSON: double every backslash, or use `/`). Unset means no backup, and Início says so. Before pending migrations, a local backup goes to `<data dir>/backups/`. Manual restore: [`docs/pilot/restaurar-backup.md`](docs/pilot/restaurar-backup.md).
+
+Pilot install (#26, [ADR 0004](docs/adr/0004-pilot-install.md), [`docs/pilot/install.md`](docs/pilot/install.md)): the zip's `.cmd` scripts only call `app\node\node.exe app\server\dist\pilot\cli.js <command>`. Put all logic and pt-BR messages in `apps/server/src/pilot/`, and keep the `.cmd` files ASCII. A Task Scheduler task starts `launcher.js` at logon, hidden; it restarts the server and writes `<data dir>/logs/`. Trial mode (`data-treino\`, `COLOR_BMS_TRIAL=1`) never backs up to OneDrive. Bump `apps/server/package.json` `version` for each pilot update.
 
 ## Repository structure
 

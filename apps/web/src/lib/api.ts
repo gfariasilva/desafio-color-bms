@@ -199,6 +199,8 @@ export const QUERY_KEYS = {
   cashClosingDay: ["cashClosing", "day"],
   /** FR-27: earlier days with movement still open. */
   unclosedDays: ["cashClosing", "unclosed"],
+  /** GET /api/health: version, startup checks and trial mode (#26). */
+  health: ["health"],
   /** #25: the pilot backup's state, shown on Início. */
   backupStatus: ["backup", "status"],
   /** FR-16: followed by the month: ["cashClosing", "month", "2026-10"]. */

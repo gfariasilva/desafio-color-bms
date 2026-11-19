@@ -19,6 +19,11 @@ export interface AppConfig {
   oneDriveFolder: string | null;
   /** #25: local backups made before migrations (`data\backups\`). */
   localBackupDir: string;
+  /**
+   * #26: trial mode (training days before go-live), set by the pilot launcher with
+   * `COLOR_BMS_TRIAL=1`. Trial data never goes to OneDrive: no backup, whatever config.json says.
+   */
+  trial: boolean;
 }
 
 const serverRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -66,13 +71,15 @@ export function loadConfig(
 ): AppConfig {
   const dataDir = resolveDataDir(env);
   const fromEnv = env.COLOR_BMS_ONEDRIVE_DIR?.trim();
+  const trial = env.COLOR_BMS_TRIAL === "1";
   return {
     host: "127.0.0.1",
     port: Number(env.PORT ?? 3210),
     dataDir,
     databaseFile: path.join(dataDir, "color.db"),
     webDistDir: env.COLOR_BMS_WEB_DIST ?? path.resolve(serverRoot, "../web/dist"),
-    oneDriveFolder: fromEnv ? fromEnv : readOneDriveFolder(dataDir, warn),
+    oneDriveFolder: trial ? null : fromEnv ? fromEnv : readOneDriveFolder(dataDir, warn),
     localBackupDir: path.join(dataDir, "backups"),
+    trial,
   };
 }

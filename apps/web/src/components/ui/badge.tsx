@@ -15,6 +15,8 @@ const badgeVariants = cva(
           "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
         outline: "text-foreground",
         success: "border-transparent bg-rainbow-green text-white",
+        // #26: "TREINO" in the header; warnings per the design system (orange + a text label).
+        warning: "border-transparent bg-rainbow-orange text-white",
       },
     },
     defaultVariants: {

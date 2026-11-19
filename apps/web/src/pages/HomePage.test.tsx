@@ -17,10 +17,19 @@ function renderAt(path: string) {
 
 let unclosed: string[];
 let backupStatus: unknown;
+let healthBody: Record<string, unknown>;
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 
 beforeEach(() => {
   unclosed = [];
+  healthBody = {
+    status: "ok",
+    version: "0.1.0",
+    serverTime: "2026-11-18T22:10:00.000Z",
+    db: { sqliteVersion: "3.54.1", journalMode: "wal", settingsCount: 0 },
+    trial: false,
+    checks: [],
+  };
   backupStatus = {
     configured: true,
     folder: "C:\\OneDrive\\Color\\_backup-sistema",
@@ -33,14 +42,7 @@ beforeEach(() => {
       const url = String(input);
       if (url.startsWith("/api/days/unclosed")) return json({ days: unclosed });
       if (url.startsWith("/api/backup/status")) return json(backupStatus);
-      if (url.startsWith("/api/health")) {
-        return json({
-          status: "ok",
-          version: "0.1.0",
-          serverTime: "2026-11-18T22:10:00.000Z",
-          db: { sqliteVersion: "3.54.1", journalMode: "wal", settingsCount: 0 },
-        });
-      }
+      if (url.startsWith("/api/health")) return json(healthBody);
       return json({ error: "not found" }, 404);
     }),
   );
@@ -134,5 +136,38 @@ describe("#25: Início shows the state of the backup", () => {
     renderAt("/");
     expect(await screen.findByText("Último backup")).toBeInTheDocument();
     expect(await screen.findByText("18/11/2026 19:03")).toBeInTheDocument();
+  });
+});
+
+describe("#26: Início shows the startup checks", () => {
+  it("#26: lists each check with its status", async () => {
+    healthBody.checks = [
+      {
+        id: "timeZone",
+        status: "ok",
+        message: "Fuso horário do PC: UTC−03:00, o mesmo de São Paulo.",
+      },
+      {
+        id: "clock",
+        status: "error",
+        message: "O relógio do PC está atrasado: acerte a data e a hora do Windows.",
+      },
+      { id: "oneDriveFolder", status: "warning", message: "Pasta do OneDrive não configurada." },
+    ];
+    renderAt("/");
+    const list = await screen.findByRole("list", { name: "Verificações" });
+    const items = within(list).getAllByRole("listitem");
+    expect(items).toHaveLength(3);
+    expect(items[0]).toHaveTextContent("OK: Fuso horário do PC: UTC−03:00, o mesmo de São Paulo.");
+    expect(items[1]).toHaveTextContent(
+      "Erro: O relógio do PC está atrasado: acerte a data e a hora do Windows.",
+    );
+    expect(items[2]).toHaveTextContent("Atenção: Pasta do OneDrive não configurada.");
+  });
+
+  it("#26: no list when the server sends no checks", async () => {
+    renderAt("/");
+    expect(await screen.findByText("Versão")).toBeInTheDocument();
+    expect(screen.queryByRole("list", { name: "Verificações" })).not.toBeInTheDocument();
   });
 });
