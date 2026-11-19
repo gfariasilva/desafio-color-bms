@@ -64,6 +64,13 @@
       "when": 1795037975389,
       "tag": "0008_create_cash_withdrawals",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1795053949211,
+      "tag": "0009_add_cash_closing",
+      "breakpoints": true
     }
   ]
 }

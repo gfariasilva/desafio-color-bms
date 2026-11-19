@@ -27,6 +27,10 @@ import {
   type UpdateExpenseCategoryInput,
   type UpdateSaleCategoryInput,
   healthResponseSchema,
+  dayCashClosingResponseSchema,
+  unclosedDaysResponseSchema,
+  type CloseDayInput,
+  type DayCashClosingResponse,
   cashWithdrawalSchema,
   dayCashWithdrawalsResponseSchema,
   type CashWithdrawal,
@@ -155,6 +159,12 @@ export const QUERY_KEYS = {
   cashWithdrawals: ["cashWithdrawals"],
   /** FR-07: followed by the civil date: ["cashWithdrawals", "day", "2026-11-18"]. */
   cashWithdrawalsDay: ["cashWithdrawals", "day"],
+  /** Prefix of every cash-closing query; a closing invalidates it all. */
+  cashClosing: ["cashClosing"],
+  /** FR-08: followed by the civil date: ["cashClosing", "day", "2026-11-18"]. */
+  cashClosingDay: ["cashClosing", "day"],
+  /** FR-27: earlier days with movement still open. */
+  unclosedDays: ["cashClosing", "unclosed"],
 } as const;
 
 export const api = {
@@ -206,6 +216,21 @@ export const api = {
       requestJson("PATCH", `/api/cash-withdrawals/${id}`, input, cashWithdrawalSchema),
     remove: (id: number): Promise<void> =>
       requestJson("DELETE", `/api/cash-withdrawals/${id}`, undefined),
+  },
+
+  /** FR-08: the cash closing of a day; FR-27: the earlier days left open. */
+  cashClosing: {
+    day: (date: string): Promise<DayCashClosingResponse> =>
+      getJson(`/api/days/${encodeURIComponent(date)}/cash-closing`, dayCashClosingResponseSchema),
+    close: (date: string, input: CloseDayInput): Promise<DayCashClosingResponse> =>
+      requestJson(
+        "POST",
+        `/api/days/${encodeURIComponent(date)}/close`,
+        input,
+        dayCashClosingResponseSchema,
+      ),
+    unclosed: (): Promise<string[]> =>
+      getJson("/api/days/unclosed", unclosedDaysResponseSchema).then((r) => r.days),
   },
 
   /** FR-14: sale tabs (abas), in display order. */

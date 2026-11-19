@@ -112,6 +112,11 @@ export const paymentMethods = sqliteTable(
     }).notNull(),
     /** Whether a sale can be split into 1–12 installments (FR-01 "Parcelas"). */
     allowsInstallments: integer("allows_installments", { mode: "boolean" }).notNull(),
+    /**
+     * RN-07: sales in this method are cash in the till (Dinheiro). Set by a migration on the
+     * seeded "Dinheiro", so renaming it changes nothing; not editable in the UI yet.
+     */
+    isCash: integer("is_cash", { mode: "boolean" }).notNull().default(false),
     /** Display order, 1-based. */
     sortOrder: integer("sort_order").notNull(),
     /** Inactive methods are hidden from the sale form but stay in reports. */
@@ -172,8 +177,9 @@ export const cardFees = sqliteTable(
 
 /**
  * Business days, "dias" (spec §6.1 "Dia"). **No row means the day is open**: the cash
- * closing (#9) inserts or updates the row; its cash fields are added then.
- * RN-14: nothing can be written with a date of a closed day.
+ * closing (FR-08) inserts or updates the row. RN-14: nothing can be written with a date of a
+ * closed day. The cash fields are the **stored** closing (spec §6.3): a new closing after a
+ * reopening (FR-09) recomputes them.
  */
 export const days = sqliteTable("days", {
   /** Civil date "YYYY-MM-DD" in São Paulo (RN-15). */
@@ -181,6 +187,16 @@ export const days = sqliteTable("days", {
   status: text("status", { enum: ["open", "closed"] }).notNull(),
   /** ISO-8601 UTC instant of the last closing; null while open. */
   closedAt: text("closed_at"),
+  /** FR-08: troco inicial, integer cents. */
+  openingCashCents: integer("opening_cash_cents"),
+  /** RN-07: dinheiro esperado at closing time, integer cents (may be negative). */
+  expectedCashCents: integer("expected_cash_cents"),
+  /** FR-08: dinheiro contado, integer cents. */
+  countedCashCents: integer("counted_cash_cents"),
+  /** RN-07: counted − expected (> 0 sobra, < 0 falta), integer cents. */
+  differenceCents: integer("difference_cents"),
+  /** FR-08: optional note, e.g. explaining a difference. */
+  note: text("note"),
 });
 
 /**

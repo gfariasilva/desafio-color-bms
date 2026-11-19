@@ -141,8 +141,9 @@ export async function createFee(api: APIRequestContext, input: CardFeeInput): Pr
 }
 
 /**
- * Closes a day by writing its row directly. The cash closing (#9) will do this through the
- * API; this is test setup, not a test-only endpoint (ADR 0002).
+ * Locks a day by writing its row directly: a shortcut for the RN-14 lock tests, which also
+ * works on days without movement. The cash closing itself (FR-08) is tested through the UI in
+ * cash-closing.spec.ts. This is test setup, not a test-only endpoint (ADR 0002).
  */
 export function closeDay(server: ServerInfo, date: string): void {
   const db = new Database(path.join(server.dataDir, "color.db"));

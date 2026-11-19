@@ -38,6 +38,10 @@ export interface SalesContext {
   };
   /** Tab id by name (the seeded RN-12 list). */
   tab: (name: string) => number;
+  /** FR-08: the dates passed to the app's `onDayClosed` hook, in call order. */
+  dayClosedCalls: string[];
+  /** Optional extra work the `onDayClosed` hook does in a test (e.g. throw, read the DB). */
+  afterDayClosed?: (date: string) => void | Promise<void>;
 }
 
 /**
@@ -53,7 +57,16 @@ export function useSalesApp(): SalesContext {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "color-bms-test-"));
     context.connection = openDatabase(path.join(tempDir, "test.db"));
     runMigrations(context.connection.db);
-    context.app = await buildApp({ connection: context.connection, now: () => NOW });
+    context.dayClosedCalls = [];
+    context.afterDayClosed = undefined;
+    context.app = await buildApp({
+      connection: context.connection,
+      now: () => NOW,
+      onDayClosed: (date) => {
+        context.dayClosedCalls.push(date);
+        return context.afterDayClosed?.(date);
+      },
+    });
     const app = context.app;
 
     const tabs = saleCategoryListResponseSchema.parse(
@@ -134,7 +147,10 @@ export async function saleAudit(ctx: SalesContext) {
   return auditListResponseSchema.parse(response.json()).entries;
 }
 
-/** #9 will close days through the API; until then the tests write the row themselves. */
+/**
+ * Marks a day closed by writing its row directly: a shortcut for the RN-14 lock tests.
+ * The cash closing itself (FR-08) goes through POST /api/days/:date/close (cash-closing tests).
+ */
 export function closeDay(ctx: SalesContext, date: string) {
   ctx.connection.sqlite
     .prepare("insert into days (date, status, closed_at) values (?, 'closed', ?)")

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DAY_STATUS_LABELS } from "../cash-closing/cash-closing";
 import { EXPENSE_CATEGORY_GROUP_LABELS } from "../catalog/categories";
 import { formatCents } from "../format/currency";
 import { MACHINE_USAGE_LABELS } from "../payments/payment-methods";
@@ -172,12 +173,21 @@ export const AUDIT_FIELD_LABELS: Record<string, string> = {
   description: "Descrição",
   paymentMeans: "Meio de pagamento",
   paidFromTill: "Pago do caixa",
+  openingCashCents: "Troco inicial",
+  cashSalesCents: "Vendas em dinheiro",
+  tillExpensesCents: "Despesas pagas do caixa",
+  withdrawalsCents: "Sangrias",
+  expectedCashCents: "Dinheiro esperado",
+  countedCashCents: "Dinheiro contado",
+  differenceCents: "Diferença",
 };
 
 /** pt-BR labels for coded values, per field (e.g. an expense category's group). */
 const AUDIT_VALUE_LABELS: Record<string, Record<string, string>> = {
   group: EXPENSE_CATEGORY_GROUP_LABELS,
   machineUsage: MACHINE_USAGE_LABELS,
+  // A day's status (FR-08 closing, FR-09 reopening).
+  status: DAY_STATUS_LABELS,
 };
 
 /**
