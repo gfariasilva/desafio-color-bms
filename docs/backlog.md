@@ -52,7 +52,7 @@ Ordered backlog for the MVP (spec §9.1). Each item is one small PR / GitHub iss
 | [x] | M2 | [#10](#10--reopen-a-day) | Reopen a day | FR-09; RN-14 | #9 |
 | [x] | M2 | [#15](#15--day-report) | Day report | FR-19; RN-05, RN-07 | #9 |
 | [x] | M3 | [#25](#25--pilot-database-backup) | Pilot database backup | slice of FR-31 | #9 |
-| [ ] | M3 | [#26](#26--pilot-install-on-the-shop-pc) | Pilot install on the shop PC | slice of FR-34 | #25 |
+| [x] | M3 | [#26](#26--pilot-install-on-the-shop-pc) | Pilot install on the shop PC | slice of FR-34 | #25 |
 | [ ] | M3 | [#27](#27--pilot-go-live-and-the-parallel-period) | Pilot go-live and the parallel period | spec §9.5 | #26, #15 |
 | [ ] | M4 | [#20](#20--settings) | Settings | FR-33 | #1 |
 | [ ] | M4 | [#21](#21--daily-spreadsheet-export-and-the-retry-queue) | Daily spreadsheet export and the retry queue | FR-28, FR-30 | #15, #20 |
@@ -1582,6 +1582,34 @@ A tela inicial mostra os alertas abaixo, cada um com link para resolver:
 - `atualizar.cmd` upgrades to a newer zip, keeps all data, writes a backup before migrating, and the health page shows the new version.
 - The go-live reset leaves an empty database whose first closing has an empty opening cash (FR-08).
 - A server crash is restarted automatically and the cause is in the log file.
+
+**Done notes (follow-ups)**
+
+- Decisions in [ADR 0004](adr/0004-pilot-install.md); procedure and VM checklist in [`docs/pilot/install.md`](pilot/install.md).
+- **Core** (`packages/core/src/system/startup-checks.ts`): `timeZoneCheck`, `clockCheck`, `portCheck`, `folderCheck`, `startupCheckSchema`; `saoPauloOffsetMinutes()` in `civil-date.ts`. `healthResponseSchema` gains `trial` and `checks`.
+- **Server:**
+  - `GET /api/health`: `serverTime` now comes from the `Clock` (fixes a #25 follow-up). It adds `trial` and `checks` (`modules/health/system-checks.ts`, `buildApp({ system })`). The checks are also logged at startup.
+  - `main.ts` handles `EADDRINUSE`: another instance of this system → exit code 3; another program → a clear error.
+  - `COLOR_BMS_TRIAL=1` → `config.trial`: no OneDrive backup.
+  - No migration, no audit rows.
+- **Pilot** (`apps/server/src/pilot/`, built to `dist/pilot/`):
+  - `launcher.ts` + `supervisor.ts` (restart with growing delay; logs via `log-file.ts`);
+  - `cli.ts` + `commands.ts` (`instalar`, `atualizar`, `iniciar`, `parar`, `iniciar-uso-real`);
+  - `task-xml.ts`, `windows.ts` (schtasks/PowerShell), `package.ts`;
+  - the `.cmd` templates and `LEIA-ME.txt` in `apps/server/pilot/`.
+- **Scripts:** `npm run package:pilot` → `dist-pilot/color-bms-<version>.zip`; `npm run pilot:smoke` (the package end to end; on Windows, the real `.cmd` files).
+- **CI:**
+  - `pilot-package` builds the zip, runs the Linux smoke test, and uploads the `color-bms-pilot` artifact;
+  - `pilot-windows` runs the `.cmd` scripts on `windows-latest`.
+- **UI:**
+  - Início › Status do sistema › "Verificações" (one line per check, icon + text label);
+  - a **TREINO** badge (`warning`) in the header while in trial mode.
+- **Not verified yet:** the acceptance criteria on a real Windows 11 machine (no window at logon, shortcut, offline, not reachable from the LAN). Do the VM checklist in `docs/pilot/install.md` before the shop install. The `pilot-windows` CI job covers the scripts, but not logon or the shortcut.
+- **Follow-ups:**
+  - Bump `apps/server/package.json` `version` for every pilot update.
+  - In trial mode, Início still shows "Pasta do OneDrive não configurada" under Alertas (true, but expected). #23 can fold it into the trial badge.
+  - The header date still uses the browser clock (a #25 follow-up).
+  - Review fix: the catalog, payment and fee-table routes now take the server `Clock` (their audit rows used the OS time).
 
 **Spec reference** _(verbatim; only the parts listed under Scope belong to this item)_
 

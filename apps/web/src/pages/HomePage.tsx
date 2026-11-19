@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2, DatabaseBackup } from "lucide-react";
+import { AlertTriangle, CheckCircle2, DatabaseBackup, XCircle } from "lucide-react";
 import { Link } from "react-router-dom";
-import { formatCivilDate, formatInstant } from "@color-bms/core";
+import { formatCivilDate, formatInstant, type StartupCheck } from "@color-bms/core";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -98,9 +98,42 @@ function AlertsCard() {
   );
 }
 
+const CHECK_STATUS = {
+  ok: { label: "OK", Icon: CheckCircle2, className: "text-rainbow-green" },
+  warning: { label: "Atenção", Icon: AlertTriangle, className: "text-rainbow-orange" },
+  error: { label: "Erro", Icon: XCircle, className: "text-destructive" },
+} as const;
+
+/**
+ * #26: the server's startup checks (time zone, clock, port, data and OneDrive folders), one
+ * line each, with an icon and a text label (color alone is not enough).
+ */
+function StartupChecks({ checks }: { checks: StartupCheck[] }) {
+  if (checks.length === 0) return null;
+  return (
+    <ul aria-label="Verificações" className="mt-3 space-y-1 border-t pt-3">
+      {checks.map((check) => {
+        const { label, Icon, className } = CHECK_STATUS[check.status];
+        return (
+          <li
+            key={check.id}
+            className={`flex items-start gap-2 ${check.status === "error" ? "text-destructive" : ""}`}
+          >
+            <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${className}`} aria-hidden />
+            <span className="break-words">
+              <span className="sr-only">{label}: </span>
+              {check.message}
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 /** Início: the alerts (FR-27, pilot slice) and the system status. */
 export function HomePage() {
-  const health = useQuery({ queryKey: ["health"], queryFn: api.health });
+  const health = useQuery({ queryKey: QUERY_KEYS.health, queryFn: api.health });
   const backup = useQuery({ queryKey: QUERY_KEYS.backupStatus, queryFn: api.backupStatus });
 
   return (
@@ -138,6 +171,7 @@ export function HomePage() {
               )}
             </dl>
           )}
+          {health.isSuccess && <StartupChecks checks={health.data.checks} />}
           {health.isError && (
             <p className="text-destructive">
               Não foi possível falar com o servidor. Verifique se o sistema está em execução.

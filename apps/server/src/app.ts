@@ -28,8 +28,11 @@ import {
 import { registerDayReportRoutes } from "./modules/reports/day-report.routes";
 import { registerMonthReportRoutes } from "./modules/reports/month-reports.routes";
 import { registerHealthRoutes } from "./modules/health/health.routes";
+import type { SystemInfo } from "./modules/health/system-checks";
 import { registerSalesRoutes } from "./modules/sales/sales.routes";
 import packageJson from "../package.json" with { type: "json" };
+
+export type { SystemInfo };
 
 export interface BuildAppOptions {
   connection: DatabaseConnection;
@@ -53,6 +56,11 @@ export interface BuildAppOptions {
    * and the backup (#22) hook in here; a no-op until then. A failure never undoes the closing.
    */
   onMonthClosed?: OnMonthClosed;
+  /**
+   * #26: data and OneDrive folders, port, trial mode and build time, for the startup checks on
+   * GET /api/health. Tests may leave it out; then only the clock checks are made.
+   */
+  system?: SystemInfo;
 }
 
 /** Creates the Fastify app without listening, so tests can call `app.inject()`. */
@@ -64,6 +72,7 @@ export async function buildApp({
   onDayClosed = () => {},
   onMonthClosed = () => {},
   backup,
+  system,
 }: BuildAppOptions): Promise<FastifyInstance> {
   const app = Fastify({ logger });
   const backupService =
@@ -83,11 +92,11 @@ export async function buildApp({
   registerHostGuard(app);
   // FR-11: generate the month's fixed expenses now and on the first request of a new month.
   registerMonthGeneration(app, connection, now);
-  registerHealthRoutes(app, connection, packageJson.version);
+  registerHealthRoutes(app, connection, { version: packageJson.version, now, system });
   registerAuditRoutes(app, connection);
   registerBackupRoutes(app, backupService);
-  registerCategoryRoutes(app, connection);
-  registerPaymentRoutes(app, connection);
+  registerCategoryRoutes(app, connection, now);
+  registerPaymentRoutes(app, connection, now);
   registerFixedExpenseTemplateRoutes(app, connection, now);
   registerFixedExpenseRoutes(app, connection, now);
   registerSalesRoutes(app, connection, now);

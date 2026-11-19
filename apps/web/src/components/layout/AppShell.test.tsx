@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppRoutes, ROUTER_FUTURE } from "@/App";
@@ -16,14 +16,17 @@ function renderAt(path: string) {
   );
 }
 
-const healthBody = {
-  status: "ok",
-  version: "0.1.0",
-  serverTime: "2026-11-18T22:03:00.000Z",
-  db: { sqliteVersion: "3.50.0", journalMode: "wal", settingsCount: 0 },
-};
+let healthBody: Record<string, unknown>;
 
 beforeEach(() => {
+  healthBody = {
+    status: "ok",
+    version: "0.1.0",
+    serverTime: "2026-11-18T22:03:00.000Z",
+    db: { sqliteVersion: "3.50.0", journalMode: "wal", settingsCount: 0 },
+    trial: false,
+    checks: [],
+  };
   vi.stubGlobal(
     "fetch",
     vi.fn(async () => new Response(JSON.stringify(healthBody), { status: 200 })),
@@ -32,6 +35,25 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+});
+
+describe("#26: trial mode", () => {
+  it("#26: the header shows TREINO while the system runs on the trial data", async () => {
+    healthBody.trial = true;
+    renderAt("/");
+    const banner = screen.getByRole("banner");
+    expect(await within(banner).findByText("TREINO")).toBeInTheDocument();
+    expect(within(banner).getByText("TREINO")).toHaveAttribute(
+      "title",
+      "Modo treino: dados de teste, guardados à parte ao iniciar o uso real.",
+    );
+  });
+
+  it("#26: no badge in real use", async () => {
+    renderAt("/");
+    expect(await screen.findByText("Conectado")).toBeInTheDocument();
+    expect(screen.queryByText("TREINO")).not.toBeInTheDocument();
+  });
 });
 
 describe("AppShell", () => {

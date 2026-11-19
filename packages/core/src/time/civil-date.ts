@@ -100,6 +100,14 @@ function saoPauloOffsetMs(instantMs: number): number {
 }
 
 /**
+ * São Paulo's UTC offset at `instant`, in minutes (−180 for UTC−03:00). Used to compare the
+ * PC's time zone with São Paulo's (#26 startup checks).
+ */
+export function saoPauloOffsetMinutes(instant: Date): number {
+  return Math.round(saoPauloOffsetMs(instant.getTime()) / 60_000);
+}
+
+/**
  * The UTC instant (ISO-8601) when a civil date starts in São Paulo (RN-15).
  * Uses the real time zone rules from Intl, so it is right even for the years when Brazil
  * had daylight saving time. Use it to filter instants (e.g. audit `at`) by business day:

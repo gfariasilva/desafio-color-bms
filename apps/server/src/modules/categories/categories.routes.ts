@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { systemClock, type Clock } from "../../clock";
 import {
   CATEGORY_TEXTS,
   createExpenseCategoryInputSchema,
@@ -20,7 +21,11 @@ import {
  * FR-14: /api/sale-categories (abas) and /api/expense-categories, with the same endpoints:
  * GET (list), POST (create), PATCH /:id (rename, activate, group), PUT /order, DELETE /:id.
  */
-export function registerCategoryRoutes(app: FastifyInstance, { db }: DatabaseConnection): void {
+export function registerCategoryRoutes(
+  app: FastifyInstance,
+  { db }: DatabaseConnection,
+  now: Clock = systemClock,
+): void {
   registerOrderedListRoutes(app, {
     url: "/api/sale-categories",
     key: "categories",
@@ -29,10 +34,10 @@ export function registerCategoryRoutes(app: FastifyInstance, { db }: DatabaseCon
     updateSchema: updateSaleCategoryInputSchema,
     repository: {
       list: (active) => listCategories(db, "sale", active),
-      create: (input) => createCategory(db, "sale", input),
-      update: (id, changes) => updateCategory(db, "sale", id, changes),
-      reorder: (ids) => reorderCategories(db, "sale", ids),
-      remove: (id) => deleteCategory(db, "sale", id),
+      create: (input) => createCategory(db, "sale", input, now()),
+      update: (id, changes) => updateCategory(db, "sale", id, changes, now()),
+      reorder: (ids) => reorderCategories(db, "sale", ids, now()),
+      remove: (id) => deleteCategory(db, "sale", id, now()),
     },
   });
 
@@ -44,10 +49,10 @@ export function registerCategoryRoutes(app: FastifyInstance, { db }: DatabaseCon
     updateSchema: updateExpenseCategoryInputSchema,
     repository: {
       list: (active) => listCategories(db, "expense", active),
-      create: (input) => createCategory(db, "expense", input),
-      update: (id, changes) => updateCategory(db, "expense", id, changes),
-      reorder: (ids) => reorderCategories(db, "expense", ids),
-      remove: (id) => deleteCategory(db, "expense", id),
+      create: (input) => createCategory(db, "expense", input, now()),
+      update: (id, changes) => updateCategory(db, "expense", id, changes, now()),
+      reorder: (ids) => reorderCategories(db, "expense", ids, now()),
+      remove: (id) => deleteCategory(db, "expense", id, now()),
     },
   });
 }

@@ -126,11 +126,13 @@ describe("Auditoria page (FR-18)", () => {
   it("FR-18: Filtrar with unchanged filters reloads the list", async () => {
     renderAt("/configuracoes/auditoria");
     await screen.findByText("R$ 50,00");
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // Only the audit requests: the app shell also asks /api/health (#26 trial badge).
+    const auditRequests = () => requestedUrls().filter((url) => url.startsWith("/api/audit"));
+    expect(auditRequests()).toHaveLength(1);
 
     fireEvent.click(screen.getByRole("button", { name: "Filtrar" }));
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(auditRequests()).toHaveLength(2));
   });
 
   it("NFR-05: Enter on the Tipo select applies the filters", async () => {

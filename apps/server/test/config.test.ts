@@ -57,3 +57,20 @@ describe("#25: OneDrive folder setting (config.json or COLOR_BMS_ONEDRIVE_DIR)",
     expect(warn).toHaveBeenCalled();
   });
 });
+
+describe("#26: trial mode (COLOR_BMS_TRIAL=1, set by the pilot launcher)", () => {
+  it("#26: is off by default", () => {
+    expect(loadConfig({ COLOR_BMS_DATA_DIR: dataDir }).trial).toBe(false);
+  });
+
+  it("#26: trial data is never backed up to OneDrive, even with a folder set", () => {
+    writeConfigFile(JSON.stringify({ oneDriveFolder: "/from/file" }));
+    const config = loadConfig({
+      COLOR_BMS_DATA_DIR: dataDir,
+      COLOR_BMS_ONEDRIVE_DIR: "/from/env",
+      COLOR_BMS_TRIAL: "1",
+    });
+    expect(config.trial).toBe(true);
+    expect(config.oneDriveFolder).toBeNull();
+  });
+});
