@@ -16,6 +16,7 @@ import {
   registerFixedExpenseRoutes,
   registerMonthGeneration,
 } from "./modules/fixed-expenses/fixed-expenses.routes";
+import { registerContaConversionRoutes } from "./modules/fixed-expenses/conta-conversion.routes";
 import { registerFixedExpenseTemplateRoutes } from "./modules/fixed-expense-templates/fixed-expense-templates.routes";
 import { registerPaymentRoutes } from "./modules/payments/payments.routes";
 import { registerHealthRoutes } from "./modules/health/health.routes";
@@ -59,6 +60,7 @@ export async function buildApp({
   registerExpenseRoutes(app, connection, now);
   registerCashWithdrawalRoutes(app, connection, now);
   registerCashClosingRoutes(app, connection, now, onDayClosed);
+  registerContaConversionRoutes(app, connection, now, onDayClosed);
 
   if (webDistDir && fs.existsSync(webDistDir)) {
     await app.register(fastifyStatic, { root: webDistDir });

@@ -1,4 +1,4 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import {
   closeDayInputSchema,
   dayParamsSchema,
@@ -16,6 +16,24 @@ import { closeDay, getCashClosing, listUnclosedDays, reopenDay } from "./cash-cl
  * spreadsheet exports (FR-28, FR-29, #21) and the DB backup (FR-31, #25) get queued.
  */
 export type OnDayClosed = (date: CivilDate) => void | Promise<void>;
+
+/**
+ * Runs `onDayClosed` after a closing has committed. A failure here must not undo the closing:
+ * the export queue (FR-30) will record its own failures; until then, it is only logged. An
+ * async hook's rejection is caught too: an unhandled rejection would stop the server. Not
+ * awaited, so a slow backup never delays the answer.
+ */
+export function runAfterDayClosed(
+  request: FastifyRequest,
+  onDayClosed: OnDayClosed,
+  date: CivilDate,
+): void {
+  void Promise.resolve()
+    .then(() => onDayClosed(date))
+    .catch((error: unknown) => {
+      request.log.error({ err: error, date }, "onDayClosed failed");
+    });
+}
 
 /** FR-08: the closing screen, closing a day; FR-09: reopening it; FR-27: the days left open. */
 export function registerCashClosingRoutes(
@@ -46,16 +64,7 @@ export function registerCashClosingRoutes(
     } catch (error) {
       return sendError(reply, error);
     }
-    // After the commit: a failure here must not undo the closing. The export queue (FR-30)
-    // will record its own failures; until then, it is only logged.
-    // An async hook's rejection is caught too: an unhandled rejection would stop the server.
-    // Not awaited, so a slow backup never delays the answer.
-    const date = params.date;
-    void Promise.resolve()
-      .then(() => onDayClosed(date))
-      .catch((error: unknown) => {
-        request.log.error({ err: error, date }, "onDayClosed failed");
-      });
+    runAfterDayClosed(request, onDayClosed, params.date);
     return closed;
   });
 

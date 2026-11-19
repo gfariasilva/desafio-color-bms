@@ -189,52 +189,60 @@ export function closeDay(
   input: ParsedCloseDayInput,
   now: Date,
 ): DayCashClosingResponse {
-  return db.transaction((tx) => {
-    const block = blockOf(tx, date, now);
-    if (block) throw blockError(block);
+  return db.transaction((tx) => closeDayInTransaction(tx, date, input, now));
+}
 
-    const terms = dayCashTerms(tx, date);
-    const expected = expectedCashCents({ openingCashCents: input.openingCashCents, ...terms });
-    // FR-08: the difference stored must be the one the owner saw and confirmed.
-    if (input.expectedCashCents !== undefined && input.expectedCashCents !== expected) {
-      throw new BusinessError(
-        409,
-        "Os lançamentos do dia mudaram desde que a tela foi aberta. Confira os valores e feche de novo.",
-        CASH_CHANGED_CODE,
-      );
-    }
-    const values = {
-      status: "closed" as const,
-      closedAt: now.toISOString(),
-      openingCashCents: input.openingCashCents,
-      expectedCashCents: expected,
-      countedCashCents: input.countedCashCents,
-      differenceCents: cashDifferenceCents(input.countedCashCents, expected),
-      note: input.note ?? null,
-    };
-    // No row means open; after a reopening (FR-09) the row exists with status "open".
-    tx.insert(days)
-      .values({ date, ...values })
-      .onConflictDoUpdate({ target: days.date, set: values })
-      .run();
+/** `closeDay` inside the caller's transaction (e.g. the CONTA: conversion, #13). */
+export function closeDayInTransaction(
+  tx: AppTransaction,
+  date: CivilDate,
+  input: ParsedCloseDayInput,
+  now: Date,
+): DayCashClosingResponse {
+  const block = blockOf(tx, date, now);
+  if (block) throw blockError(block);
 
-    // FR-18: the closing with the terms it was computed from, as history.
-    const after: AuditValues = {
-      status: values.status,
-      openingCashCents: values.openingCashCents,
-      ...terms,
-      expectedCashCents: values.expectedCashCents,
-      countedCashCents: values.countedCashCents,
-      differenceCents: values.differenceCents,
-      note: values.note,
-    };
-    recordAudit(
-      tx,
-      { entity: "day", entityId: date, action: "close", before: { status: "open" }, after },
-      now,
+  const terms = dayCashTerms(tx, date);
+  const expected = expectedCashCents({ openingCashCents: input.openingCashCents, ...terms });
+  // FR-08: the difference stored must be the one the owner saw and confirmed.
+  if (input.expectedCashCents !== undefined && input.expectedCashCents !== expected) {
+    throw new BusinessError(
+      409,
+      "Os lançamentos do dia mudaram desde que a tela foi aberta. Confira os valores e feche de novo.",
+      CASH_CHANGED_CODE,
     );
-    return getCashClosing(tx, date, now);
-  });
+  }
+  const values = {
+    status: "closed" as const,
+    closedAt: now.toISOString(),
+    openingCashCents: input.openingCashCents,
+    expectedCashCents: expected,
+    countedCashCents: input.countedCashCents,
+    differenceCents: cashDifferenceCents(input.countedCashCents, expected),
+    note: input.note ?? null,
+  };
+  // No row means open; after a reopening (FR-09) the row exists with status "open".
+  tx.insert(days)
+    .values({ date, ...values })
+    .onConflictDoUpdate({ target: days.date, set: values })
+    .run();
+
+  // FR-18: the closing with the terms it was computed from, as history.
+  const after: AuditValues = {
+    status: values.status,
+    openingCashCents: values.openingCashCents,
+    ...terms,
+    expectedCashCents: values.expectedCashCents,
+    countedCashCents: values.countedCashCents,
+    differenceCents: values.differenceCents,
+    note: values.note,
+  };
+  recordAudit(
+    tx,
+    { entity: "day", entityId: date, action: "close", before: { status: "open" }, after },
+    now,
+  );
+  return getCashClosing(tx, date, now);
 }
 
 /** The HTTP answer of each reason a day cannot be reopened. */
@@ -260,37 +268,45 @@ export function reopenDay(
   input: ParsedReopenDayInput,
   now: Date,
 ): DayCashClosingResponse {
-  return db.transaction((tx) => {
-    const block = reopenDayBlock(date, periodStatus(tx, date));
-    if (block) throw reopenBlockError(block);
+  return db.transaction((tx) => reopenDayInTransaction(tx, date, input, now));
+}
 
-    // FR-09 "o fechamento anterior fica no log de auditoria": the same fields as the closing's
-    // own audit row. The day was locked, so its RN-07 terms are still the ones it was closed with.
-    const row = tx.select().from(days).where(eq(days.date, date)).get();
-    const before: AuditValues = {
-      status: "closed",
-      openingCashCents: row?.openingCashCents ?? null,
-      ...dayCashTerms(tx, date),
-      expectedCashCents: row?.expectedCashCents ?? null,
-      countedCashCents: row?.countedCashCents ?? null,
-      differenceCents: row?.differenceCents ?? null,
-      note: row?.note ?? null,
-    };
-    tx.update(days).set({ status: "open", closedAt: null }).where(eq(days.date, date)).run();
-    recordAudit(
-      tx,
-      {
-        entity: "day",
-        entityId: date,
-        action: "reopen",
-        before,
-        after: { status: "open" },
-        reason: input.reason,
-      },
-      now,
-    );
-    return getCashClosing(tx, date, now);
-  });
+/** `reopenDay` inside the caller's transaction (e.g. the CONTA: conversion, #13). */
+export function reopenDayInTransaction(
+  tx: AppTransaction,
+  date: CivilDate,
+  input: ParsedReopenDayInput,
+  now: Date,
+): DayCashClosingResponse {
+  const block = reopenDayBlock(date, periodStatus(tx, date));
+  if (block) throw reopenBlockError(block);
+
+  // FR-09 "o fechamento anterior fica no log de auditoria": the same fields as the closing's
+  // own audit row. The day was locked, so its RN-07 terms are still the ones it was closed with.
+  const row = tx.select().from(days).where(eq(days.date, date)).get();
+  const before: AuditValues = {
+    status: "closed",
+    openingCashCents: row?.openingCashCents ?? null,
+    ...dayCashTerms(tx, date),
+    expectedCashCents: row?.expectedCashCents ?? null,
+    countedCashCents: row?.countedCashCents ?? null,
+    differenceCents: row?.differenceCents ?? null,
+    note: row?.note ?? null,
+  };
+  tx.update(days).set({ status: "open", closedAt: null }).where(eq(days.date, date)).run();
+  recordAudit(
+    tx,
+    {
+      entity: "day",
+      entityId: date,
+      action: "reopen",
+      before,
+      after: { status: "open" },
+      reason: input.reason,
+    },
+    now,
+  );
+  return getCashClosing(tx, date, now);
 }
 
 /**
