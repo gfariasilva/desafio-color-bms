@@ -6,6 +6,7 @@ import { openDatabase } from "./db/client";
 import { migrateWithBackup } from "./modules/backup/backup-before-migrations";
 import { createBackupService } from "./modules/backup/backup.service";
 import { runSystemChecks, type SystemInfo } from "./modules/health/system-checks";
+import { createSettingsStore } from "./modules/settings/settings.repository";
 import { ALREADY_RUNNING_EXIT_CODE } from "./pilot/exit-codes";
 import { identifyPortOwner } from "./startup/port-conflict";
 import packageJson from "../package.json" with { type: "json" };
@@ -31,12 +32,21 @@ async function main(): Promise<void> {
   const { backupFile } = migrateWithBackup(connection, { backupDir: config.localBackupDir, now });
   if (backupFile) console.info(`Backup before migrations: ${backupFile}`);
 
+  // FR-33 (#20): the settings. The pilot's config.json folder (#25) moves in on first start.
+  const settings = createSettingsStore(connection, {
+    envOneDriveFolder: config.envOneDriveFolder,
+    trial: config.trial,
+  });
+  if (settings.importLegacyOneDriveFolder(config.legacyOneDriveFolder, now())) {
+    console.info(`OneDrive folder imported from config.json: ${config.legacyOneDriveFolder}`);
+  }
+
   // FR-31 (#25): the OneDrive backup, after each closing and on the first start of the day.
   // It logs through the app's logger, which exists only once the app is built.
   let log: Pick<FastifyBaseLogger, "info" | "error"> = console;
   const backup = createBackupService({
     sqlite: connection.sqlite,
-    folder: config.oneDriveFolder,
+    folder: () => settings.backupFolder(),
     now,
     log: { info: (message) => log.info(message), error: (message) => log.error(message) },
   });
@@ -44,7 +54,7 @@ async function main(): Promise<void> {
   // #26: shown on Início (startup checks) and logged below.
   const system: SystemInfo = {
     dataDir: config.dataDir,
-    oneDriveFolder: config.oneDriveFolder,
+    oneDriveFolder: () => settings.backupFolder(),
     port: config.port,
     trial: config.trial,
     builtAt,
@@ -56,14 +66,13 @@ async function main(): Promise<void> {
     now,
     backup,
     system,
+    settings,
   });
   log = app.log;
   if (config.trial) {
     app.log.info("Trial mode (training data): no OneDrive backup.");
-  } else if (config.oneDriveFolder === null) {
-    app.log.warn(
-      "No OneDrive folder configured (config.json or COLOR_BMS_ONEDRIVE_DIR): no backup.",
-    );
+  } else if (settings.backupFolder() === null) {
+    app.log.warn("No OneDrive folder configured (Configurações): no backup.");
   }
 
   const shutdown = async (): Promise<void> => {

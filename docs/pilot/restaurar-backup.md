@@ -21,20 +21,14 @@ Arquivos terminados em `.tmp` são gravações interrompidas: **não use**.
 4. **Copie o backup escolhido** para a pasta de dados e **renomeie** a cópia para `color.db`.
    - Escolha o backup mais recente antes do problema. Se o OneDrive mostrar o arquivo com uma nuvem, abra-o uma vez (ou "Sempre manter neste dispositivo") para baixá-lo antes de copiar.
 5. **Inicie o sistema:** dê dois cliques em `iniciar.cmd` (na mesma pasta), que abre a tela Início.
-6. **Confira:** em Início, o status deve aparecer como "Conectado". Abra o Relatório do Dia do último dia fechado e compare os totais com o esperado.
+6. **Confira:** em Início, o status deve aparecer como "Conectado". A pasta do OneDrive volta junto com o banco: confira-a em **Configurações** e clique em **Testar** (num PC novo, o caminho pode ser outro). Abra o Relatório do Dia do último dia fechado e compare os totais com o esperado.
 7. Se algo der errado, feche o sistema, apague o `color.db` restaurado e mova de volta os arquivos da pasta `antes-da-restauracao`.
 
 ## Teste antes da implantação (NFR-07)
 
 Fazer **uma vez no PC da loja**, antes do go-live (#27):
 
-- [ ] Configurar a pasta do OneDrive (`config.json` na pasta de dados) e reiniciar o sistema. Exemplo de `config.json` (no JSON, cada `\` do caminho é escrita **dobrada**, `\\`, ou use `/`):
-
-  ```json
-  { "oneDriveFolder": "C:\\Users\\dono\\OneDrive\\Color" }
-  ```
-
-  Depois de reiniciar, Início não deve mostrar "Pasta do OneDrive não configurada".
+- [ ] Em **Configurações** (Alt+9), conferir a **Pasta do OneDrive** e clicar em **Testar**: deve aparecer "Pasta OK". Início não deve mostrar "Pasta do OneDrive não configurada".
 - [ ] Registrar uma venda de teste, fechar o dia e ver o arquivo novo em `_backup-sistema\`.
 - [ ] Registrar uma segunda venda de teste (sem fechar).
 - [ ] Restaurar o backup pelo passo a passo acima.

@@ -68,13 +68,21 @@ export interface BackupService {
    * hourly, so a PC left on overnight still gets its "first start of the day" backup.
    */
   runOnStartupIfFirstToday(): Promise<void>;
+  /**
+   * FR-33 (#20): the folder was changed in Configurações. Forgets the old folder's status and
+   * backs up now when the new folder has no backup of today yet. Never throws.
+   */
+  folderChanged(): Promise<void>;
   status(): BackupStatusResponse;
 }
 
 export interface BackupServiceOptions {
   sqlite: Database.Database;
-  /** The OneDrive folder (spec §7.2 `<pasta>`), or null when not configured. */
-  folder: string | null;
+  /**
+   * The OneDrive folder (spec §7.2 `<pasta>`), or null when not configured. A function is read
+   * at every use, so a change in Configurações (FR-33, #20) applies without a restart.
+   */
+  folder: string | null | (() => string | null);
   now: Clock;
   log: BackupLog;
 }
@@ -112,12 +120,15 @@ export function createBackupService({
   now,
   log,
 }: BackupServiceOptions): BackupService {
-  const backupDir = folder === null ? null : path.join(folder, BACKUP_FOLDER_NAME);
+  const currentFolder = typeof folder === "function" ? folder : () => folder;
+  const backupDirOf = (root: string | null) =>
+    root === null ? null : path.join(root, BACKUP_FOLDER_NAME);
   let lastSuccess: BackupStatusResponse["lastSuccess"] = null;
   let lastFailure: BackupStatusResponse["lastFailure"] = null;
 
   /** Backup files already in the folder (empty when it cannot be read). */
   function existingNames(): string[] {
+    const backupDir = backupDirOf(currentFolder());
     if (backupDir === null) return [];
     try {
       return fs.readdirSync(backupDir);
@@ -127,6 +138,8 @@ export function createBackupService({
   }
 
   async function run(trigger: BackupTrigger): Promise<void> {
+    const folder = currentFolder();
+    const backupDir = backupDirOf(folder);
     if (folder === null || backupDir === null) return; // Not configured: shown on Início.
     // Yield first: after a day close this runs before Fastify sends the reply, and the
     // synchronous VACUUM INTO must never delay the closing's answer.
@@ -168,6 +181,14 @@ export function createBackupService({
   return {
     run,
     runOnStartupIfFirstToday,
-    status: () => ({ configured: backupDir !== null, folder: backupDir, lastSuccess, lastFailure }),
+    async folderChanged() {
+      lastSuccess = null;
+      lastFailure = null;
+      await runOnStartupIfFirstToday();
+    },
+    status: () => {
+      const backupDir = backupDirOf(currentFolder());
+      return { configured: backupDir !== null, folder: backupDir, lastSuccess, lastFailure };
+    },
   };
 }

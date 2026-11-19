@@ -43,5 +43,5 @@ We choose **Option A**.
 - `VACUUM INTO` runs on the event loop. That's fine for a small database. Revisit if backups take more than about 1 s.
 
 ### Follow-ups
-- [ ] #20: migrate `config.json`'s `oneDriveFolder` into `settings`.
+- [x] #20: migrate `config.json`'s `oneDriveFolder` into `settings` (imported once on start; `COLOR_BMS_ONEDRIVE_DIR` still overrides, for dev and E2E).
 - [ ] #22: RN-13 retention, the FR-30 queue, a backup on month close, restore UI.

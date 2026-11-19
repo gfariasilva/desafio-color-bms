@@ -30,6 +30,8 @@ import { registerMonthReportRoutes } from "./modules/reports/month-reports.route
 import { registerHealthRoutes } from "./modules/health/health.routes";
 import type { SystemInfo } from "./modules/health/system-checks";
 import { registerSalesRoutes } from "./modules/sales/sales.routes";
+import { createSettingsStore, type SettingsStore } from "./modules/settings/settings.repository";
+import { registerSettingsRoutes } from "./modules/settings/settings.routes";
 import packageJson from "../package.json" with { type: "json" };
 
 export type { SystemInfo };
@@ -61,6 +63,11 @@ export interface BuildAppOptions {
    * GET /api/health. Tests may leave it out; then only the clock checks are made.
    */
   system?: SystemInfo;
+  /**
+   * FR-33 (#20): the settings. main.ts passes the store that also feeds the backup folder;
+   * defaults to one with no env override and no trial mode.
+   */
+  settings?: SettingsStore;
 }
 
 /** Creates the Fastify app without listening, so tests can call `app.inject()`. */
@@ -73,6 +80,7 @@ export async function buildApp({
   onMonthClosed = () => {},
   backup,
   system,
+  settings,
 }: BuildAppOptions): Promise<FastifyInstance> {
   const app = Fastify({ logger });
   const backupService =
@@ -83,6 +91,8 @@ export async function buildApp({
       now,
       log: { info: () => {}, error: () => {} },
     });
+  const settingsStore =
+    settings ?? createSettingsStore(connection, { envOneDriveFolder: null, trial: false });
   // FR-31 (#25): back up after each closing; the backup never throws, so the hook chain goes on.
   const afterDayClosed: OnDayClosed = async (date) => {
     await backupService.run("day-close");
@@ -95,6 +105,7 @@ export async function buildApp({
   registerHealthRoutes(app, connection, { version: packageJson.version, now, system });
   registerAuditRoutes(app, connection);
   registerBackupRoutes(app, backupService);
+  registerSettingsRoutes(app, settingsStore, backupService, now);
   registerCategoryRoutes(app, connection, now);
   registerPaymentRoutes(app, connection, now);
   registerFixedExpenseTemplateRoutes(app, connection, now);

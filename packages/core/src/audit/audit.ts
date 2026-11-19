@@ -199,6 +199,10 @@ export const AUDIT_FIELD_LABELS: Record<string, string> = {
   installmentNumber: "Parcela",
   // FR-16: how many fixed expenses of the month were still pending when it was closed.
   pendingFixedExpenses: "Despesas fixas pendentes",
+  // FR-33: settings (one audit row per key; the key is also the entity id).
+  oneDriveFolder: "Pasta do OneDrive",
+  cashDifferenceLimitCents: "Limite da diferença de caixa",
+  dueSoonDays: "Antecedência de contas a vencer (dias)",
 };
 
 /** pt-BR labels for coded values, per field (e.g. an expense category's group). */

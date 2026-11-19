@@ -54,7 +54,7 @@ Ordered backlog for the MVP (spec §9.1). Each item is one small PR / GitHub iss
 | [x] | M3 | [#25](#25--pilot-database-backup) | Pilot database backup | slice of FR-31 | #9 |
 | [x] | M3 | [#26](#26--pilot-install-on-the-shop-pc) | Pilot install on the shop PC | slice of FR-34 | #25 |
 | [x] | M3 | [#27](#27--pilot-go-live-and-the-parallel-period) | Pilot go-live and the parallel period | spec §9.5 | #26, #15 |
-| [ ] | M4 | [#20](#20--settings) | Settings | FR-33 | #1 |
+| [x] | M4 | [#20](#20--settings) | Settings | FR-33 | #1 |
 | [ ] | M4 | [#21](#21--daily-spreadsheet-export-and-the-retry-queue) | Daily spreadsheet export and the retry queue | FR-28, FR-30 | #15, #20 |
 | [x] | M4 | [#11](#11--fixed-expense-templates) | Fixed-expense templates | FR-10; RN-12 | #1 |
 | [x] | M4 | [#12](#12--generate-the-months-fixed-expenses) | Generate the month's fixed expenses | FR-11 | #11 |
@@ -1247,6 +1247,16 @@ Gráfico diário de **entradas brutas × despesas** (gerais + fixas pagas) para 
 | # | Questão | Impacto | Premissa até a resposta |
 |---|---|---|---|
 | Q-07 | O PC da loja tem o **aplicativo OneDrive** instalado e conectado à conta certa? Qual pasta usar? Há espaço livre na conta? | Sem isso não há backup fora do PC. | Verificação obrigatória na implantação. |
+
+**Done notes (follow-ups)**
+
+- Keys in `settings`: `oneDriveFolder` (text; `""` = cleared on purpose), `cashDifferenceLimitCents`, `dueSoonDays` (decimal text). No migration: the table already existed. Core: `packages/core/src/settings/settings.ts`; server: `apps/server/src/modules/settings/` (`GET`/`PUT /api/settings`, `POST /api/settings/onedrive-folder/test`).
+- **Saving a new folder runs the same write test** and is refused (422 `folder_test_failed`) when it fails, so a typo never silently stops the backups. Clearing the folder is always allowed. A new folder applies at once (backup and startup check read it through a getter) and gets today's backup if it has none.
+- **Folder precedence:** `COLOR_BMS_ONEDRIVE_DIR` (dev/E2E only) overrides the setting and the field is read-only; else the `settings` row; `config.json` (#25) is imported once, with an audit row, when no row exists. `iniciar-uso-real.cmd` still writes `config.json`, which the first start imports.
+- Trial mode: the folder can be edited, but nothing goes to OneDrive (the page says so).
+- One audit row per changed key (`entity: "setting"`, `entityId` = the key).
+- **#23** reads the thresholds with `SettingsStore.read()` (`apps/server/src/modules/settings/settings.repository.ts`): `cashDifferenceLimitCents` (alert when |diferença| > limit) and `dueSoonDays`.
+- **#21** writes the spreadsheets to `SettingsStore.backupFolder()` (null in trial mode or when not configured).
 
 ### #21 — Daily spreadsheet export and the retry queue
 

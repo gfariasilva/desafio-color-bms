@@ -25,7 +25,14 @@ function BackupNotices() {
     return (
       <p className="mb-2 flex items-center gap-2">
         <AlertTriangle className="h-4 w-4 shrink-0 text-rainbow-orange" aria-hidden />
-        Pasta do OneDrive não configurada: os backups não estão sendo gravados.
+        <span>Pasta do OneDrive não configurada: os backups não estão sendo gravados.</span>
+        {/* FR-27: each alert links to where it is fixed (FR-33, Configurações). */}
+        <Link
+          to="/configuracoes"
+          className="rounded-md px-2 py-1 font-medium text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Configurar
+        </Link>
       </p>
     );
   }

@@ -12,16 +12,20 @@ export interface AppConfig {
   /** Built web app (apps/web/dist). Served when it exists. */
   webDistDir: string;
   /**
-   * #25: the OneDrive folder (spec §7.2 `<pasta>`) that receives `_backup-sistema/`, or null
-   * when not set. From `COLOR_BMS_ONEDRIVE_DIR`, else `oneDriveFolder` in `<dataDir>/config.json`.
-   * Moves into the Settings screen with #20.
+   * `COLOR_BMS_ONEDRIVE_DIR`, or null. Overrides the OneDrive folder set in Configurações
+   * (FR-33, #20); used in development and E2E tests only, never on the shop PC.
    */
-  oneDriveFolder: string | null;
+  envOneDriveFolder: string | null;
+  /**
+   * #25: `oneDriveFolder` from `<dataDir>/config.json`, or null. Since #20 the folder lives in
+   * the settings table; this is only imported once, when the table has no folder yet.
+   */
+  legacyOneDriveFolder: string | null;
   /** #25: local backups made before migrations (`data\backups\`). */
   localBackupDir: string;
   /**
    * #26: trial mode (training days before go-live), set by the pilot launcher with
-   * `COLOR_BMS_TRIAL=1`. Trial data never goes to OneDrive: no backup, whatever config.json says.
+   * `COLOR_BMS_TRIAL=1`. Trial data never goes to OneDrive: no backup, whatever the folder.
    */
   trial: boolean;
 }
@@ -78,7 +82,8 @@ export function loadConfig(
     dataDir,
     databaseFile: path.join(dataDir, "color.db"),
     webDistDir: env.COLOR_BMS_WEB_DIST ?? path.resolve(serverRoot, "../web/dist"),
-    oneDriveFolder: trial ? null : fromEnv ? fromEnv : readOneDriveFolder(dataDir, warn),
+    envOneDriveFolder: fromEnv ? fromEnv : null,
+    legacyOneDriveFolder: readOneDriveFolder(dataDir, warn),
     localBackupDir: path.join(dataDir, "backups"),
     trial,
   };
