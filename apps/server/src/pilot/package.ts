@@ -84,7 +84,18 @@ export function packagedPath(repoRoot: string, packageDir: string): string {
 }
 
 /**
+ * Windows' extractors ("Extrair tudo", tar) fail on some non-ASCII names in a zip, and
+ * "Extrair tudo" can then stop and leave the app half extracted (e.g. @fastify/send's test
+ * fixture "snow ☃"). Every packaged path must be printable ASCII.
+ */
+export function isPortableName(relative: string): boolean {
+  return /^[\x20-\x7e]*$/.test(relative);
+}
+
+/**
  * Copies one package (without its nested `node_modules`, which are packages of their own).
+ * Files and folders with non-ASCII names are skipped (`isPortableName`): only test fixtures
+ * and docs have them, never runtime code.
  * better-sqlite3 keeps only the prebuilt binary for `platform`: its C sources, and any binary
  * compiled on *this* machine in `build/` (which it would load first), must not ship.
  */
@@ -95,6 +106,7 @@ export function copyPackage(source: string, target: string, platform: string): v
     filter: (file) => {
       const relative = path.relative(source, file);
       if (relative === "") return true;
+      if (!isPortableName(relative)) return false;
       const [top, ...rest] = relative.split(path.sep);
       if (top === "node_modules") return false;
       if (!isSqlite) return true;
@@ -136,6 +148,9 @@ export function zipDirectory(dir: string, zipFile: string): void {
     if (!entry.isFile()) continue;
     const full = path.join(entry.parentPath, entry.name);
     const name = [top, ...path.relative(dir, full).split(path.sep)].join("/");
+    if (!isPortableName(name)) {
+      throw new Error(`Not a plain ASCII name, Windows may not extract it: ${name}`);
+    }
     entries[name] = new Uint8Array(fs.readFileSync(full));
   }
   fs.writeFileSync(zipFile, zipSync(entries, { level: 6 }));
