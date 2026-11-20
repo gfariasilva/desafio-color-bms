@@ -103,6 +103,39 @@ describe("#26: production node_modules copied from the installed tree (lockfile 
   });
 });
 
+describe("#26: file names Windows can extract", () => {
+  it("#26: copyPackage skips files and folders whose names are not plain ASCII", () => {
+    pkg(
+      "node_modules/@fastify/send",
+      { name: "@fastify/send" },
+      {
+        "index.js": "js",
+        "test/fixtures/snow \u2603/index.html": "fixture",
+        "test/fixtures/caf\u00e9.txt": "fixture",
+        "test/fixtures/plain.txt": "fixture",
+      },
+    );
+    const out = path.join(repo, "out");
+    copyPackage(path.join(repo, "node_modules/@fastify/send"), out, "win32-x64");
+    const names = fs
+      .readdirSync(out, { recursive: true, withFileTypes: true })
+      .map((entry) => path.relative(out, path.join(entry.parentPath, entry.name)))
+      .sort();
+    expect(names).toEqual(
+      ["index.js", "package.json", "test", "test/fixtures", "test/fixtures/plain.txt"].map((n) =>
+        n.split("/").join(path.sep),
+      ),
+    );
+  });
+
+  it("#26: zipDirectory refuses a name that is not plain ASCII", () => {
+    const dir = path.join(repo, "color-bms-0.2.0");
+    fs.mkdirSync(path.join(dir, "snow \u2603"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "snow \u2603", "index.html"), "x");
+    expect(() => zipDirectory(dir, path.join(repo, "out.zip"))).toThrow(/snow/);
+  });
+});
+
 describe("#26: zip, Node download and scripts", () => {
   it("#26: .cmd files get Windows line endings", () => {
     expect(toCrlf("@echo off\nset A=1\r\nexit\n")).toBe("@echo off\r\nset A=1\r\nexit\r\n");
