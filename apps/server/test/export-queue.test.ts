@@ -111,11 +111,17 @@ function valueBeside(sheet: ExcelJS.Worksheet, label: string, column = 2): Excel
   return found;
 }
 
+/** The daily items (a closing also queues the month's spreadsheet, FR-29: monthly-export.test.ts). */
 function queueRows() {
   return ctx.connection.sqlite
-    .prepare("select kind, reference, status, attempts from export_queue order by id")
+    .prepare(
+      "select kind, reference, status, attempts from export_queue where kind = 'daily_spreadsheet' order by id",
+    )
     .all();
 }
+
+/** True for the daily file (the writer also receives the monthly one, FR-29). */
+const isDaily = (file: string) => path.basename(file).startsWith("Diária");
 
 async function closeToday(countedCashCents: number) {
   await closeDayWithCount(ctx, TODAY, { openingCashCents: 0, countedCashCents });
@@ -135,8 +141,11 @@ describe("FR-28: export the daily spreadsheet", () => {
     ]);
     const resumo = workbook.getWorksheet("Resumo do dia")!;
     expect(valueBeside(resumo, "Dinheiro contado")).toBe(43.21);
-    // Atomic write: only the final file is left in the folder.
-    expect(fs.readdirSync(path.dirname(dailyFile()))).toEqual([FILE_NAME]);
+    // Atomic write: only the final files are left in the folder (FR-29: the month's too).
+    expect(fs.readdirSync(path.dirname(dailyFile())).sort()).toEqual([
+      FILE_NAME,
+      "Mensal 2026-11.xlsx",
+    ]);
     // FR-30: the item is done and leaves the list.
     expect(queueRows()).toEqual([
       { kind: "daily_spreadsheet", reference: TODAY, status: "done", attempts: 1 },
@@ -213,7 +222,10 @@ describe("FR-30: the export queue and its retries", () => {
 
     const status = await getStatus();
     expect(status.hasFailures).toBe(true);
-    expect(status.items).toEqual([
+    // The daily item first, then the month's (FR-29), which fails for the same reason.
+    expect(status.items).toHaveLength(2);
+    expect(status.items[1]).toMatchObject({ kind: "monthly_spreadsheet", status: "failed" });
+    expect(status.items.slice(0, 1)).toEqual([
       {
         id: expect.any(Number),
         kind: "daily_spreadsheet",
@@ -328,6 +340,7 @@ describe("FR-30: the export queue and its retries", () => {
     await createSale(ctx);
     let writes = 0;
     writeFile = (file, data) => {
+      if (!isDaily(file)) return writeFileAtomic(file, data);
       writes += 1;
       // The day is queued again while the first file is being written.
       if (writes === 1) queue.enqueueDailySpreadsheet(TODAY);
@@ -343,7 +356,8 @@ describe("FR-30: the export queue and its retries", () => {
   it("FR-30: a day closed again while its write is failing is tried again at once", async () => {
     await createSale(ctx);
     let writes = 0;
-    writeFile = () => {
+    writeFile = (file) => {
+      if (!isDaily(file)) return;
       writes += 1;
       if (writes === 1) {
         // The owner closes the day again (after fixing the cause) while this write fails.

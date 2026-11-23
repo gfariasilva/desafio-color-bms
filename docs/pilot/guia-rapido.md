@@ -48,7 +48,7 @@ Dinheiro **retirado** da gaveta que **não é despesa** (ex.: levar para o banco
 3. Digite o **Dinheiro contado** → **Enter**.
 4. Se aparecer **diferença**: confira a contagem. Se estiver certa, escreva uma **observação** (ex.: "troco dado a mais") e tecle **Enter** de novo ("Fechar mesmo assim").
 
-Depois de fechado, o dia não aceita mudanças. O sistema faz sozinho o **backup no OneDrive** e grava a planilha do dia em `<pasta do OneDrive>\AAAA\MM - Mês\Diária AAAA-MM-DD.xlsx` (ex.: `2026\11 - Novembro\Diária 2026-11-18.xlsx`). Se reabrir e fechar o dia de novo, a planilha é substituída pela versão corrigida. A planilha é só para consulta: o que for mudado nela não volta para o sistema.
+Depois de fechado, o dia não aceita mudanças. O sistema faz sozinho o **backup no OneDrive** e grava a planilha do dia em `<pasta do OneDrive>\AAAA\MM - Mês\Diária AAAA-MM-DD.xlsx` (ex.: `2026\11 - Novembro\Diária 2026-11-18.xlsx`). Se reabrir e fechar o dia de novo, a planilha é substituída pela versão corrigida. Na mesma pasta fica a **planilha do mês**, `Mensal AAAA-MM.xlsx` (ex.: `Mensal 2026-11.xlsx`), atualizada a cada dia fechado. As planilhas são só para consulta: o que for mudado nelas não volta para o sistema.
 
 ## Configurações (Alt+9)
 
@@ -67,10 +67,12 @@ Totais por aba e por forma de pagamento, despesas, sangrias e o fechamento. Dura
 
 Escolha o **Mês**. O resumo mostra a entrada mensal, as taxas, as despesas gerais e fixas e o **saldo mensal**. Clique numa linha para ver o relatório dela. Em **Mês – Despesas fixas**, cada conta aparece com o valor pago e a data. Uma conta conta no mês em que foi **paga**: a Luz de outubro paga em novembro aparece em novembro com "ref. 10/2026". As sangrias e as contas pendentes não entram no saldo.
 
+A planilha `Mensal AAAA-MM.xlsx` tem as mesmas contas, em 4 abas: **Entradas**, **Despesas gerais**, **Despesas fixas** e **Resumo**. Na aba Resumo, a linha **Situação** diz se ela é a **versão parcial** (mês aberto: muda a cada dia fechado) ou a **versão final** (gravada quando o mês é fechado em Fechamento › Fechamento do mês). Se o mês for reaberto e fechado de novo, a versão final é substituída.
+
 ## Se algo der errado
 
 - **A tela não abre ou mostra erro de conexão:** espere 1 minuto e recarregue (**F5**). Se continuar, abra a pasta `%LOCALAPPDATA%\ColorBMS` (tecle **Win + R**, cole o caminho e tecle Enter) e dê dois cliques em **`iniciar.cmd`**.
-- **Início mostra "Backup pendente: … planilha não foi gravada"**: se a planilha daquele dia estiver aberta no Excel, **feche-a** e clique em **Tentar agora** (o sistema também tenta sozinho a cada 5 minutos). Se o aviso falar da **pasta**, clique em **Verificar a pasta** e confira a pasta do OneDrive em Configurações.
+- **Início mostra "Backup pendente: … planilha não foi gravada"**: se a planilha citada (do dia ou do mês) estiver aberta no Excel, **feche-a** e clique em **Tentar agora** (o sistema também tenta sozinho a cada 5 minutos). Se o aviso falar da **pasta**, clique em **Verificar a pasta** e confira a pasta do OneDrive em Configurações.
 - **Início mostra outro alerta** (backup do banco pendente, dia não fechado, relógio errado): anote ou tire uma foto e avise o desenvolvedor.
 - **Lançou algo errado e não sabe corrigir:** anote o dia, o valor e o que aconteceu, e avise. Tudo o que é alterado fica registrado na Auditoria; nada se perde.
 - **Nunca** apague nem mova arquivos das pastas `ColorBMS` ou `_backup-sistema`.

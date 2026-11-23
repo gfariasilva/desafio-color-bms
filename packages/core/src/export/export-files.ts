@@ -6,6 +6,7 @@ import { isYearMonth, type YearMonth } from "../time/year-month";
  *
  * ```
  * <pasta configurada>/2026/11 - Novembro/Diária 2026-11-18.xlsx
+ * <pasta configurada>/2026/11 - Novembro/Mensal 2026-11.xlsx
  * ```
  */
 
@@ -52,6 +53,23 @@ export function dailySpreadsheetFileName(date: CivilDate): string {
 export function dailySpreadsheetPath(date: CivilDate): [string, string, string] {
   const fileName = dailySpreadsheetFileName(date);
   return [date.slice(0, 4), monthFolderName(date.slice(0, 7)), fileName];
+}
+
+/** FR-29: "Mensal 2026-11.xlsx". */
+export function monthlySpreadsheetFileName(yearMonth: YearMonth): string {
+  if (!isYearMonth(yearMonth)) {
+    throw new RangeError(`monthlySpreadsheetFileName expects "YYYY-MM", received "${yearMonth}"`);
+  }
+  return `Mensal ${yearMonth}.xlsx`;
+}
+
+/**
+ * FR-29 / §7.2: the monthly spreadsheet's path inside the OneDrive folder, as path segments:
+ * year, month folder, file name (next to the month's daily files).
+ */
+export function monthlySpreadsheetPath(yearMonth: YearMonth): [string, string, string] {
+  const fileName = monthlySpreadsheetFileName(yearMonth);
+  return [yearMonth.slice(0, 4), monthFolderName(yearMonth), fileName];
 }
 
 const MS_PER_DAY = 86_400_000;

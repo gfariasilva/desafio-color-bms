@@ -62,7 +62,7 @@ Ordered backlog for the MVP (spec §9.1). Each item is one small PR / GitHub iss
 | [x] | M5 | [#14](#14--close-and-reopen-the-month) | Close and reopen the month | FR-16, FR-17; RN-14 | #10, #13 |
 | [x] | M5 | [#16](#16--month-reports-income-and-general-expenses) | Month reports: income and general expenses | FR-20, FR-21; RN-06, RN-08 | #6, #7 |
 | [x] | M5 | [#17](#17--month-reports-fixed-expenses-and-monthly-summary) | Month reports: fixed expenses and monthly summary | FR-22, FR-23; RN-09, RN-10 | #13, #16 |
-| [ ] | M5 | [#28](#28--monthly-spreadsheet-export) | Monthly spreadsheet export | FR-29 | #17, #21 |
+| [x] | M5 | [#28](#28--monthly-spreadsheet-export) | Monthly spreadsheet export | FR-29 | #17, #21 |
 | [ ] | M5 | [#22](#22--database-backup-and-restore) | Database backup and restore | FR-31, FR-32; RN-13 | #21, #25 |
 | [ ] | M6 | [#18](#18--dashboard-this-month-vs-the-previous-one) | Dashboard: this month vs the previous one | FR-24; RN-11 | #17 |
 | [ ] | M6 | [#19](#19--dashboards-tab-ranking-and-income--expenses) | Dashboards: tab ranking and income × expenses | FR-25, FR-26; RN-11 | #16, #17 |
@@ -941,7 +941,7 @@ Diferença = Dinheiro contado − Dinheiro esperado   (>0 sobra, <0 falta)
 - Core `cash-closing/month-closing.ts`: `monthParamsSchema`, `reopenMonthInputSchema` (motivo required, trimmed, max 200), `closeMonthBlock()` (already closed → not ended → pending days), `reopenMonthBlock()`, `lastDateOfMonth()`, `monthClosingResponseSchema`, codes `PENDING_DAYS_CODE`, `MONTH_ALREADY_CLOSED_CODE`, `MONTH_NOT_CLOSED_CODE`. Audit label `pendingFixedExpenses` → "Despesas fixas pendentes".
 - Decisions (approved): a month can be closed **only from its last day on** (400 "O mês 11/2026 ainda não terminou. Ele pode ser fechado a partir de 30/11/2026."), so closing never locks days still to come. A month with no movement can be closed. Pending fixed expenses of the reference month are listed before confirming and never block (FR-16); they stay pending.
 - API (`modules/month-closing/`): `GET /api/months/:yearMonth/closing` (`status`, `closedAt`, `lastDate`, `pendingDays` (A-15, via the shared `MOVEMENT_DATES_SQL`), `pendingFixedExpenses`, `closeBlocked`), `POST …/close` (400 not ended; 409 `pending_days` listing the days; 409 `month_already_closed`), `POST …/reopen` (`{ reason }`; 409 `month_not_closed`). Audit: entity `month`, `close` (`{status:"open"}` → `{status:"closed", pendingFixedExpenses: n}`) and `reopen` (with the reason), each in the same transaction as the write.
-- **`buildApp({ onMonthClosed })`** runs after the closing commits (not awaited, failures only logged): **#28** (final monthly spreadsheet) and **#22** (backup) hook in there. Reopening queues nothing; a re-closing calls it again, so #28 must overwrite the earlier file.
+- **`buildApp({ onMonthClosed })`** runs after the closing commits (not awaited, failures only logged): **#22** (backup) hooks in there. **#28** (done) writes the final monthly spreadsheet in `buildApp` right before calling it. Reopening queues nothing; a re-closing calls it again, so #28 must overwrite the earlier file.
 - UI: "Fechamento do mês" section under the day on `/fechamento` (`components/cash-closing/MonthClosingSection.tsx`, `MonthClosingPanel.tsx`): starts on the month of the chosen day, ◀ ▶ to other months (not past the current one). Pending days are links to `?data=`; "Fechar mês" opens an in-place "Tem certeza?" card (Enter confirms, Esc cancels); a closed month shows "Mês fechado" + "Reabrir mês" (reason card). `ReopenDayPanel` now wraps a shared `ReopenPanel`. Screenshots in `docs/screenshots/fr-16/`.
 - Follow-ups: **#23** could alert "mês anterior não fechado" from day 1 of a month (`GET /api/months/:ym/closing` gives what it needs). The Fechamento page's two status lines are now scoped by section in tests (`region` "Fechamento de caixa" / "Fechamento do mês").
 
@@ -1746,6 +1746,23 @@ A tela inicial mostra os alertas abaixo, cada um com link para resolver:
 **Technical notes**
 
 - Split from #21 so the daily export can ship before the month reports exist.
+
+**Done notes (follow-ups)**
+
+- **Core** (`packages/core/src/export/`): `monthlySpreadsheetPath()` / `monthlySpreadsheetFileName()` (`AAAA/MM - Mês/Mensal AAAA-MM.xlsx`, next to the daily files) and `monthly-spreadsheet.ts`: `buildMonthlySpreadsheet({ income, generalExpenses, fixedExpenses, summary, status })`, built only from the month reports (#16, #17), so the file matches the screens. Sheets, in §7.3 order:
+  - **Entradas**: days × tabs grid (gross, a day without sales has empty cells), "Total da aba", totals per payment method, Entrada mensal, Taxas, Líquido (FR-20, RN-06);
+  - **Despesas gerais**: categories of Geral with "Subtotal Geral", the "Fornecedores de materiais" block and its subtotal, "Total geral" (RN-08), then **Lançamentos** (every entry of the month, approved decision: the file is the owner's record once the Excel is dropped);
+  - **Despesas fixas**: per group, conta (with "parcela n de N"), vencimento, previsto, pago, data de pagamento, status and an observação ("ref. 10/2026", or "Paga em 12/2026: fora do total do mês"); subtotals per group; "Total pago no mês" (RN-09) and "Total pendente (informativo)";
+  - **Resumo**: the 6 FR-23 lines, "Saldo negativo" beside a negative saldo, and **Situação**: "Versão parcial: mês aberto, atualizada em …" or "Versão final: mês fechado em …".
+- **Server:** `modules/export/monthly-spreadsheet.repository.ts` (`getMonthlySpreadsheet`: the 3 report queries + `buildMonthSummary` + the `months` row). The queue writes `monthly_spreadsheet` items (`enqueueMonthlySpreadsheet`). Approved decisions: the monthly file is written on **every** day closing of the month (even a day without movement) and on every month closing; it is never skipped (a month always has its fixed expenses). `buildApp`: `afterDayClosed` queues the daily file, then the month's; a new `afterMonthClosed` queues the final file, runs the export, then calls `onMonthClosed` (#22 hooks in there). Reopening a day or a month queues nothing; a re-closing overwrites the file.
+- **Migration** `0015_queue_monthly_spreadsheets`: one pending monthly item per month with a closed day or closed, oldest first, so the pilot's months get their file on the first start after the update. No audit rows (system state).
+- **UI:** none new; Início's "Backup pendente" lists "Mensal AAAA-MM.xlsx" like the daily files (component test). Owner guide: where the file is and partial vs final.
+- **E2E:** `monthly-export.spec.ts` (February 2026; closes the month by keyboard and reopens it). `exceljs` is now an e2e devDependency, to read the file back.
+- Server version 0.4.0 for the pilot update.
+- **Follow-ups:**
+  - Like the daily file, the monthly item is queued right after the closing commits, not in the same transaction (see #21).
+  - The partial file is rewritten after every day closing (the 3 month report queries plus ExcelJS, after the closing has answered). Not measured on a 5-year database; check it on the shop PC if closings feel slow.
+  - Paying a fixed expense or editing an expense does not update the monthly file until the next day closing. Writes are locked on closed days (RN-14), so after the last closing of the month the file is complete.
 
 **Acceptance criteria** _(verbatim from spec §4)_
 
