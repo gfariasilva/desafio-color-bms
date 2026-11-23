@@ -61,7 +61,7 @@ Ordered backlog for the MVP (spec §9.1). Each item is one small PR / GitHub iss
 | [x] | M4 | [#13](#13--pay-or-dismiss-a-fixed-expense-loan-installments) | Pay or dismiss a fixed expense; loan installments | FR-12, FR-13; RN-09, RN-07, RN-14 | #12, #9 |
 | [x] | M5 | [#14](#14--close-and-reopen-the-month) | Close and reopen the month | FR-16, FR-17; RN-14 | #10, #13 |
 | [x] | M5 | [#16](#16--month-reports-income-and-general-expenses) | Month reports: income and general expenses | FR-20, FR-21; RN-06, RN-08 | #6, #7 |
-| [ ] | M5 | [#17](#17--month-reports-fixed-expenses-and-monthly-summary) | Month reports: fixed expenses and monthly summary | FR-22, FR-23; RN-09, RN-10 | #13, #16 |
+| [x] | M5 | [#17](#17--month-reports-fixed-expenses-and-monthly-summary) | Month reports: fixed expenses and monthly summary | FR-22, FR-23; RN-09, RN-10 | #13, #16 |
 | [ ] | M5 | [#28](#28--monthly-spreadsheet-export) | Monthly spreadsheet export | FR-29 | #17, #21 |
 | [ ] | M5 | [#22](#22--database-backup-and-restore) | Database backup and restore | FR-31, FR-32; RN-13 | #21, #25 |
 | [ ] | M6 | [#18](#18--dashboard-this-month-vs-the-previous-one) | Dashboard: this month vs the previous one | FR-24; RN-11 | #17 |
@@ -1098,6 +1098,15 @@ Mostra o total de cada categoria no mês (por data de pagamento), com os fornece
 **Technical notes**
 
 - Test FR-23: every summary line equals the matching total in FR-20 to FR-22.
+
+**Done notes (follow-ups)**
+
+- **No migration.** Core `reports/month-fixed-expenses.ts` (`buildMonthFixedExpensesReport`, `monthFixedExpensesReportSchema`, rows with `countsInMonth`) and `reports/month-summary.ts` (`buildMonthSummary`, `monthSummarySchema`, RN-10). `compareFixedExpenses` (FR-11 order) moved from the server to core `fixed-expenses/fixed-expenses.ts`.
+- API: `GET /api/months/:yearMonth/reports/fixed-expenses` and `…/reports/summary` (`month-reports.repository.ts`: `getMonthFixedExpensesReport`, `getMonthSummary`). Read-only, no audit. The summary is built from `getMonthIncome`, `getMonthGeneralExpenses` and `getMonthFixedExpensesReport`, so every line equals its report (FR-23).
+- Decisions (approved): FR-22 lists the bills of the **reference month** (any status) **plus bills of other months paid in it** (badge "ref. 10/2026"), so the rows add up to the total paid (RN-09, `fixedExpensesOfMonthCents`). A bill of the month paid in a later month is listed with "conta em 12/2026" and is out of the total. "Total pendente" = Σ expected of the month's **pending** bills (no expected amount adds 0, counted in `pendingWithoutExpectedCount`); dismissed bills are in no total. Subtotals per group (paid and pending). The summary shows the 6 FR-23 lines, each linking to its report; a negative saldo is red with the label "Saldo negativo".
+- UI: `/relatorios/mes/despesas-fixas` (`pages/MonthFixedExpensesReportPage.tsx`) and `/relatorios/mes/resumo` (`pages/MonthSummaryReportPage.tsx`), linked from the Relatórios hub. Screenshots in `docs/screenshots/fr-22/`. Owner guide: "Conferir o mês".
+- **#28:** build the "Despesas fixas" and "Resumo" sheets from `getMonthFixedExpensesReport` and `getMonthSummary`. **#18 / #19:** `getMonthSummary` always covers the whole month, so it cannot feed RN-11 as is: A-13 compares the same day range (day 1 to today) in both months, so #18 needs an RN-10 summary over a day range (e.g. pass an end date to the month reports).
+- Open for the owner: pending bills of **earlier** months (e.g. October's Luz still unpaid in November) are only listed in their own month's report; #23 alerts should surface them.
 
 **Acceptance criteria** _(verbatim from spec §4)_
 

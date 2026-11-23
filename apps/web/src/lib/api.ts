@@ -52,10 +52,14 @@ import {
   type SettingsResponse,
   dayReportResponseSchema,
   type DayReportResponse,
+  monthFixedExpensesReportSchema,
   monthGeneralExpensesResponseSchema,
   monthIncomeResponseSchema,
+  monthSummarySchema,
+  type MonthFixedExpensesReport,
   type MonthGeneralExpensesResponse,
   type MonthIncomeResponse,
+  type MonthSummary,
   dayCashClosingResponseSchema,
   unclosedDaysResponseSchema,
   type CloseDayInput,
@@ -222,6 +226,10 @@ export const QUERY_KEYS = {
   monthIncomeReport: ["reports", "monthIncome"],
   /** FR-21: followed by the month: ["reports", "monthGeneralExpenses", "2026-10"]. */
   monthGeneralExpensesReport: ["reports", "monthGeneralExpenses"],
+  /** FR-22: followed by the month: ["reports", "monthFixedExpenses", "2026-10"]. */
+  monthFixedExpensesReport: ["reports", "monthFixedExpenses"],
+  /** FR-23: followed by the month: ["reports", "monthSummary", "2026-10"]. */
+  monthSummaryReport: ["reports", "monthSummary"],
 } as const;
 
 export const api = {
@@ -292,7 +300,7 @@ export const api = {
       requestJson("DELETE", `/api/cash-withdrawals/${id}`, undefined),
   },
 
-  /** FR-19: the day report; FR-20 / FR-21: the month reports (income, general expenses). */
+  /** FR-19: the day report; FR-20 to FR-23: the month reports. */
   reports: {
     day: (date: string): Promise<DayReportResponse> =>
       getJson(`/api/days/${encodeURIComponent(date)}/report`, dayReportResponseSchema),
@@ -306,6 +314,13 @@ export const api = {
         `/api/months/${encodeURIComponent(yearMonth)}/reports/general-expenses`,
         monthGeneralExpensesResponseSchema,
       ),
+    monthFixedExpenses: (yearMonth: string): Promise<MonthFixedExpensesReport> =>
+      getJson(
+        `/api/months/${encodeURIComponent(yearMonth)}/reports/fixed-expenses`,
+        monthFixedExpensesReportSchema,
+      ),
+    monthSummary: (yearMonth: string): Promise<MonthSummary> =>
+      getJson(`/api/months/${encodeURIComponent(yearMonth)}/reports/summary`, monthSummarySchema),
   },
 
   /** FR-08: the cash closing of a day; FR-27: the earlier days left open. */

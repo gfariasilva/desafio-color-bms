@@ -13,8 +13,10 @@ import { CatalogListPage } from "@/pages/CatalogListPage";
 import { ClosingPage } from "@/pages/ClosingPage";
 import { HomePage } from "@/pages/HomePage";
 import { DayReportPage } from "@/pages/DayReportPage";
+import { MonthFixedExpensesReportPage } from "@/pages/MonthFixedExpensesReportPage";
 import { MonthGeneralExpensesReportPage } from "@/pages/MonthGeneralExpensesReportPage";
 import { MonthIncomeReportPage } from "@/pages/MonthIncomeReportPage";
+import { MonthSummaryReportPage } from "@/pages/MonthSummaryReportPage";
 import { PlaceholderPage } from "@/pages/PlaceholderPage";
 import { ReportsPage } from "@/pages/ReportsPage";
 import { SalesPage } from "@/pages/SalesPage";
@@ -50,6 +52,8 @@ export function AppRoutes() {
         <Route path="relatorios/dia" element={<DayReportPage />} />
         <Route path="relatorios/mes/entradas" element={<MonthIncomeReportPage />} />
         <Route path="relatorios/mes/despesas-gerais" element={<MonthGeneralExpensesReportPage />} />
+        <Route path="relatorios/mes/despesas-fixas" element={<MonthFixedExpensesReportPage />} />
+        <Route path="relatorios/mes/resumo" element={<MonthSummaryReportPage />} />
         <Route path="cadastros" element={<CatalogPage />} />
         <Route path="cadastros/abas" element={<CatalogListPage kind="sale" />} />
         <Route path="cadastros/categorias-despesa" element={<CatalogListPage kind="expense" />} />
