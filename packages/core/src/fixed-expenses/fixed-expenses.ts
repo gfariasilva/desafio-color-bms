@@ -107,6 +107,18 @@ export function fixedExpenseInstallmentLabel(entry: {
   return `parcela ${entry.installmentNumber} de ${entry.installmentsTotal}`;
 }
 
+/** FR-11 list order: Gerais, then Taxas governo; by due date (none last); then by name. */
+export function compareFixedExpenses(a: FixedExpense, b: FixedExpense): number {
+  const group = FIXED_EXPENSE_GROUPS.indexOf(a.group) - FIXED_EXPENSE_GROUPS.indexOf(b.group);
+  if (group !== 0) return group;
+  if (a.dueDate !== b.dueDate) {
+    if (a.dueDate === null) return 1;
+    if (b.dueDate === null) return -1;
+    return a.dueDate < b.dueDate ? -1 : 1;
+  }
+  return a.label.localeCompare(b.label, "pt-BR") || a.id - b.id;
+}
+
 /** A fixed expense of a month, as listed on "Contas do mês". */
 export const fixedExpenseSchema = z.object({
   id: z.number().int().positive(),

@@ -1,12 +1,9 @@
-import { CalendarDays, CalendarRange, Receipt } from "lucide-react";
-import { HubLinkCard, UpcomingCard } from "@/components/layout/HubCards";
+import { CalendarDays, CalendarRange, Calculator, Receipt, ReceiptText } from "lucide-react";
+import { HubLinkCard } from "@/components/layout/HubCards";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { NAV_ITEMS } from "@/config/navigation";
 
 const reportsArea = NAV_ITEMS.find((item) => item.path === "/relatorios");
-
-/** Reports that later backlog items will build (shown so the owner knows what is coming). */
-const UPCOMING = [{ label: "Mês – Despesas fixas e Resumo mensal", requirements: "FR-22, FR-23" }];
 
 /** Relatórios: entry point to the day report (FR-19) and the month reports (FR-20 to FR-23). */
 export function ReportsPage() {
@@ -35,9 +32,18 @@ export function ReportsPage() {
           description="Total de cada categoria, o grupo Fornecedores de materiais e o total geral, com os lançamentos."
           icon={Receipt}
         />
-        {UPCOMING.map((section) => (
-          <UpcomingCard key={section.label} {...section} />
-        ))}
+        <HubLinkCard
+          to="/relatorios/mes/despesas-fixas"
+          label="Mês – Despesas fixas"
+          description="Cada conta (Gerais e Taxas governo) com vencimento, previsto, pago e situação; total pago no mês e pendente."
+          icon={ReceiptText}
+        />
+        <HubLinkCard
+          to="/relatorios/mes/resumo"
+          label="Resumo mensal"
+          description="Entrada mensal, taxas, despesas gerais e fixas, total de despesas e o saldo mensal."
+          icon={Calculator}
+        />
       </div>
     </>
   );

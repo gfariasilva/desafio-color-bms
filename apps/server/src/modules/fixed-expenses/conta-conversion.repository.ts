@@ -1,6 +1,7 @@
 import { asc, eq } from "drizzle-orm";
 import {
   CASH_WITHDRAWAL_TEXTS,
+  compareFixedExpenses,
   contaBillName,
   CONTA_CONVERSION_REASON,
   MONTH_CLOSED_CODE,
@@ -21,7 +22,6 @@ import {
 } from "../cash-closing/cash-closing.repository";
 import { monthStatus, periodStatus } from "../periods/period-status";
 import {
-  compareFixedExpenses,
   createOneOffInTransaction,
   payFixedExpenseInTransaction,
   selectFixedExpenses,
