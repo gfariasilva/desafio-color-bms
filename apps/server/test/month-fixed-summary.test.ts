@@ -229,11 +229,14 @@ describe("FR-23: Resumo mensal (GET /api/months/:yearMonth/reports/summary)", ()
       description: "Taxa",
       expected: 900,
     });
-    await postAction(ctx, taxa.id, "dismiss", {});
+    const dismissed = await postAction(ctx, taxa.id, "dismiss", {});
+    expect(dismissed.statusCode, dismissed.body).toBe(200);
     const summary = await getSummary("2026-11");
     expect(summary.fixedExpensesCents).toBe(0);
     expect(summary.balanceCents).toBe(0);
-    expect(iptu.status).toBe("pending");
+    const report = await getFixedReport("2026-11");
+    expect(rows(report).find((r) => r.id === iptu.id)?.status).toBe("pending");
+    expect(rows(report).find((r) => r.id === taxa.id)?.status).toBe("dismissed");
   });
 
   it("FR-23: a month with no movement is all zero", async () => {

@@ -203,7 +203,7 @@ function FixedExpenseRow({ row, yearMonth }: { row: MonthFixedExpenseRow; yearMo
           {row.label}
           {installment && <span className="text-muted-foreground">{installment}</span>}
           {row.oneOff && <Badge variant="outline">Avulsa</Badge>}
-          {row.referenceMonth !== yearMonth && (
+          {row.referenceMonth !== "" && row.referenceMonth !== yearMonth && (
             <Badge variant="outline">ref. {formatYearMonth(row.referenceMonth)}</Badge>
           )}
         </span>
