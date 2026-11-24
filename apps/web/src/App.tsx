@@ -1,7 +1,8 @@
-import { lazy, Suspense } from "react";
+import { lazy } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "@/components/layout/AppShell";
+import { LazyPage } from "@/components/layout/LazyPage";
 import { NAV_ITEMS } from "@/config/navigation";
 import { AuditPage } from "@/pages/AuditPage";
 import { BackupRestorePage } from "@/pages/BackupRestorePage";
@@ -68,9 +69,9 @@ export function AppRoutes() {
         <Route
           path="dashboards"
           element={
-            <Suspense fallback={<p className="text-muted-foreground">Carregando…</p>}>
+            <LazyPage name="Dashboards">
               <DashboardsPage />
-            </Suspense>
+            </LazyPage>
           }
         />
         <Route path="cadastros" element={<CatalogPage />} />

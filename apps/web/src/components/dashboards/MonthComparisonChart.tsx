@@ -2,6 +2,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   Legend,
   ReferenceLine,
   ResponsiveContainer,
@@ -14,6 +15,14 @@ import { categoryColor } from "@/lib/category-colors";
 
 /** Axis ticks are whole reais ("R$ 1.000"); the tooltip shows the exact value in cents. */
 const formatTick = (cents: number) => formatCents(Math.round(cents)).replace(/,00$/, "");
+
+/**
+ * Rounded corners at the bar's far end: below zero (a negative Saldo) that is the bottom.
+ * Recharts merges a `<Cell>`'s props into its bar, whose `radius` takes the 4 corners, but
+ * Cell's type only declares the SVG `radius` (a number), hence the cast where it is used.
+ */
+const barRadius = (cents: number): [number, number, number, number] =>
+  cents < 0 ? [0, 0, 3, 3] : [3, 3, 0, 0];
 
 /**
  * FR-24: grouped bars per indicator, the previous period beside this month. Only a picture of
@@ -73,16 +82,22 @@ export function MonthComparisonChart({ comparison }: { comparison: MonthComparis
             dataKey="previous"
             name={previousLabel}
             fill={categoryColor(1)}
-            radius={[3, 3, 0, 0]}
             isAnimationActive={false}
-          />
+          >
+            {data.map((entry) => (
+              <Cell key={entry.label} radius={barRadius(entry.previous) as unknown as number} />
+            ))}
+          </Bar>
           <Bar
             dataKey="current"
             name={currentLabel}
             fill={categoryColor(0)}
-            radius={[3, 3, 0, 0]}
             isAnimationActive={false}
-          />
+          >
+            {data.map((entry) => (
+              <Cell key={entry.label} radius={barRadius(entry.current) as unknown as number} />
+            ))}
+          </Bar>
         </BarChart>
       </ResponsiveContainer>
     </div>
