@@ -66,7 +66,7 @@ Ordered backlog for the MVP (spec §9.1). Each item is one small PR / GitHub iss
 | [x] | M5 | [#22](#22--database-backup-and-restore) | Database backup and restore | FR-31, FR-32; RN-13 | #21, #25 |
 | [x] | M6 | [#18](#18--dashboard-this-month-vs-the-previous-one) | Dashboard: this month vs the previous one | FR-24; RN-11 | #17 |
 | [x] | M6 | [#19](#19--dashboards-tab-ranking-and-income--expenses) | Dashboards: tab ranking and income × expenses | FR-25, FR-26; RN-11 | #16, #17 |
-| [ ] | M6 | [#23](#23--home-screen-alerts) | Home screen alerts | FR-27 | #9, #13, #21, #22 |
+| [x] | M6 | [#23](#23--home-screen-alerts) | Home screen alerts | FR-27 | #9, #13, #21, #22 |
 | [ ] | M6 | [#24](#24--windows-installer-auto-start-and-deployment-checklist) | Windows installer, auto-start and deployment checklist | FR-34 | #22, #26 |
 
 ---
@@ -1502,6 +1502,15 @@ Gera `Diária AAAA-MM-DD.xlsx` (layout em §7.3) na pasta do OneDrive.
 
 - Replace the walking-skeleton health card with the alerts (keep the health info in Configurações).
 - Absorb the pilot's open-day warning (#9) and backup-pending notice (#21) into this list.
+
+**Done notes (follow-ups)**
+
+- **No migration.** Core `packages/core/src/alerts/home-alerts.ts`: `fixedExpenseDueAlert()` ("overdue" / "due_soon" / null), `dueAlertText()` ("vence hoje", "venceu há 2 dias"…), `isCashDifferenceAlert()` (|diferença| > limit, A-17), `homeAlertsResponseSchema`, `homeAlertCount()` ("Tudo em dia" at 0). `daysBetween()` added to `time/civil-date.ts`.
+- API: `GET /api/alerts` (`modules/alerts/`, read-only, no audit): `overdueBills`, `dueSoonBills` (each `{id, label, referenceMonth, dueDate, expectedAmountCents}`, by due date), `unclosedDays` (reuses `listUnclosedDays`), `cashDifference` (`{date, differenceCents, limitCents}` or null), plus `today` and `dueSoonDays`. Thresholds from `SettingsStore.read()` (FR-33). Backup pendente stays on `GET /api/exports/status`. `GET /api/days/unclosed` is kept but the web no longer calls it.
+- Decisions (approved): the "a vencer" window is today … today + `dueSoonDays` (default 3, both included). Pending bills of **any** reference month alert (October's unpaid bill shows in November, closing the #17 follow-up); bills without a due date never alert. "Último fechamento" = the closed day with the latest **date** (a reopened day is skipped). "Pasta do OneDrive não configurada" is an alert (blocks "Tudo em dia"); the trial-mode note is not. Startup checks in **error** (#26) are alerts ("Problema no PC", link to Configurações). "Tudo em dia" only shows when every source answered.
+- UI: Início = Alertas card (order: Backup pendente group, Problema no PC, pasta não configurada, Dia não fechado, Conta vencida, Diferença de caixa, Conta a vencer) + Atalhos card (Registrar venda / Registrar despesa / Fechar o dia, with `aria-keyshortcuts`). "Pagar" links to `/despesas-fixas/mes?mes=YYYY-MM&pagar=<id>`, which opens that bill's payment card once (the parameter is then removed). The "Status do sistema" card moved to Configurações (`components/settings/SystemStatusCard.tsx`). Screenshots in `docs/screenshots/fr-27/`. Owner guide: "Início (Alt+1)".
+- E2E: `e2e/tests/home-alerts.spec.ts` runs its own server per test (port 3500 + worker), so "Tudo em dia" never sees the shared worker database. `startup-checks.spec.ts` and `backup.spec.ts` now read the status in `/configuracoes`.
+- Follow-ups (not in FR-27): an alert for a bill **without a due date** ("conta sem vencimento", #12 note); "mês anterior não fechado" from day 1 of a month (#14 note); an alert counter on the Início item of the sidebar. The header date in `AppShell` still uses the browser clock (seen in the screenshots: 24/11 while the test clock is 18/11; #12 note).
 
 **Acceptance criteria** _(verbatim from spec §4)_
 

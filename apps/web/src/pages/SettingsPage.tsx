@@ -3,12 +3,16 @@ import { DatabaseBackup, History } from "lucide-react";
 import { HubLinkCard } from "@/components/layout/HubCards";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { SettingsForm } from "@/components/settings/SettingsForm";
+import { SystemStatusCard } from "@/components/settings/SystemStatusCard";
 import { NAV_ITEMS } from "@/config/navigation";
 import { api, QUERY_KEYS } from "@/lib/api";
 
 const settingsArea = NAV_ITEMS.find((item) => item.path === "/configuracoes");
 
-/** Configurações: the settings form (FR-33), then the other settings sections. */
+/**
+ * Configurações: the settings form (FR-33), the other settings sections, and the system status
+ * (moved from Início by #23).
+ */
 export function SettingsPage() {
   const settings = useQuery({ queryKey: QUERY_KEYS.settings, queryFn: api.settings });
   return (
@@ -40,6 +44,9 @@ export function SettingsPage() {
           description="Backups do banco no OneDrive e neste PC; restaurar um backup."
           icon={DatabaseBackup}
         />
+      </div>
+      <div className="mt-6">
+        <SystemStatusCard />
       </div>
     </>
   );

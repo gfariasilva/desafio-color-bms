@@ -75,7 +75,6 @@ import {
   type MonthIncomeResponse,
   type MonthSummary,
   dayCashClosingResponseSchema,
-  unclosedDaysResponseSchema,
   type CloseDayInput,
   type ReopenDayInput,
   monthClosingResponseSchema,
@@ -105,6 +104,8 @@ import {
   type AuditListResponse,
   type AuditQuery,
   type HealthResponse,
+  homeAlertsResponseSchema,
+  type HomeAlertsResponse,
 } from "@color-bms/core";
 import type { z } from "zod";
 
@@ -222,8 +223,8 @@ export const QUERY_KEYS = {
   cashClosing: ["cashClosing"],
   /** FR-08: followed by the civil date: ["cashClosing", "day", "2026-11-18"]. */
   cashClosingDay: ["cashClosing", "day"],
-  /** FR-27: earlier days with movement still open. */
-  unclosedDays: ["cashClosing", "unclosed"],
+  /** FR-27: the alerts of Início (refetched each time Início opens). */
+  homeAlerts: ["alerts"],
   /** GET /api/health: version, startup checks and trial mode (#26). */
   health: ["health"],
   /** FR-31: the backup's state (Início, the backup page). */
@@ -282,6 +283,8 @@ export const api = {
   /** FR-32: restores a backup; the server answers, then restarts. */
   restoreBackup: (request: RestoreRequest): Promise<RestoreResponse> =>
     requestJson("POST", "/api/backup/restore", request, restoreResponseSchema),
+  /** FR-27: the alerts read from the database (bills, open days, cash difference). */
+  homeAlerts: (): Promise<HomeAlertsResponse> => getJson("/api/alerts", homeAlertsResponseSchema),
   /** FR-30: the exports not written yet ("Backup pendente"). */
   exportStatus: (): Promise<ExportQueueStatusResponse> =>
     getJson("/api/exports/status", exportQueueStatusResponseSchema),
@@ -403,8 +406,6 @@ export const api = {
         input,
         dayCashClosingResponseSchema,
       ),
-    unclosed: (): Promise<string[]> =>
-      getJson("/api/days/unclosed", unclosedDaysResponseSchema).then((r) => r.days),
   },
 
   /** FR-16: close a month; FR-17: reopen it with a reason. */

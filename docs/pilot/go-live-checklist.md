@@ -24,7 +24,7 @@ For the developer, done **with the owner** at the shop. Tick each step and write
 |---|---|---|
 | [ ] | Owner questions answered and the answers written into `owner-questions.md` (and the spec, by the owner's decision). | |
 | [ ] | Shop PC acceptance check in [`install.md`](install.md) §7 done (no window at logon, shortcut, offline, not reachable from the LAN, crash → restart, update). | |
-| [ ] | **PC clock and time zone:** Início › Status do sistema › Verificações shows "OK" for the time zone (UTC−03:00) and the clock. Windows "Set time automatically" is on. | |
+| [ ] | **PC clock and time zone:** Configurações › Status do sistema › Verificações shows "OK" for the time zone (UTC−03:00) and the clock. Windows "Set time automatically" is on. | |
 | [ ] | **OneDrive (Q-07):** the OneDrive app is signed in to the owner's account, has free space, and the chosen folder (e.g. `C:\Users\<user>\OneDrive\Color`) exists and syncs. Note the path: ____________________ | |
 | [ ] | **Backup and manual restore test (NFR-07):** the checklist at the end of [`restaurar-backup.md`](restaurar-backup.md), done on the shop PC. | |
 | [ ] | Training session done and CS-2 / CS-4 measured ([`treinamento.md`](treinamento.md)). | |
@@ -39,7 +39,7 @@ Do this when no sale of the new month has been made yet: after the last closing 
 |---|---|---|
 | [ ] | In trial mode, close every open trial day (it does not matter, the trial data is archived, but it avoids confusion if the folder is opened later). | |
 | [ ] | `iniciar-uso-real.cmd` in `%LOCALAPPDATA%\ColorBMS`: type **SIM**, confirm the OneDrive folder noted above. | |
-| [ ] | Início: **no TREINO badge**, no "Pasta do OneDrive não configurada" alert, all Verificações "OK". | |
+| [ ] | Início: **no TREINO badge**, no "Pasta do OneDrive não configurada" or "Problema no PC" alert; Configurações › Status do sistema: all Verificações "OK". | |
 | [ ] | `arquivo\data-treino-AAAA-MM-DD_HHMM\` exists (the trial data is kept, not deleted). | |
 
 ## C. Master data in the real database (right after the reset)
@@ -59,7 +59,7 @@ Do this when no sale of the new month has been made yet: after the last closing 
 |---|---|---|
 | [ ] | The owner registers the day's sales, expenses and sangrias in the system **and** in his Excel. | |
 | [ ] | First closing (Fechamento): "Troco inicial" is empty and the owner types it by hand (§9.5 item 3, FR-08). Value: R$ ________ | |
-| [ ] | After the closing: Início › Status do sistema › "Último backup" shows today, and the file is in `<OneDrive>\_backup-sistema\` and synced (cloud icon with a check). | |
+| [ ] | After the closing: Configurações › Status do sistema › "Último backup" shows today, and the file is in `<OneDrive>\_backup-sistema\` and synced (cloud icon with a check). | |
 | [ ] | First line of [`conferencia.md`](conferencia.md) filled in. | |
 
 Go-live date: ___/___/______ · Version: ________

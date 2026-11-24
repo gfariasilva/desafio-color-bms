@@ -32,7 +32,7 @@ About 20 minutes, at the time agreed with the owner. Bring the USB stick with th
 
 Checklist for each visit:
 
-- [ ] Início: no alert, all Verificações "OK", "Último backup" recent.
+- [ ] Início: no "Backup pendente" or "Problema no PC" alert; Configurações › Status do sistema: all Verificações "OK", "Último backup" recent.
 - [ ] `conferencia.md` of the week reviewed with the owner; every difference has a reason.
 - [ ] CS-5 checked in the OneDrive folder.
 - [ ] Feedback written below; bugs and requests become backlog items.

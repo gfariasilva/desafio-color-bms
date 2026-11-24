@@ -50,7 +50,8 @@ describe("#26: trial mode", () => {
   });
 
   it("#26: no badge in real use", async () => {
-    renderAt("/");
+    // #23: the system status card ("Conectado") is in Configurações.
+    renderAt("/configuracoes");
     expect(await screen.findByText("Conectado")).toBeInTheDocument();
     expect(screen.queryByText("TREINO")).not.toBeInTheDocument();
   });
@@ -63,11 +64,11 @@ describe("AppShell", () => {
     for (const item of NAV_ITEMS) {
       expect(nav).toHaveTextContent(item.label);
     }
-    expect(screen.getAllByRole("link")).toHaveLength(9);
+    expect(within(nav).getAllByRole("link")).toHaveLength(9);
   });
 
-  it("shows the system status from /api/health on Início", async () => {
-    renderAt("/");
+  it("#23: shows the system status from /api/health in Configurações", async () => {
+    renderAt("/configuracoes");
     expect(await screen.findByText("Conectado")).toBeInTheDocument();
     expect(screen.getByText("18/11/2026 19:03")).toBeInTheDocument();
   });

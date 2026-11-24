@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -75,6 +75,7 @@ function errorMessage(error: unknown): string {
  * Keyboard (NFR-05): Conta → Grupo → Vencimento → Valor previsto; Enter adds and focus
  * returns to Conta. "Mês anterior"/"Próximo mês" move between months (never into the future).
  * The month is in the address (`?mes=2026-10`), so a link can open a given month.
+ * FR-27: `?pagar=<id>` (the "Pagar" link of an Início alert) opens that bill's payment card.
  */
 export function FixedExpensesMonthPage() {
   const queryClient = useQueryClient();
@@ -169,6 +170,28 @@ export function FixedExpensesMonthPage() {
     setPayError(null);
     setPaying(expense);
   }
+
+  /**
+   * FR-27: `?pagar=<id>` from an Início alert opens the payment of that bill once the month is
+   * loaded (fresh, not a cached copy from an earlier visit), if it is still pending; the
+   * parameter is then dropped, so Esc or a reload does not open it again.
+   */
+  const payRequest = searchParams.get("pagar");
+  const monthFetching = monthQuery.isFetching;
+  useEffect(() => {
+    if (payRequest === null || !data || monthFetching) return;
+    const bill = data.expenses.find(
+      (expense) => String(expense.id) === payRequest && expense.status === "pending",
+    );
+    if (bill) startPaying(bill);
+    setSearchParams(
+      (params) => {
+        params.delete("pagar");
+        return params;
+      },
+      { replace: true },
+    );
+  }, [payRequest, data, monthFetching, setSearchParams]);
 
   function cancelPaying() {
     const id = paying?.id;

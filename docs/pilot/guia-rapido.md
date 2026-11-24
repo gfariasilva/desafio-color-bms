@@ -4,6 +4,17 @@
 > **Alt + número** abre cada tela: **Alt+1** Início · **Alt+2** Vendas · **Alt+3** Despesas · **Alt+4** Despesas fixas · **Alt+5** Fechamento · **Alt+6** Relatórios · **Alt+7** Dashboards.
 > Em todos os formulários: **Enter salva**, **Tab** passa para o próximo campo e **Esc** cancela.
 
+## Início (Alt+1): o que precisa de atenção
+
+Ao abrir o sistema, veja o quadro **Alertas**. Cada alerta tem um link que resolve:
+
+- **Dia não fechado** → **Fechar** abre o fechamento daquele dia.
+- **Conta vencida** / **Conta a vencer** (vence hoje ou nos próximos 3 dias) → **Pagar** abre o pagamento da conta, já com o valor previsto.
+- **Diferença de caixa** no último fechamento → **Ver fechamento** mostra o dia. O alerta some quando um dia mais recente fecha sem diferença.
+- **Backup pendente** → veja "Se algo der errado", abaixo.
+
+Sem nada pendente, aparece **Tudo em dia**. Os **Atalhos** abaixo levam a **Registrar venda**, **Registrar despesa** e **Fechar o dia**. A antecedência das contas a vencer e o limite da diferença de caixa mudam em **Configurações**.
+
 ## Venda (Alt+2)
 
 1. Digite o **valor** (ex.: `25,50`).
@@ -86,7 +97,7 @@ O gráfico mostra, **dia a dia**, as entradas (azul) e as despesas (laranja: ger
 - **A tela não abre ou mostra erro de conexão:** espere 1 minuto e recarregue (**F5**). Se continuar, abra a pasta `%LOCALAPPDATA%\ColorBMS` (tecle **Win + R**, cole o caminho e tecle Enter) e dê dois cliques em **`iniciar.cmd`**.
 - **Início mostra "Backup pendente: … não foi gravado(a)"** (uma planilha ou o **backup do banco**): se a planilha citada (do dia ou do mês) estiver aberta no Excel, **feche-a** e clique em **Tentar agora** (o sistema também tenta sozinho a cada 5 minutos). Se o aviso falar da **pasta**, clique em **Verificar a pasta** e confira a pasta do OneDrive em Configurações.
 - **Perdeu lançamentos ou o PC trocou?** Em **Configurações › Backup e restauração**, escolha um backup e clique em **Restaurar** (pede um motivo; o sistema reinicia sozinho). Passo a passo: [`restaurar-backup.md`](restaurar-backup.md). Na dúvida, avise o desenvolvedor antes.
-- **Início mostra outro alerta** (dia não fechado, relógio errado): anote ou tire uma foto e avise o desenvolvedor.
+- **Início mostra "Problema no PC"** (por exemplo, relógio errado): anote ou tire uma foto e avise o desenvolvedor. Os detalhes ficam em **Configurações › Status do sistema**.
 - **Lançou algo errado e não sabe corrigir:** anote o dia, o valor e o que aconteceu, e avise. Tudo o que é alterado fica registrado na Auditoria; nada se perde.
 - **Nunca** apague nem mova arquivos das pastas `ColorBMS` ou `_backup-sistema`.
 

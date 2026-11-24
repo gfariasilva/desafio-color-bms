@@ -70,6 +70,17 @@ export function addDays(date: CivilDate, days: number): CivilDate {
   return shifted.toISOString().slice(0, 10);
 }
 
+/**
+ * Whole calendar days from `from` to `to` (negative when `to` is earlier).
+ *
+ * @example daysBetween("2026-11-18", "2026-11-21") // 3
+ */
+export function daysBetween(from: CivilDate, to: CivilDate): number {
+  const [fy, fm, fd] = parseCivilDate(from, "daysBetween");
+  const [ty, tm, td] = parseCivilDate(to, "daysBetween");
+  return Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / 86_400_000);
+}
+
 // Wall-clock parts of an instant in São Paulo, used to find the UTC offset.
 const wallClockFormatter = new Intl.DateTimeFormat("en-US", {
   timeZone: TIME_ZONE,

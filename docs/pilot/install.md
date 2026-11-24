@@ -68,7 +68,7 @@ It refuses to run twice, and if `data\color.db` already exists.
 
 - `parar.cmd` / `iniciar.cmd`: stop or start the system and open it.
 - **Logs:** `data\logs\color-bms-AAAA-MM-DD.log`, or `data-treino\logs\` in trial mode. There is one file per day and the last 31 are kept. They contain the server's JSON log lines, the launcher's `[launcher]` lines (start, crash, restart), and any crash stack trace.
-- **Início › Status do sistema › Verificações:**
+- **Configurações › Status do sistema › Verificações:**
   - PC time zone (must be UTC−03:00);
   - PC clock (an error if it is behind the latest records or before the version's build date);
   - port 3210;
