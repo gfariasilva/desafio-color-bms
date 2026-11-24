@@ -64,7 +64,7 @@ Ordered backlog for the MVP (spec §9.1). Each item is one small PR / GitHub iss
 | [x] | M5 | [#17](#17--month-reports-fixed-expenses-and-monthly-summary) | Month reports: fixed expenses and monthly summary | FR-22, FR-23; RN-09, RN-10 | #13, #16 |
 | [x] | M5 | [#28](#28--monthly-spreadsheet-export) | Monthly spreadsheet export | FR-29 | #17, #21 |
 | [x] | M5 | [#22](#22--database-backup-and-restore) | Database backup and restore | FR-31, FR-32; RN-13 | #21, #25 |
-| [ ] | M6 | [#18](#18--dashboard-this-month-vs-the-previous-one) | Dashboard: this month vs the previous one | FR-24; RN-11 | #17 |
+| [x] | M6 | [#18](#18--dashboard-this-month-vs-the-previous-one) | Dashboard: this month vs the previous one | FR-24; RN-11 | #17 |
 | [ ] | M6 | [#19](#19--dashboards-tab-ranking-and-income--expenses) | Dashboards: tab ranking and income × expenses | FR-25, FR-26; RN-11 | #16, #17 |
 | [ ] | M6 | [#23](#23--home-screen-alerts) | Home screen alerts | FR-27 | #9, #13, #21, #22 |
 | [ ] | M6 | [#24](#24--windows-installer-auto-start-and-deployment-checklist) | Windows installer, auto-start and deployment checklist | FR-34 | #22, #26 |
@@ -1158,6 +1158,20 @@ As sangrias **não** entram no saldo, porque são movimentação interna.
 **Technical notes**
 
 - Use Recharts (same as the landing page) and the chart tokens `--chart-1..6`.
+
+**Done notes (follow-ups)**
+
+- **No migration.** Core `dashboards/variation.ts` (`variationTenths`, `formatVariation`, RN-11) and `dashboards/month-comparison.ts` (`comparisonPeriods`, `formatDayRange`, `buildMonthComparison`, `monthComparisonSchema`). RN-10 moved into `rn10Totals()` (`reports/month-summary.ts`), used by both the monthly summary and the dashboard.
+- API: `GET /api/dashboards/month-comparison` (`apps/server/src/modules/dashboards/`), today from the server `Clock`. Read-only, no audit. `getPeriodTotals(db, from, to)` sums RN-06/RN-08/RN-09 over any day range in SQL and counts the movement. A test checks that over a whole month it equals `getMonthSummary`. The reference column is the previous month's `getMonthSummary`, so it equals Resumo mensal (FR-23).
+- Decisions (approved):
+  - A shorter previous month stops at its last day (on 31/03: 01–28/02, or 01–29/02 in a leap year).
+  - "Sem dados do mês anterior" means the **whole** previous month had no sales, refunds, general expenses or paid fixed expenses. Then every variation is "—". Otherwise RN-11 applies to each indicator: "—" when its previous value is 0, with the note "o mês anterior não teve valor nesses dias".
+  - The variation is stored as integer tenths of a percent, rounded half away from zero, and shown as "+8,7%" / "−38,8%" / "0,0%".
+  - Variations have no good/bad colour; only a negative Saldo is red.
+  - No month selector (FR-24 is "mês atual até hoje").
+- UI: `/dashboards` (`pages/DashboardsPage.tsx`, Alt+7) with a section per dashboard. Recharts `^2.15.4` is new in `apps/web` (ADR 0001 already lists it; the landing page's exact version was not checked). The page is lazy-loaded, so Recharts is its own chunk (≈ 390 kB) and the main bundle is unchanged (≈ 512 kB; Vite's > 500 kB warning was already there). Owner guide: "Comparar com o mês anterior". Screenshots in `docs/screenshots/fr-24/`.
+- **#19:** add the FR-25 and FR-26 sections to `DashboardsPage`. FR-25 needs per-tab totals over the same day ranges (`comparisonPeriods` + a grouped variant of `getPeriodTotals`). FR-26 needs daily totals (group `getPeriodTotals`' queries by date, filling zero days in core). Reuse `variationTenths` / `formatVariation` and `MonthComparisonChart`'s styling.
+- The jsdom test setup now has a `ResizeObserver` stand-in (`apps/web/src/test/setup.ts`) for Recharts' `ResponsiveContainer`.
 
 **Acceptance criteria** _(verbatim from spec §4)_
 
