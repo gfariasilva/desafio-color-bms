@@ -4,6 +4,8 @@ import {
   dailySpreadsheetPath,
   excelDateSerial,
   monthFolderName,
+  monthlySpreadsheetFileName,
+  monthlySpreadsheetPath,
 } from "./export-files";
 
 describe("export file names (spec §7.2)", () => {
@@ -19,6 +21,22 @@ describe("export file names (spec §7.2)", () => {
       "01 - Janeiro",
       "Diária 2027-01-01.xlsx",
     ]);
+  });
+
+  it("FR-29: the monthly file is <pasta>/AAAA/MM - Mês/Mensal AAAA-MM.xlsx", () => {
+    expect(monthlySpreadsheetFileName("2026-11")).toBe("Mensal 2026-11.xlsx");
+    expect(monthlySpreadsheetPath("2026-11")).toEqual([
+      "2026",
+      "11 - Novembro",
+      "Mensal 2026-11.xlsx",
+    ]);
+    expect(monthlySpreadsheetPath("2027-01")).toEqual([
+      "2027",
+      "01 - Janeiro",
+      "Mensal 2027-01.xlsx",
+    ]);
+    expect(() => monthlySpreadsheetPath("2026-13")).toThrow(RangeError);
+    expect(() => monthlySpreadsheetPath("2026-11-01")).toThrow(RangeError);
   });
 
   it("§7.2: every month folder has its two-digit number and pt-BR name", () => {

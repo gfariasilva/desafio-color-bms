@@ -47,4 +47,5 @@ export {
   type SpreadsheetSheet,
 } from "./export/spreadsheet-model";
 export * from "./export/daily-spreadsheet";
+export * from "./export/monthly-spreadsheet";
 export * from "./export/export-queue";

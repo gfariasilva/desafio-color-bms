@@ -26,6 +26,7 @@ import { registerPaymentRoutes } from "./modules/payments/payments.routes";
 import {
   registerMonthClosingRoutes,
   type OnMonthClosed,
+  type OnMonthReopened,
 } from "./modules/month-closing/month-closing.routes";
 import { registerDayReportRoutes } from "./modules/reports/day-report.routes";
 import { registerMonthReportRoutes } from "./modules/reports/month-reports.routes";
@@ -56,13 +57,15 @@ export interface BuildAppOptions {
    */
   backup?: BackupService;
   /**
-   * FR-28 / FR-30 (#21): the export queue (daily spreadsheet). main.ts passes the real one;
-   * defaults to a disabled queue (nothing is queued or written), like the backup's default.
+   * FR-28 / FR-29 / FR-30 (#21, #28): the export queue (daily and monthly spreadsheets).
+   * main.ts passes the real one; defaults to a disabled queue (nothing is queued or written),
+   * like the backup's default.
    */
   exports?: ExportQueueService;
   /**
-   * FR-16: called after a month's closing is committed. The final monthly spreadsheet (#28)
-   * and the backup (#22) hook in here; a no-op until then. A failure never undoes the closing.
+   * FR-16: called after a month's closing is committed, once the final monthly spreadsheet
+   * (FR-29, #28) is queued and before it is written, like the backup of a day closing. The
+   * backup (#22) hooks in here; a no-op by default. A failure never undoes the closing.
    */
   onMonthClosed?: OnMonthClosed;
   /**
@@ -110,14 +113,31 @@ export async function buildApp({
       now,
       log: { info: () => {}, error: () => {} },
     });
-  // FR-08: after each closing, queue the daily spreadsheet (FR-28) first, so it is in the
-  // database as soon as possible; then the backup (FR-31, #25) and the export run. Neither
-  // throws, so the hook chain goes on.
+  // FR-08: after each closing, queue the daily spreadsheet (FR-28) and the month's
+  // spreadsheet (FR-29) first, so they are in the database as soon as possible; then the
+  // backup (FR-31, #25) and the export run. Neither throws, so the hook chain goes on.
   const afterDayClosed: OnDayClosed = async (date) => {
     exportQueue.enqueueDailySpreadsheet(date);
+    exportQueue.enqueueMonthlySpreadsheet(date.slice(0, 7));
     await backupService.run("day-close");
     await exportQueue.processPending();
     await onDayClosed(date);
+  };
+  // FR-16 / FR-29: after a month's closing, queue its final monthly spreadsheet, run the app's
+  // hook (the backup, #22), then the export: the same order as a day closing, so a slow
+  // OneDrive never delays the backup. A closed-again month overwrites the earlier file.
+  const afterMonthClosed: OnMonthClosed = async (yearMonth) => {
+    exportQueue.enqueueMonthlySpreadsheet(yearMonth);
+    try {
+      await onMonthClosed(yearMonth);
+    } finally {
+      await exportQueue.processPending();
+    }
+  };
+  // FR-17 / FR-29: a reopened month's file goes back to the partial version.
+  const afterMonthReopened: OnMonthReopened = async (yearMonth) => {
+    exportQueue.enqueueMonthlySpreadsheet(yearMonth);
+    await exportQueue.processPending();
   };
   // Shutdown: stop the 5-minute retries and let a file being written finish.
   app.addHook("onClose", async () => {
@@ -145,7 +165,7 @@ export async function buildApp({
   registerCashWithdrawalRoutes(app, connection, now);
   registerCashClosingRoutes(app, connection, now, afterDayClosed);
   registerContaConversionRoutes(app, connection, now, afterDayClosed);
-  registerMonthClosingRoutes(app, connection, now, onMonthClosed);
+  registerMonthClosingRoutes(app, connection, now, afterMonthClosed, afterMonthReopened);
   registerDayReportRoutes(app, connection, now);
   registerMonthReportRoutes(app, connection, now);
 

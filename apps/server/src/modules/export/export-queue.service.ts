@@ -10,16 +10,20 @@ import {
   type ExportKind,
   type ExportQueueItem,
   type ExportQueueStatusResponse,
+  monthlySpreadsheetPath,
+  type SpreadsheetModel,
+  type YearMonth,
 } from "@color-bms/core";
 import type { Clock } from "../../clock";
 import type { DatabaseConnection } from "../../db/client";
 import { exportQueue } from "../../db/schema";
 import { writeFileAtomic } from "./atomic-write";
 import { getDailySpreadsheet } from "./daily-spreadsheet.repository";
+import { getMonthlySpreadsheet } from "./monthly-spreadsheet.repository";
 import { renderXlsx } from "./xlsx-writer";
 
 /**
- * FR-28 / FR-30: the export queue. Every file for the OneDrive folder is a row of
+ * FR-28 / FR-29 / FR-30: the export queue. Every file for the OneDrive folder is a row of
  * `export_queue`; this service writes them, keeps failures with a pt-BR error ("Backup
  * pendente" on Início), and retries them every 5 minutes, at startup, when the folder changes
  * in Configurações, and on "Tentar agora".
@@ -37,6 +41,11 @@ export interface ExportQueueService {
    * Synchronous.
    */
   enqueueDailySpreadsheet(date: CivilDate): void;
+  /**
+   * FR-29: queues the monthly spreadsheet of a month (after a day of it is closed, and when
+   * the month is closed). Same reuse rules as the daily one. Synchronous.
+   */
+  enqueueMonthlySpreadsheet(yearMonth: YearMonth): void;
   /** FR-28: writes the items not tried yet (after a closing). Never throws. */
   processPending(): Promise<void>;
   /**
@@ -182,21 +191,45 @@ export function createExportQueue({
       .run();
   }
 
+  /**
+   * The spreadsheet of one item and its path inside the OneDrive folder (§7.2), or a null
+   * model when there is nothing to write.
+   */
+  function spreadsheetOf(
+    kind: ExportKind,
+    reference: string,
+    at: Date,
+  ): { model: SpreadsheetModel | null; target: [string, string, string] } {
+    switch (kind) {
+      case "daily_spreadsheet":
+        // No movement, or reopened: no file (FR-28, FR-09).
+        return {
+          model: getDailySpreadsheet(db, reference, at),
+          target: dailySpreadsheetPath(reference),
+        };
+      case "monthly_spreadsheet":
+        // FR-29: always written; partial while the month is open, final once it is closed.
+        return {
+          model: getMonthlySpreadsheet(db, reference, at),
+          target: monthlySpreadsheetPath(reference),
+        };
+      case "db_backup":
+        // #22 adds its writer here.
+        throw new ExportError(
+          `Exportação ainda não disponível: ${exportFileName(kind, reference)}`,
+          "other",
+        );
+    }
+  }
+
   /** Writes one item's file. Returns normally when written or when there is nothing to write. */
   async function exportItem(kind: ExportKind, reference: string, at: Date): Promise<void> {
-    if (kind !== "daily_spreadsheet") {
-      // #28 (monthly) and #22 (DB backup) add their writers here.
-      throw new ExportError(
-        `Exportação ainda não disponível: ${exportFileName(kind, reference)}`,
-        "other",
-      );
-    }
-    const model = getDailySpreadsheet(db, reference, at);
-    if (model === null) return; // No movement, or reopened: no file (FR-28, FR-09).
+    const { model, target } = spreadsheetOf(kind, reference, at);
+    if (model === null) return;
     const data = await renderXlsx(model);
     // Checked after rendering, right before writing: the folder may have changed meanwhile.
     const root = requireRootFolder(folder());
-    const [year, month, fileName] = dailySpreadsheetPath(reference);
+    const [year, month, fileName] = target;
     const dir = path.join(root, year, month);
     fs.mkdirSync(dir, { recursive: true });
     writeFile(path.join(dir, fileName), data);
@@ -248,6 +281,9 @@ export function createExportQueue({
       try {
         if (root && item.kind === "daily_spreadsheet") {
           const [year, month] = dailySpreadsheetPath(item.reference);
+          dir = path.join(root, year, month);
+        } else if (root && item.kind === "monthly_spreadsheet") {
+          const [year, month] = monthlySpreadsheetPath(item.reference);
           dir = path.join(root, year, month);
         }
       } catch {
@@ -335,6 +371,7 @@ export function createExportQueue({
 
   return {
     enqueueDailySpreadsheet: (date) => enqueue("daily_spreadsheet", date),
+    enqueueMonthlySpreadsheet: (yearMonth) => enqueue("monthly_spreadsheet", yearMonth),
     processPending: () => run("pending"),
     processAll: () => run("all"),
     idle: async () => {

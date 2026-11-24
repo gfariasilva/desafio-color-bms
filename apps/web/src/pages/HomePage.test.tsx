@@ -232,6 +232,33 @@ describe("FR-30: Início shows the exports that could not be written", () => {
     expect(within(notice).queryByRole("link")).toBeNull();
   });
 
+  it("FR-29: a failed monthly spreadsheet is listed with the daily one", async () => {
+    exportStatus = {
+      enabled: true,
+      hasFailures: true,
+      items: [
+        failedItem,
+        {
+          ...failedItem,
+          id: 2,
+          kind: "monthly_spreadsheet",
+          reference: "2026-11",
+          fileName: "Mensal 2026-11.xlsx",
+          lastError:
+            "O arquivo Mensal 2026-11.xlsx está aberto no Excel (ou em uso pelo OneDrive). Feche o arquivo",
+        },
+      ],
+    };
+    renderAt("/");
+    const notice = await screen.findByRole("group", { name: "Backup pendente" });
+    expect(notice).toHaveTextContent(
+      "Backup pendente: 2 planilhas não foram gravadas no OneDrive.",
+    );
+    expect(notice).toHaveTextContent(
+      "Mensal 2026-11.xlsx: O arquivo Mensal 2026-11.xlsx está aberto no Excel (ou em uso pelo OneDrive). Feche o arquivo. Última tentativa em 18/11/2026 10:05.",
+    );
+  });
+
   it("FR-30: a folder problem links to Configurações (spec §7.4)", async () => {
     exportStatus = {
       enabled: true,
