@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatVariation, variationTenths } from "./variation";
+import { formatVariation, percentTenths, variationTenths } from "./variation";
 
 describe("variationTenths (RN-11)", () => {
   it("RN-11: variation = (current − previous) ÷ |previous| × 100", () => {
@@ -43,9 +43,30 @@ describe("variationTenths (RN-11)", () => {
     expect(variationTenths(1_000_000_001, 1_000_000_000)).toBe(0);
   });
 
+  it("RN-11: any two safe integers work, even when their difference is not safe", () => {
+    const max = Number.MAX_SAFE_INTEGER;
+    expect(variationTenths(max, -max)).toBe(2000); // +200,0 %
+    expect(variationTenths(-max, max)).toBe(-2000);
+  });
+
   it("RN-11: rejects amounts that are not integer cents", () => {
     expect(() => variationTenths(10.5, 100)).toThrow(RangeError);
     expect(() => variationTenths(100, Number.NaN)).toThrow(RangeError);
+  });
+});
+
+describe("percentTenths (RN-11, FR-25)", () => {
+  it("RN-11: part ÷ base × 100 in tenths, half away from zero, never −0", () => {
+    expect(percentTenths(1, 3)).toBe(333);
+    expect(percentTenths(-1, 2000)).toBe(-1);
+    expect(percentTenths(-1, 4000)).toBe(0);
+    expect(Object.is(percentTenths(-1, 4000), -0)).toBe(false);
+  });
+
+  it("RN-11: rejects a base that is not a positive integer", () => {
+    expect(() => percentTenths(1, 0)).toThrow(RangeError);
+    expect(() => percentTenths(1, -5)).toThrow(RangeError);
+    expect(() => percentTenths(0.5, 5)).toThrow(RangeError);
   });
 });
 

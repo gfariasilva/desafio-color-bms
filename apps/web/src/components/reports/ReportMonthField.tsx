@@ -3,14 +3,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { useReportMonth } from "./use-report-month";
 
-/** The "Mês" field: focused on load (NFR-05, the only field), never past the current month. */
+/**
+ * The "Mês" field: focused on load (NFR-05, the only field of a report), never past the
+ * current month. `autoFocus={false}` where it is not the page's first field (Dashboards).
+ */
 export function ReportMonthField({
   monthText,
   setMonthText,
   currentMonth,
-}: Pick<ReturnType<typeof useReportMonth>, "monthText" | "setMonthText" | "currentMonth">) {
+  autoFocus = true,
+}: Pick<ReturnType<typeof useReportMonth>, "monthText" | "setMonthText" | "currentMonth"> & {
+  autoFocus?: boolean;
+}) {
   const input = useRef<HTMLInputElement>(null);
-  useEffect(() => input.current?.focus(), []);
+  useEffect(() => {
+    if (autoFocus) input.current?.focus();
+  }, [autoFocus]);
   return (
     <div className="w-44 space-y-1.5">
       <Label htmlFor="report-month">Mês</Label>

@@ -23,14 +23,33 @@ export function variationTenths(currentCents: number, previousCents: number): nu
     );
   }
   if (previousCents === 0) return null;
-  const difference = currentCents - previousCents;
-  const base = Math.abs(previousCents);
-  // |difference| × 1000 / base, rounded half up: floor((2 × n + d) / (2 × d)).
-  // BigInt keeps it exact even for very large amounts.
-  const numerator = BigInt(Math.abs(difference)) * 1000n;
-  const denominator = BigInt(base);
-  const tenths = Number((2n * numerator + denominator) / (2n * denominator));
-  return difference < 0 ? -tenths : tenths;
+  // The difference in BigInt: two safe integers can differ by more than a safe integer.
+  return roundedTenths(
+    BigInt(currentCents) - BigInt(previousCents),
+    BigInt(Math.abs(previousCents)),
+  );
+}
+
+/**
+ * `part ÷ base × 100` in tenths of a percent, rounded half away from zero, with integer math
+ * only. Shared by RN-11 and the FR-25 share of the total. `base` must be positive.
+ *
+ * @example percentTenths(1, 3) // 333 (33,3 %)
+ * @example percentTenths(-1, 2000) // −1 (−0,05 % → −0,1 %)
+ */
+export function percentTenths(part: number, base: number): number {
+  if (!Number.isSafeInteger(part) || !Number.isSafeInteger(base) || base <= 0) {
+    throw new RangeError(`percentTenths expects integers and base > 0, received ${part}, ${base}`);
+  }
+  return roundedTenths(BigInt(part), BigInt(base));
+}
+
+/** `part ÷ base × 1000` rounded half away from zero, in BigInt so it stays exact; base > 0. */
+function roundedTenths(part: bigint, base: bigint): number {
+  // |part| × 1000 / base, rounded half up: floor((2 × n + d) / (2 × d)).
+  const numerator = (part < 0n ? -part : part) * 1000n;
+  const tenths = Number((2n * numerator + base) / (2n * base));
+  return part < 0n && tenths !== 0 ? -tenths : tenths;
 }
 
 /** The minus sign used for negative variations (U+2212), as in the spec. */

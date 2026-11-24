@@ -27,6 +27,23 @@ const builtAt =
 /** The server that is running now (replaced at each restart). */
 let current: { app: FastifyInstance; connection: DatabaseConnection } | null = null;
 
+/** How long `closeApp` waits for open connections before cutting them. */
+const CLOSE_GRACE_MS = 2000;
+
+/**
+ * Stops the server. `app.close()` waits for every open connection, and a browser tab can hold
+ * a socket that never sent a request (Chromium/Edge open them ahead of time), which keeps the
+ * close waiting for up to Node's headers timeout. After a short grace, cut what is left.
+ */
+async function closeApp(app: FastifyInstance): Promise<void> {
+  const force = setTimeout(() => app.server.closeAllConnections(), CLOSE_GRACE_MS);
+  try {
+    await app.close();
+  } finally {
+    clearTimeout(force);
+  }
+}
+
 /**
  * Starts the server once: opens the database (finishing a pending restore, FR-32), builds the
  * app and listens. Resolves when a restore asks for a restart, after everything is closed.
@@ -147,7 +164,7 @@ async function runServer(config: AppConfig, now: Clock, firstStart: boolean): Pr
   app.log.info("Restore requested: restarting.");
   clearInterval(hourly);
   current = null;
-  await app.close();
+  await closeApp(app);
   connection.sqlite.close();
   return "restart";
 }
@@ -158,7 +175,7 @@ async function main(): Promise<void> {
 
   const shutdown = async (): Promise<void> => {
     if (current) {
-      await current.app.close();
+      await closeApp(current.app);
       current.connection.sqlite.close();
     }
     process.exit(0);
