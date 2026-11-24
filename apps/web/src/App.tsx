@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "@/components/layout/AppShell";
@@ -23,6 +24,14 @@ import { ReportsPage } from "@/pages/ReportsPage";
 import { SalesPage } from "@/pages/SalesPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 
+/**
+ * FR-24 to FR-26: loaded on demand, so the charts library (Recharts) is a separate file and
+ * the other screens open as fast as before.
+ */
+const DashboardsPage = lazy(() =>
+  import("@/pages/DashboardsPage").then((module) => ({ default: module.DashboardsPage })),
+);
+
 /** Areas that already have their own page; the others show a placeholder. */
 const BUILT_AREAS = new Set([
   "/",
@@ -31,6 +40,7 @@ const BUILT_AREAS = new Set([
   "/despesas-fixas",
   "/fechamento",
   "/relatorios",
+  "/dashboards",
   "/cadastros",
   "/configuracoes",
 ]);
@@ -55,6 +65,14 @@ export function AppRoutes() {
         <Route path="relatorios/mes/despesas-gerais" element={<MonthGeneralExpensesReportPage />} />
         <Route path="relatorios/mes/despesas-fixas" element={<MonthFixedExpensesReportPage />} />
         <Route path="relatorios/mes/resumo" element={<MonthSummaryReportPage />} />
+        <Route
+          path="dashboards"
+          element={
+            <Suspense fallback={<p className="text-muted-foreground">Carregando…</p>}>
+              <DashboardsPage />
+            </Suspense>
+          }
+        />
         <Route path="cadastros" element={<CatalogPage />} />
         <Route path="cadastros/abas" element={<CatalogListPage kind="sale" />} />
         <Route path="cadastros/categorias-despesa" element={<CatalogListPage kind="expense" />} />

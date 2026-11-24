@@ -29,8 +29,25 @@ export const monthSummarySchema = z.object({
 export type MonthSummary = z.infer<typeof monthSummarySchema>;
 
 /**
- * RN-10: Total geral de despesas = Despesas gerais do mês + Despesas fixas do mês;
- * Saldo mensal = Entrada mensal (bruta) − Taxas do mês − Total geral de despesas.
+ * RN-10: Total geral de despesas = Despesas gerais + Despesas fixas;
+ * Saldo = Entrada (bruta) − Taxas − Total geral de despesas.
+ * Used for a whole month (FR-23) and for a range of days (FR-24 dashboard).
+ */
+export function rn10Totals(totals: {
+  grossCents: number;
+  feeCents: number;
+  generalExpensesCents: number;
+  fixedExpensesCents: number;
+}): { totalExpensesCents: number; balanceCents: number } {
+  const totalExpensesCents = totals.generalExpensesCents + totals.fixedExpensesCents;
+  return {
+    totalExpensesCents,
+    balanceCents: totals.grossCents - totals.feeCents - totalExpensesCents,
+  };
+}
+
+/**
+ * RN-10 for the month (FR-23), from the totals of FR-20, FR-21 and FR-22.
  * Sangrias never enter it (internal movement): none of the three reports includes them.
  */
 export function buildMonthSummary(input: {
@@ -42,14 +59,12 @@ export function buildMonthSummary(input: {
   const feeCents = input.income.total.feeCents;
   const generalExpensesCents = input.generalExpenses.totalCents;
   const fixedExpensesCents = input.fixedExpenses.paidTotalCents;
-  const totalExpensesCents = generalExpensesCents + fixedExpensesCents;
   return {
     yearMonth: input.income.yearMonth,
     grossCents,
     feeCents,
     generalExpensesCents,
     fixedExpensesCents,
-    totalExpensesCents,
-    balanceCents: grossCents - feeCents - totalExpensesCents,
+    ...rn10Totals({ grossCents, feeCents, generalExpensesCents, fixedExpensesCents }),
   };
 }

@@ -31,6 +31,7 @@ import {
 } from "./modules/month-closing/month-closing.routes";
 import { registerDayReportRoutes } from "./modules/reports/day-report.routes";
 import { registerMonthReportRoutes } from "./modules/reports/month-reports.routes";
+import { registerDashboardRoutes } from "./modules/dashboards/dashboards.routes";
 import { registerHealthRoutes } from "./modules/health/health.routes";
 import type { SystemInfo } from "./modules/health/system-checks";
 import { registerSalesRoutes } from "./modules/sales/sales.routes";
@@ -179,6 +180,7 @@ export async function buildApp({
   registerMonthClosingRoutes(app, connection, now, afterMonthClosed, afterMonthReopened);
   registerDayReportRoutes(app, connection, now);
   registerMonthReportRoutes(app, connection, now);
+  registerDashboardRoutes(app, connection, now);
 
   if (webDistDir && fs.existsSync(webDistDir)) {
     await app.register(fastifyStatic, { root: webDistDir });

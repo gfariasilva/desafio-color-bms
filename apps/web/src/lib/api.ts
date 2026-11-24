@@ -63,6 +63,8 @@ import {
   monthGeneralExpensesResponseSchema,
   monthIncomeResponseSchema,
   monthSummarySchema,
+  monthComparisonSchema,
+  type MonthComparison,
   type MonthFixedExpensesReport,
   type MonthGeneralExpensesResponse,
   type MonthIncomeResponse,
@@ -239,6 +241,8 @@ export const QUERY_KEYS = {
   monthFixedExpensesReport: ["reports", "monthFixedExpenses"],
   /** FR-23: followed by the month: ["reports", "monthSummary", "2026-10"]. */
   monthSummaryReport: ["reports", "monthSummary"],
+  /** FR-24: this month × the same days of the previous month (no parameter: today). */
+  monthComparison: ["dashboards", "monthComparison"],
 } as const;
 
 export const api = {
@@ -353,6 +357,13 @@ export const api = {
       ),
     monthSummary: (yearMonth: string): Promise<MonthSummary> =>
       getJson(`/api/months/${encodeURIComponent(yearMonth)}/reports/summary`, monthSummarySchema),
+  },
+
+  /** FR-24 to FR-26: the dashboards. */
+  dashboards: {
+    /** FR-24: this month up to today against the same days of the previous month. */
+    monthComparison: (): Promise<MonthComparison> =>
+      getJson("/api/dashboards/month-comparison", monthComparisonSchema),
   },
 
   /** FR-08: the cash closing of a day; FR-27: the earlier days left open. */

@@ -1,7 +1,7 @@
 # Sistema Color: guia rápido
 
 > Imprima e deixe ao lado do computador. Abra o sistema pelo atalho **Sistema Color** na área de trabalho.
-> **Alt + número** abre cada tela: **Alt+1** Início · **Alt+2** Vendas · **Alt+3** Despesas · **Alt+4** Despesas fixas · **Alt+5** Fechamento · **Alt+6** Relatórios.
+> **Alt + número** abre cada tela: **Alt+1** Início · **Alt+2** Vendas · **Alt+3** Despesas · **Alt+4** Despesas fixas · **Alt+5** Fechamento · **Alt+6** Relatórios · **Alt+7** Dashboards.
 > Em todos os formulários: **Enter salva**, **Tab** passa para o próximo campo e **Esc** cancela.
 
 ## Venda (Alt+2)
@@ -68,6 +68,10 @@ Totais por aba e por forma de pagamento, despesas, sangrias e o fechamento. Dura
 Escolha o **Mês**. O resumo mostra a entrada mensal, as taxas, as despesas gerais e fixas e o **saldo mensal**. Clique numa linha para ver o relatório dela. Em **Mês – Despesas fixas**, cada conta aparece com o valor pago e a data. Uma conta conta no mês em que foi **paga**: a Luz de outubro paga em novembro aparece em novembro com "ref. 10/2026". As sangrias e as contas pendentes não entram no saldo.
 
 A planilha `Mensal AAAA-MM.xlsx` tem as mesmas contas, em 4 abas: **Entradas**, **Despesas gerais**, **Despesas fixas** e **Resumo**. Na aba Resumo, a linha **Situação** diz se ela é a **versão parcial** (mês aberto: muda a cada dia fechado) ou a **versão final** (gravada quando o mês é fechado em Fechamento › Fechamento do mês). A versão parcial também soma os dias do mês ainda abertos (ex.: as vendas de hoje), então pode mudar até esses dias serem fechados. Se o mês for reaberto, a planilha volta a ser a versão parcial; ao fechar o mês de novo, a versão final é substituída. A versão final mostra as contas como estavam no fechamento: uma conta do mês paga depois continua "Pendente" nela (veja o relatório do mês no sistema).
+
+## Comparar com o mês anterior (Alt+7 → Dashboards)
+
+A tabela compara **este mês até hoje** com **os mesmos dias do mês anterior**: no dia 18/11, compara 01–18/11 com 01–18/10. Ela mostra a entrada mensal, as taxas, o total de despesas e o saldo, cada um com a **variação** (ex.: **+8,7%** = 8,7% a mais que no mês anterior). A última coluna traz o mês anterior **completo**, só como referência. **"—"** na variação quer dizer que o mês anterior não teve valor nesses dias; no primeiro mês de uso, aparece "sem dados do mês anterior". O gráfico abaixo da tabela mostra os mesmos números em barras.
 
 ## Se algo der errado
 

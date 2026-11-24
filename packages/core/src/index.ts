@@ -34,6 +34,8 @@ export * from "./reports/month-income";
 export * from "./reports/month-general-expenses";
 export * from "./reports/month-fixed-expenses";
 export * from "./reports/month-summary";
+export * from "./dashboards/variation";
+export * from "./dashboards/month-comparison";
 export * from "./backup/backup-files";
 export * from "./backup/backup-retention";
 export * from "./backup/restore";
