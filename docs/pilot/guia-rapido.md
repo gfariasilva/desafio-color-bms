@@ -72,8 +72,9 @@ A planilha `Mensal AAAA-MM.xlsx` tem as mesmas contas, em 4 abas: **Entradas**, 
 ## Se algo der errado
 
 - **A tela não abre ou mostra erro de conexão:** espere 1 minuto e recarregue (**F5**). Se continuar, abra a pasta `%LOCALAPPDATA%\ColorBMS` (tecle **Win + R**, cole o caminho e tecle Enter) e dê dois cliques em **`iniciar.cmd`**.
-- **Início mostra "Backup pendente: … planilha não foi gravada"**: se a planilha citada (do dia ou do mês) estiver aberta no Excel, **feche-a** e clique em **Tentar agora** (o sistema também tenta sozinho a cada 5 minutos). Se o aviso falar da **pasta**, clique em **Verificar a pasta** e confira a pasta do OneDrive em Configurações.
-- **Início mostra outro alerta** (backup do banco pendente, dia não fechado, relógio errado): anote ou tire uma foto e avise o desenvolvedor.
+- **Início mostra "Backup pendente: … não foi gravado(a)"** (uma planilha ou o **backup do banco**): se a planilha citada (do dia ou do mês) estiver aberta no Excel, **feche-a** e clique em **Tentar agora** (o sistema também tenta sozinho a cada 5 minutos). Se o aviso falar da **pasta**, clique em **Verificar a pasta** e confira a pasta do OneDrive em Configurações.
+- **Perdeu lançamentos ou o PC trocou?** Em **Configurações › Backup e restauração**, escolha um backup e clique em **Restaurar** (pede um motivo; o sistema reinicia sozinho). Passo a passo: [`restaurar-backup.md`](restaurar-backup.md). Na dúvida, avise o desenvolvedor antes.
+- **Início mostra outro alerta** (dia não fechado, relógio errado): anote ou tire uma foto e avise o desenvolvedor.
 - **Lançou algo errado e não sabe corrigir:** anote o dia, o valor e o que aconteceu, e avise. Tudo o que é alterado fica registrado na Auditoria; nada se perde.
 - **Nunca** apague nem mova arquivos das pastas `ColorBMS` ou `_backup-sistema`.
 

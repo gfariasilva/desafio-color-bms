@@ -42,6 +42,13 @@ import {
   type UpdateSaleCategoryInput,
   healthResponseSchema,
   backupStatusResponseSchema,
+  backupListResponseSchema,
+  backupUploadResponseSchema,
+  restoreResponseSchema,
+  type BackupListResponse,
+  type BackupUploadResponse,
+  type RestoreRequest,
+  type RestoreResponse,
   exportQueueStatusResponseSchema,
   type BackupStatusResponse,
   type ExportQueueStatusResponse,
@@ -212,8 +219,10 @@ export const QUERY_KEYS = {
   unclosedDays: ["cashClosing", "unclosed"],
   /** GET /api/health: version, startup checks and trial mode (#26). */
   health: ["health"],
-  /** #25: the pilot backup's state, shown on Início. */
+  /** FR-31: the backup's state (Início, the backup page). */
   backupStatus: ["backup", "status"],
+  /** FR-32: the backups that can be restored. */
+  backupFiles: ["backup", "files"],
   /** FR-30 (#21): the export queue (daily spreadsheets), shown on Início. */
   exportStatus: ["exports", "status"],
   /** FR-33: Configurações. */
@@ -234,9 +243,32 @@ export const QUERY_KEYS = {
 
 export const api = {
   health: (): Promise<HealthResponse> => getJson("/api/health", healthResponseSchema),
-  /** #25 (slice of FR-31): last backup and the latest failure. */
+  /** FR-31 / FR-32: the newest backup, the last restore, and the server's start id. */
   backupStatus: (): Promise<BackupStatusResponse> =>
     getJson("/api/backup/status", backupStatusResponseSchema),
+  /** FR-32: the backups on OneDrive and on this PC, newest first. */
+  backupFiles: (): Promise<BackupListResponse> =>
+    getJson("/api/backup/files", backupListResponseSchema),
+  /** FR-32 (new PC): sends a backup file chosen on the computer; the server checks it. */
+  uploadBackup: async (file: File): Promise<BackupUploadResponse> => {
+    const url = `/api/backup/upload?name=${encodeURIComponent(file.name)}`;
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: { Accept: "application/json", "Content-Type": "application/octet-stream" },
+      body: file,
+    });
+    const data = (await response.json().catch(() => null)) as { error?: unknown } | null;
+    if (!response.ok) {
+      throw new ApiError(
+        response.status,
+        typeof data?.error === "string" ? data.error : "Não foi possível enviar o arquivo.",
+      );
+    }
+    return backupUploadResponseSchema.parse(data);
+  },
+  /** FR-32: restores a backup; the server answers, then restarts. */
+  restoreBackup: (request: RestoreRequest): Promise<RestoreResponse> =>
+    requestJson("POST", "/api/backup/restore", request, restoreResponseSchema),
   /** FR-30: the exports not written yet ("Backup pendente"). */
   exportStatus: (): Promise<ExportQueueStatusResponse> =>
     getJson("/api/exports/status", exportQueueStatusResponseSchema),

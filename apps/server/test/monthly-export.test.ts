@@ -162,12 +162,13 @@ describe("FR-29: the monthly spreadsheet on every day closing", () => {
     expect(await valueIn(file, "Resumo", "Situação")).toBe(
       "Versão parcial: mês aberto, atualizada em 18/11/2026 15:00",
     );
-    // FR-30: the daily file first, then the monthly one; both done.
+    // FR-30: the daily file, the monthly one and the backup (FR-31); all done.
     expect(
       ctx.connection.sqlite.prepare("select kind, reference, status from export_queue").all(),
     ).toEqual([
       { kind: "daily_spreadsheet", reference: TODAY, status: "done" },
       { kind: "monthly_spreadsheet", reference: "2026-11", status: "done" },
+      { kind: "db_backup", reference: TODAY, status: "done" },
     ]);
   });
 

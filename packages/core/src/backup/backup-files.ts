@@ -2,7 +2,7 @@ import { z } from "zod";
 import { isCivilDate, TIME_ZONE, type CivilDate } from "../time/civil-date";
 
 /**
- * FR-31 (pilot slice, #25): names of the database backup files (spec §7.2).
+ * FR-31 (#25, #22): names of the database backup files (spec §7.2).
  *
  * A backup is `color-AAAA-MM-DD_HHMM.db`, with the date and time in São Paulo (RN-15), inside
  * `<pasta do OneDrive>/_backup-sistema/`. The name alone tells when the backup was made, so the
@@ -56,22 +56,26 @@ export function latestBackupFile(names: readonly string[]): string | null {
   return backups.at(-1) ?? null;
 }
 
-/** What started a backup: the first start of the day, or a day closing (FR-31). */
-export const backupTriggerSchema = z.enum(["startup", "day-close"]);
-export type BackupTrigger = z.infer<typeof backupTriggerSchema>;
-
-/** Response of GET /api/backup/status: shown on Início (#25). */
+/** Response of GET /api/backup/status: shown on Início and the backup page (FR-31, FR-32). */
 export const backupStatusResponseSchema = z.object({
-  /** False when no OneDrive folder is set: no backup is written. */
+  /** False when no OneDrive folder is set (or trial mode): no backup is written. */
   configured: z.boolean(),
   /** The `_backup-sistema` folder, when configured. */
   folder: z.string().nullable(),
-  /** The newest backup known to the server (ISO-8601 UTC instant and file name). */
+  /** The newest backup in the folder (ISO-8601 UTC instant and file name). */
   lastSuccess: z.object({ at: z.string(), file: z.string() }).nullable(),
-  /** Set only while the latest attempt failed; a later success clears it. Message in pt-BR. */
-  lastFailure: z
-    .object({ at: z.string(), trigger: backupTriggerSchema, message: z.string() })
+  /**
+   * FR-32: the restore done at the last restart, if any (ok or not, with a pt-BR message).
+   * Failed backups are not here: they are items of the export queue (FR-30, FR-31).
+   */
+  lastRestore: z
+    .object({ ok: z.boolean(), at: z.string(), file: z.string(), message: z.string() })
     .nullable(),
+  /**
+   * FR-32: changes at every start of the server. After a restore, the UI waits for a new one:
+   * then the restart is over.
+   */
+  startId: z.string(),
 });
 
 export type BackupStatusResponse = z.infer<typeof backupStatusResponseSchema>;

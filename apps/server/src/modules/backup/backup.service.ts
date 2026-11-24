@@ -3,19 +3,19 @@ import path from "node:path";
 import type Database from "better-sqlite3";
 import {
   BACKUP_FOLDER_NAME,
+  backupFileInstant,
   backupFileName,
-  civilDayStartInstant,
+  backupsToDelete,
   hasBackupOn,
   latestBackupFile,
-  parseBackupFileName,
   todayCivilDate,
   type BackupStatusResponse,
-  type BackupTrigger,
 } from "@color-bms/core";
-import type { Clock } from "../../clock";
 
 /**
  * Writes a consistent copy of the live database into `dir` and returns its path (FR-31, #25).
+ * Used for the OneDrive backups, the local backups before migrations, and the safety copy
+ * before a restore (FR-32).
  *
  * - `VACUUM INTO` makes a consistent snapshot even while the app is running (ADR 0001); the
  *   live `color.db` file is never copied directly (with WAL it may be incomplete).
@@ -55,143 +55,67 @@ export function writeBackup(sqlite: Database.Database, dir: string, now: Date): 
   return file;
 }
 
-export interface BackupLog {
-  info: (message: string) => void;
-  error: (message: string) => void;
+/**
+ * FR-31: writes a backup into `<OneDrive>/_backup-sistema/` and applies the retention policy
+ * (RN-13). Called by the export queue (FR-30), which owns every file written to OneDrive and
+ * retries a failure. `root` must already be checked as an existing folder; only
+ * `_backup-sistema` inside it is created. Throws when the backup fails; a file that cannot be
+ * deleted by the retention is only logged (it is tried again after the next backup).
+ */
+export function writeOneDriveBackup(
+  sqlite: Database.Database,
+  root: string,
+  at: Date,
+  log: { error: (message: string) => void },
+): { file: string; deleted: string[] } {
+  const dir = path.join(root, BACKUP_FOLDER_NAME);
+  const file = writeBackup(sqlite, dir, at);
+  const deleted: string[] = [];
+  for (const name of backupsToDelete(fs.readdirSync(dir), todayCivilDate(at))) {
+    try {
+      fs.rmSync(path.join(dir, name));
+      deleted.push(name);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      log.error(`RN-13: could not delete the old backup ${name}: ${detail}`);
+    }
+  }
+  return { file, deleted };
 }
 
-export interface BackupService {
-  /** FR-31: backs up now. Never throws: a failure is logged and kept in `status()`. */
-  run(trigger: BackupTrigger): Promise<void>;
-  /**
-   * FR-31: backs up only when the folder has no backup of today yet. Called at startup and
-   * hourly, so a PC left on overnight still gets its "first start of the day" backup.
-   */
-  runOnStartupIfFirstToday(): Promise<void>;
-  /**
-   * FR-33 (#20): the folder was changed in Configurações. Forgets the old folder's status and
-   * backs up now when the new folder has no backup of today yet. Never throws.
-   */
-  folderChanged(): Promise<void>;
-  status(): BackupStatusResponse;
+/** FR-31: the backup files in `<root>/_backup-sistema/` (empty when it cannot be read). */
+export function oneDriveBackupNames(root: string): string[] {
+  try {
+    return fs.readdirSync(path.join(root, BACKUP_FOLDER_NAME));
+  } catch {
+    return [];
+  }
 }
 
-export interface BackupServiceOptions {
-  sqlite: Database.Database;
-  /**
-   * The OneDrive folder (spec §7.2 `<pasta>`), or null when not configured. A function is read
-   * at every use, so a change in Configurações (FR-33, #20) applies without a restart.
-   */
-  folder: string | null | (() => string | null);
-  now: Clock;
-  log: BackupLog;
-}
-
-/** The instant (UTC ISO) of a backup file, from the São Paulo date and time in its name. */
-function backupInstant(name: string): string {
-  const parsed = parseBackupFileName(name);
-  if (!parsed) throw new RangeError(`Not a backup file name: "${name}"`);
-  const [hours, minutes] = parsed.time.split(":").map(Number) as [number, number];
-  const start = Date.parse(civilDayStartInstant(parsed.date));
-  return new Date(start + (hours * 60 + minutes) * 60_000).toISOString();
-}
-
-/** A pt-BR message the owner can act on (shown on Início). */
-function failureMessage(error: unknown, folder: string, backupDir: string): string {
-  const code = (error as NodeJS.ErrnoException | undefined)?.code;
-  if (code === "ROOT_MISSING") return `A pasta do OneDrive não existe: ${folder}`;
-  if (code === "ROOT_NOT_FOLDER") return `O caminho do OneDrive não é uma pasta: ${folder}`;
-  if (code === "EACCES" || code === "EPERM") return `Sem permissão para gravar em ${backupDir}`;
-  if (code === "EBUSY") return `O arquivo de backup está em uso em ${backupDir}`;
-  if (code === "ENOSPC") return "Disco cheio: não há espaço para gravar o backup";
-  const detail = error instanceof Error ? error.message : String(error);
-  return `Não foi possível gravar o backup em ${backupDir} (${detail})`;
+/** FR-31: true when `<root>/_backup-sistema/` already has a backup made today (São Paulo). */
+export function hasBackupToday(root: string, now: Date): boolean {
+  return hasBackupOn(oneDriveBackupNames(root), todayCivilDate(now));
 }
 
 /**
- * The pilot backup to the OneDrive folder (#25, slice of FR-31). It runs after each day closing
- * and on the first start of the day. The status lives in memory: a failure is shown on Início
- * until a later backup succeeds; after a restart, the startup backup retries whenever today
- * has no backup yet. Retention (RN-13) and the retry queue (FR-30) come with #22.
+ * GET /api/backup/status (Início, the backup page): whether the backup is configured, the
+ * newest file in `_backup-sistema/`, and the result of a restore at the last restart (FR-32).
  */
-export function createBackupService({
-  sqlite,
-  folder,
-  now,
-  log,
-}: BackupServiceOptions): BackupService {
-  const currentFolder = typeof folder === "function" ? folder : () => folder;
-  const backupDirOf = (root: string | null) =>
-    root === null ? null : path.join(root, BACKUP_FOLDER_NAME);
-  let lastSuccess: BackupStatusResponse["lastSuccess"] = null;
-  let lastFailure: BackupStatusResponse["lastFailure"] = null;
-
-  /** Backup files already in the folder (empty when it cannot be read). */
-  function existingNames(): string[] {
-    const backupDir = backupDirOf(currentFolder());
-    if (backupDir === null) return [];
-    try {
-      return fs.readdirSync(backupDir);
-    } catch {
-      return [];
-    }
+export function readBackupStatus(
+  root: string | null,
+  lastRestore: BackupStatusResponse["lastRestore"],
+  startId: string,
+): BackupStatusResponse {
+  if (root === null) {
+    return { configured: false, folder: null, lastSuccess: null, lastRestore, startId };
   }
-
-  async function run(trigger: BackupTrigger): Promise<void> {
-    const folder = currentFolder();
-    const backupDir = backupDirOf(folder);
-    if (folder === null || backupDir === null) return; // Not configured: shown on Início.
-    // Yield first: after a day close this runs before Fastify sends the reply, and the
-    // synchronous VACUUM INTO must never delay the closing's answer.
-    await new Promise((resolve) => setImmediate(resolve));
-    const at = now();
-    try {
-      // Never create the OneDrive folder itself: a missing one means a wrong setting, or
-      // OneDrive not set up (spec §7.4). Only `_backup-sistema` inside it is created.
-      const stat = fs.statSync(folder, { throwIfNoEntry: false });
-      if (!stat) {
-        throw Object.assign(new Error(`Folder not found: ${folder}`), { code: "ROOT_MISSING" });
-      }
-      if (!stat.isDirectory()) {
-        throw Object.assign(new Error(`Not a folder: ${folder}`), { code: "ROOT_NOT_FOLDER" });
-      }
-      const file = writeBackup(sqlite, backupDir, at);
-      // The folder was changed in Configurações meanwhile: this result is about the old one.
-      if (currentFolder() !== folder) return;
-      lastSuccess = { at: at.toISOString(), file: path.basename(file) };
-      lastFailure = null;
-      log.info(`Backup (${trigger}) written to ${file}`);
-    } catch (error) {
-      if (currentFolder() !== folder) return;
-      lastFailure = {
-        at: at.toISOString(),
-        trigger,
-        message: failureMessage(error, folder, backupDir),
-      };
-      const detail = error instanceof Error ? error.message : String(error);
-      log.error(`Backup (${trigger}) failed: ${detail}`);
-    }
-  }
-
-  async function runOnStartupIfFirstToday(): Promise<void> {
-    const names = existingNames();
-    const latest = latestBackupFile(names);
-    if (latest) lastSuccess = { at: backupInstant(latest), file: latest };
-    if (hasBackupOn(names, todayCivilDate(now()))) return;
-    await run("startup");
-  }
-
+  const latest = latestBackupFile(oneDriveBackupNames(root));
+  const at = latest ? backupFileInstant(latest) : null;
   return {
-    run,
-    runOnStartupIfFirstToday,
-    async folderChanged() {
-      lastSuccess = null;
-      lastFailure = null;
-      await runOnStartupIfFirstToday();
-    },
-    status: () => {
-      const backupDir = backupDirOf(currentFolder());
-      return { configured: backupDir !== null, folder: backupDir, lastSuccess, lastFailure };
-    },
+    configured: true,
+    folder: path.join(root, BACKUP_FOLDER_NAME),
+    lastSuccess: latest && at ? { at, file: latest } : null,
+    lastRestore,
+    startId,
   };
 }

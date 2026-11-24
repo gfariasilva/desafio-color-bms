@@ -200,6 +200,13 @@ export const AUDIT_FIELD_LABELS: Record<string, string> = {
   installmentNumber: "Parcela",
   // FR-16: how many fixed expenses of the month were still pending when it was closed.
   pendingFixedExpenses: "Despesas fixas pendentes",
+  // FR-32: a restored backup (the file, where it came from, its date and time) and the
+  // safety copy of the database from before the restore.
+  file: "Arquivo",
+  backupSource: "Origem",
+  backupDate: "Data do backup",
+  backupTime: "Hora do backup",
+  safetyCopy: "Cópia de segurança",
   // FR-33: settings (one audit row per key; the key is also the entity id).
   ...SETTING_LABELS,
 };

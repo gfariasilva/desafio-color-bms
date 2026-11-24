@@ -1,7 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
-import { and, asc, eq, ne } from "drizzle-orm";
+import { and, asc, eq, ne, sql } from "drizzle-orm";
 import {
+  BACKUP_FOLDER_NAME,
   dailySpreadsheetPath,
   EXPORT_RETRY_MINUTES,
   exportFileName,
@@ -12,18 +13,21 @@ import {
   type ExportQueueStatusResponse,
   monthlySpreadsheetPath,
   type SpreadsheetModel,
+  todayCivilDate,
   type YearMonth,
 } from "@color-bms/core";
 import type { Clock } from "../../clock";
 import type { DatabaseConnection } from "../../db/client";
 import { exportQueue } from "../../db/schema";
+import { hasBackupToday, writeOneDriveBackup } from "../backup/backup.service";
 import { writeFileAtomic } from "./atomic-write";
 import { getDailySpreadsheet } from "./daily-spreadsheet.repository";
 import { getMonthlySpreadsheet } from "./monthly-spreadsheet.repository";
 import { renderXlsx } from "./xlsx-writer";
 
 /**
- * FR-28 / FR-29 / FR-30: the export queue. Every file for the OneDrive folder is a row of
+ * FR-28 / FR-29 / FR-30 / FR-31: the export queue. Every file for the OneDrive folder (the
+ * spreadsheets and the database backups, #22) is a row of
  * `export_queue`; this service writes them, keeps failures with a pt-BR error ("Backup
  * pendente" on Início), and retries them every 5 minutes, at startup, when the folder changes
  * in Configurações, and on "Tentar agora".
@@ -46,6 +50,25 @@ export interface ExportQueueService {
    * the month is closed). Same reuse rules as the daily one. Synchronous.
    */
   enqueueMonthlySpreadsheet(yearMonth: YearMonth): void;
+  /**
+   * FR-31: queues a database backup (day closing, month closing, first start of the day).
+   * There is at most one open backup item: a new request reuses it, now about `date`, since a
+   * backup always copies the database as it is when written. Synchronous.
+   */
+  enqueueBackup(date: CivilDate): void;
+  /**
+   * FR-31: "a primeira abertura do sistema no dia": backs up when the OneDrive folder has no
+   * backup of today yet. Called at startup and every hour (a PC left on overnight). Nothing
+   * is queued when no folder is configured (Início says so). Never throws.
+   */
+  backupIfFirstToday(): Promise<void>;
+  /**
+   * FR-33: the folder changed in Configurações: today's backup if the new folder has none,
+   * then every open item (FR-30). Never throws.
+   */
+  folderChanged(): Promise<void>;
+  /** The OneDrive folder the queue writes to; null when not configured or disabled. */
+  oneDriveFolder(): string | null;
   /** FR-28: writes the items not tried yet (after a closing). Never throws. */
   processPending(): Promise<void>;
   /**
@@ -95,11 +118,19 @@ const checkFolderHint = "Verifique a pasta em Configurações";
 /** §7.4: the pt-BR message and cause of a failed write. */
 function describeFailure(
   error: unknown,
+  kind: ExportKind,
   fileName: string,
   dir: string | null,
 ): { message: string; cause: ExportErrorCause } {
   if (error instanceof ExportError) return { message: error.message, cause: error.reason };
   const code = (error as NodeJS.ErrnoException | undefined)?.code;
+  if (code === "EBUSY" && kind === "db_backup") {
+    // Nobody opens a backup in Excel: OneDrive is still syncing the file of the same minute.
+    return {
+      message: `O arquivo de backup está em uso (pelo OneDrive) em ${dir}. Nova tentativa em ${EXPORT_RETRY_MINUTES} minutos`,
+      cause: "file_in_use",
+    };
+  }
   if (code === "EBUSY") {
     return {
       message: `O arquivo ${fileName} está aberto no Excel (ou em uso pelo OneDrive). Feche o arquivo`,
@@ -151,7 +182,7 @@ const defaultSchedule = (run: () => void, everyMs: number) => {
 };
 
 export function createExportQueue({
-  connection: { db },
+  connection,
   folder,
   enabled,
   now,
@@ -159,6 +190,7 @@ export function createExportQueue({
   writeFile = writeFileAtomic,
   schedule = defaultSchedule,
 }: ExportQueueOptions): ExportQueueService {
+  const { db } = connection;
   let running: Promise<void> | null = null;
   /** What was asked for during the current run: another pass over the pending or all items. */
   let nextPass: "pending" | "all" | null = null;
@@ -174,7 +206,8 @@ export function createExportQueue({
       .where(
         and(
           eq(exportQueue.kind, kind),
-          eq(exportQueue.reference, reference),
+          // FR-31: any open backup is reused, whatever day it was asked for.
+          kind === "db_backup" ? undefined : eq(exportQueue.reference, reference),
           ne(exportQueue.status, "done"),
         ),
       )
@@ -183,7 +216,10 @@ export function createExportQueue({
       if (inFlight?.id === open.id) inFlight.requeued = true;
       // A new request for a failed item: it is tried with the other new items.
       else
-        db.update(exportQueue).set({ status: "pending" }).where(eq(exportQueue.id, open.id)).run();
+        db.update(exportQueue)
+          .set({ status: "pending", reference })
+          .where(eq(exportQueue.id, open.id))
+          .run();
       return;
     }
     db.insert(exportQueue)
@@ -214,16 +250,25 @@ export function createExportQueue({
           target: monthlySpreadsheetPath(reference),
         };
       case "db_backup":
-        // #22 adds its writer here.
-        throw new ExportError(
-          `Exportação ainda não disponível: ${exportFileName(kind, reference)}`,
-          "other",
-        );
+        // Written by exportItem (it is not a spreadsheet).
+        throw new RangeError("db_backup has no spreadsheet");
     }
   }
 
   /** Writes one item's file. Returns normally when written or when there is nothing to write. */
   async function exportItem(kind: ExportKind, reference: string, at: Date): Promise<void> {
+    if (kind === "db_backup") {
+      // FR-31: a consistent copy of the database as it is now, then RN-13.
+      const { file, deleted } = writeOneDriveBackup(
+        connection.sqlite,
+        requireRootFolder(folder()),
+        at,
+        log,
+      );
+      log.info(`Backup written to ${file}.`);
+      if (deleted.length > 0) log.info(`RN-13: deleted old backups ${deleted.join(", ")}.`);
+      return;
+    }
     const { model, target } = spreadsheetOf(kind, reference, at);
     if (model === null) return;
     const data = await renderXlsx(model);
@@ -285,11 +330,13 @@ export function createExportQueue({
         } else if (root && item.kind === "monthly_spreadsheet") {
           const [year, month] = monthlySpreadsheetPath(item.reference);
           dir = path.join(root, year, month);
+        } else if (root && item.kind === "db_backup") {
+          dir = path.join(root, BACKUP_FOLDER_NAME);
         }
       } catch {
         // A malformed reference: still record the failure below and go on with the queue.
       }
-      const { message, cause } = describeFailure(error, fileName, dir);
+      const { message, cause } = describeFailure(error, item.kind, fileName, dir);
       // Closed again while this try failed: a new request, tried with the next new items.
       const requeued = inFlight.requeued;
       if (requeued) nextPass ??= "pending";
@@ -315,7 +362,11 @@ export function createExportQueue({
       .select()
       .from(exportQueue)
       .where(which === "all" ? ne(exportQueue.status, "done") : eq(exportQueue.status, "pending"))
-      .orderBy(asc(exportQueue.id))
+      // FR-31: backups first, so a slow OneDrive (or Excel) never delays them.
+      .orderBy(
+        sql`case when ${exportQueue.kind} = 'db_backup' then 0 else 1 end`,
+        asc(exportQueue.id),
+      )
       .all();
     for (const item of items) await attempt(item);
   }
@@ -369,9 +420,26 @@ export function createExportQueue({
     return { enabled: true, items, hasFailures: items.some((item) => item.status === "failed") };
   }
 
+  async function backupIfFirstToday(): Promise<void> {
+    if (!enabled) return;
+    const root = folder();
+    if (root === null) return;
+    const at = now();
+    if (hasBackupToday(root, at)) return;
+    enqueue("db_backup", todayCivilDate(at));
+    await run("pending");
+  }
+
   return {
     enqueueDailySpreadsheet: (date) => enqueue("daily_spreadsheet", date),
     enqueueMonthlySpreadsheet: (yearMonth) => enqueue("monthly_spreadsheet", yearMonth),
+    enqueueBackup: (date) => enqueue("db_backup", date),
+    backupIfFirstToday,
+    async folderChanged() {
+      await backupIfFirstToday();
+      await run("all");
+    },
+    oneDriveFolder: () => (enabled ? folder() : null),
     processPending: () => run("pending"),
     processAll: () => run("all"),
     idle: async () => {

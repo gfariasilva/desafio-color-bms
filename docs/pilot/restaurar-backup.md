@@ -1,7 +1,22 @@
-# Restaurar um backup do banco (piloto)
+# Restaurar um backup do banco
 
-> Procedimento manual do piloto (#25). A restauração pela tela vem com o item #22 (FR-32).
-> Quem executa: o desenvolvedor, ou o proprietário seguindo este passo a passo.
+> Quem executa: o proprietário (pela tela) ou o desenvolvedor.
+> Use a **restauração pela tela** (#22, FR-32). O **passo a passo manual** abaixo dela fica
+> só para quando o sistema não abre.
+
+## Pela tela (recomendado)
+
+1. Abra **Configurações** (Alt+9) › **Backup e restauração**.
+2. Na lista **Backups disponíveis**, escolha o backup mais recente antes do problema (data e hora; origem "OneDrive" ou "Este PC") e clique em **Restaurar**.
+3. Leia o aviso, digite o **motivo** e tecle **Enter** (Esc cancela).
+4. O sistema salva antes uma **cópia de segurança do banco atual** (em "Este PC"), troca o banco e reinicia sozinho. Aguarde a mensagem "Backup de dd/mm/aaaa hh:mm restaurado.".
+5. Confira o Relatório do Dia do último dia fechado. Se escolheu o backup errado, restaure a **cópia de segurança** (a linha "Este PC" com a hora da restauração).
+
+**PC novo (sistema recém-instalado):** em **Restaurar de um arquivo**, escolha o arquivo `color-AAAA-MM-DD_HHMM.db` da pasta `_backup-sistema` do OneDrive (se o OneDrive mostrar uma nuvem no arquivo, abra a pasta e espere baixar), digite o motivo e tecle **Enter**. Depois confira a pasta do OneDrive em **Configurações** e clique em **Testar** (o caminho pode ser outro no PC novo).
+
+A restauração fica registrada na **Auditoria** (tipo "Backup", ação "Restauração", com o motivo).
+
+## Passo a passo manual (quando o sistema não abre)
 
 ## Onde estão os backups
 
@@ -26,7 +41,7 @@ Arquivos terminados em `.tmp` são gravações interrompidas: **não use**.
 
 ## Teste antes da implantação (NFR-07)
 
-Fazer **uma vez no PC da loja**, antes do go-live (#27):
+Fazer **uma vez no PC da loja**, antes do go-live (#27). Desde o #22, a restauração do teste pode ser feita **pela tela** (seção acima); repita uma vez também pelo passo a passo manual:
 
 - [ ] Em **Configurações** (Alt+9), conferir a **Pasta do OneDrive** e clicar em **Testar**: deve aparecer "Pasta OK". Início não deve mostrar "Pasta do OneDrive não configurada".
 - [ ] Registrar uma venda de teste, fechar o dia e ver o arquivo novo em `_backup-sistema\`.

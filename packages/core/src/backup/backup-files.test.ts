@@ -64,8 +64,15 @@ describe("FR-31 (#25): backup file names (spec §7.2)", () => {
         configured: false,
         folder: null,
         lastSuccess: null,
-        lastFailure: null,
+        lastRestore: null,
+        startId: "a",
       }),
-    ).toEqual({ configured: false, folder: null, lastSuccess: null, lastFailure: null });
+    ).toEqual({
+      configured: false,
+      folder: null,
+      lastSuccess: null,
+      lastRestore: null,
+      startId: "a",
+    });
   });
 });

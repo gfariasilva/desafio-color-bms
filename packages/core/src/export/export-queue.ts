@@ -7,7 +7,9 @@ import { z } from "zod";
  *
  * - `daily_spreadsheet` (FR-28, #21), reference "YYYY-MM-DD";
  * - `monthly_spreadsheet` (FR-29, #28), reference "YYYY-MM";
- * - `db_backup` (FR-31, #22).
+ * - `db_backup` (FR-31, #22), reference "YYYY-MM-DD": the day it was asked for. There is at
+ *   most one open backup item: a backup copies the database as it is when written, so a new
+ *   request reuses the open one.
  *
  * Status: `pending` (waiting for its first try), `failed` (the last try failed; it is retried),
  * `done` (written, or nothing to write; kept as history).
@@ -65,7 +67,7 @@ export type ExportQueueStatusResponse = z.infer<typeof exportQueueStatusResponse
 
 /**
  * The file name the owner sees for a queue item: "Diária 2026-11-18.xlsx",
- * "Mensal 2026-11.xlsx" (#28), or the database backup (#22).
+ * "Mensal 2026-11.xlsx" (#28), or "Backup do banco 2026-11-18" (#22).
  */
 export function exportFileName(kind: ExportKind, reference: string): string {
   switch (kind) {
@@ -75,6 +77,6 @@ export function exportFileName(kind: ExportKind, reference: string): string {
     case "monthly_spreadsheet":
       return `Mensal ${reference}.xlsx`;
     case "db_backup":
-      return "backup do banco de dados";
+      return `Backup do banco ${reference}`;
   }
 }

@@ -63,7 +63,7 @@ Ordered backlog for the MVP (spec §9.1). Each item is one small PR / GitHub iss
 | [x] | M5 | [#16](#16--month-reports-income-and-general-expenses) | Month reports: income and general expenses | FR-20, FR-21; RN-06, RN-08 | #6, #7 |
 | [x] | M5 | [#17](#17--month-reports-fixed-expenses-and-monthly-summary) | Month reports: fixed expenses and monthly summary | FR-22, FR-23; RN-09, RN-10 | #13, #16 |
 | [x] | M5 | [#28](#28--monthly-spreadsheet-export) | Monthly spreadsheet export | FR-29 | #17, #21 |
-| [ ] | M5 | [#22](#22--database-backup-and-restore) | Database backup and restore | FR-31, FR-32; RN-13 | #21, #25 |
+| [x] | M5 | [#22](#22--database-backup-and-restore) | Database backup and restore | FR-31, FR-32; RN-13 | #21, #25 |
 | [ ] | M6 | [#18](#18--dashboard-this-month-vs-the-previous-one) | Dashboard: this month vs the previous one | FR-24; RN-11 | #17 |
 | [ ] | M6 | [#19](#19--dashboards-tab-ranking-and-income--expenses) | Dashboards: tab ranking and income × expenses | FR-25, FR-26; RN-11 | #16, #17 |
 | [ ] | M6 | [#23](#23--home-screen-alerts) | Home screen alerts | FR-27 | #9, #13, #21, #22 |
@@ -1438,6 +1438,26 @@ Gera `Diária AAAA-MM-DD.xlsx` (layout em §7.3) na pasta do OneDrive.
 - Guardar os backups dos **últimos 30 dias**, no máximo 1 por dia (o mais recente do dia).
 - Guardar também o **último backup de cada mês**, sem limite de tempo.
 - Apagar os demais.
+
+**Done notes (follow-ups)**
+
+- Decisions in [ADR 0005](adr/0005-backup-queue-and-restore.md) (backups in the queue; restore by an in-process restart).
+- **Core** (`packages/core/src/backup/`):
+  - `backup-retention.ts`: `backupsToDelete(names, today)` (RN-13). "Últimos 30 dias" = today and the 29 days before (São Paulo). Non-backup files and backups dated after today are never deleted;
+  - `restore.ts`: `restoreRequestSchema` (reason required, max 200; a list entry is a backup file name, never a path), `backupListResponseSchema`, `backupUploadResponseSchema`, `restoreResponseSchema`, `restoreResultSchema`, `describeBackupFile()`, `backupFileInstant()`, `BACKUP_SOURCE_LABELS`;
+  - `backupStatusResponseSchema`: `lastFailure` removed (failures are queue items), `lastRestore` and `startId` added. `formatFileSize()`. Audit labels for the restore fields. `exportFileName("db_backup", d)` = "Backup do banco AAAA-MM-DD".
+- **Server:**
+  - The export queue writes `db_backup` items (`writeOneDriveBackup()`: backup + RN-13), **before** the spreadsheets, with at most one open backup item. `enqueueBackup()`, `backupIfFirstToday()` (startup, hourly), `folderChanged()`. Triggers: day closing, month closing (`afterMonthClosed`), first start of the day. A file locked by OneDrive reads "em uso (pelo OneDrive)". `createBackupService` (#25) is gone; `buildApp({ backup })` is replaced by `buildApp({ restore })`.
+  - `modules/backup/restore.service.ts` (stage → `applyPendingRestore` → `finishRestore`, marker `<data>/restore/pending.json`); `startup/open-database.ts` (`openAppDatabase`, used by `main.ts` and the tests); `main.ts` restarts in its own process.
+  - Endpoints: `GET /api/backup/files`, `PUT /api/backup/upload?name=` (`application/octet-stream`, at most `BACKUP_UPLOAD_MAX_BYTES`), `POST /api/backup/restore` (202). Audit row `backup`/`restore` in the restored database, with the reason.
+  - No migration. Server version 0.5.0.
+- **UI:** Configurações › **Backup e restauração** (`/configuracoes/backup`, `BackupRestorePage`, `components/backup/RestoreConfirmCard.tsx`). Início: the separate backup failure notice is gone; backup failures are in the "Backup pendente" list ("1 planilha e o backup do banco não foram gravados…").
+- **E2E:** `restore.spec.ts` (its own server: `startServer()` in `fixtures.ts`).
+- **Follow-ups:**
+  - NFR-07: test the restore from the screen on the shop PC (pilot) and with the installer (#24).
+  - RN-13 is applied to the OneDrive folder only; `data\backups\` keeps every pre-migration copy and safety copy (one small file per update or restore). Decide with #24.
+  - #23: fold the "Pasta do OneDrive não configurada" notice into the alert list.
+  - Spec (owner to decide): FR-32 does not say whether the list also offers this PC's copies; we list them ("Este PC") so a restore can be undone.
 
 ### #23 — Home screen alerts
 

@@ -1,12 +1,13 @@
 import fs from "node:fs";
 import Fastify, { type FastifyInstance } from "fastify";
 import fastifyStatic from "@fastify/static";
+import { todayCivilDate, type RestoreResult } from "@color-bms/core";
 import { systemClock, type Clock } from "./clock";
 import type { DatabaseConnection } from "./db/client";
 import { registerHostGuard } from "./http/host-guard";
 import { registerAuditRoutes } from "./modules/audit/audit.routes";
 import { registerBackupRoutes } from "./modules/backup/backup.routes";
-import { createBackupService, type BackupService } from "./modules/backup/backup.service";
+import { createRestoreService } from "./modules/backup/restore.service";
 import {
   registerCashClosingRoutes,
   type OnDayClosed,
@@ -52,20 +53,26 @@ export interface BuildAppOptions {
    */
   onDayClosed?: OnDayClosed;
   /**
-   * #25: the pilot backup to OneDrive, run after every day closing (FR-31) before
-   * `onDayClosed`. Defaults to a service with no folder (nothing is written).
-   */
-  backup?: BackupService;
-  /**
-   * FR-28 / FR-29 / FR-30 (#21, #28): the export queue (daily and monthly spreadsheets).
-   * main.ts passes the real one; defaults to a disabled queue (nothing is queued or written),
-   * like the backup's default.
+   * FR-28 to FR-31 (#21, #28, #22): the export queue: daily and monthly spreadsheets and the
+   * database backups. main.ts passes the real one; defaults to a disabled queue (nothing is
+   * queued or written: no backup either).
    */
   exports?: ExportQueueService;
   /**
+   * FR-32 (#22): restoring a backup. main.ts passes its folders and restarts the server when
+   * `onRestartRequested` is called; without it, only GET /api/backup/status is served.
+   */
+  restore?: {
+    dataDir: string;
+    localBackupDir: string;
+    onRestartRequested: () => void;
+    /** The result of the restore done at this start, shown after the restart. */
+    lastResult?: RestoreResult | null;
+  };
+  /**
    * FR-16: called after a month's closing is committed, once the final monthly spreadsheet
-   * (FR-29, #28) is queued and before it is written, like the backup of a day closing. The
-   * backup (#22) hooks in here; a no-op by default. A failure never undoes the closing.
+   * (FR-29, #28) and the backup (FR-31, #22) are queued, and before they are written. A no-op
+   * by default. A failure never undoes the closing.
    */
   onMonthClosed?: OnMonthClosed;
   /**
@@ -88,20 +95,12 @@ export async function buildApp({
   now = systemClock,
   onDayClosed = () => {},
   onMonthClosed = () => {},
-  backup,
   exports,
+  restore,
   system,
   settings,
 }: BuildAppOptions): Promise<FastifyInstance> {
   const app = Fastify({ logger });
-  const backupService =
-    backup ??
-    createBackupService({
-      sqlite: connection.sqlite,
-      folder: null,
-      now,
-      log: { info: () => {}, error: () => {} },
-    });
   const settingsStore =
     settings ?? createSettingsStore(connection, { envOneDriveFolder: null, trial: false });
   const exportQueue =
@@ -113,21 +112,23 @@ export async function buildApp({
       now,
       log: { info: () => {}, error: () => {} },
     });
-  // FR-08: after each closing, queue the daily spreadsheet (FR-28) and the month's
-  // spreadsheet (FR-29) first, so they are in the database as soon as possible; then the
-  // backup (FR-31, #25) and the export run. Neither throws, so the hook chain goes on.
+  // FR-08: after each closing, queue the daily spreadsheet (FR-28), the month's spreadsheet
+  // (FR-29) and a database backup (FR-31) first, so they are in the database as soon as
+  // possible; then the queue writes them, the backup first. It never throws, so the hook
+  // chain goes on.
   const afterDayClosed: OnDayClosed = async (date) => {
     exportQueue.enqueueDailySpreadsheet(date);
     exportQueue.enqueueMonthlySpreadsheet(date.slice(0, 7));
-    await backupService.run("day-close");
+    exportQueue.enqueueBackup(todayCivilDate(now()));
     await exportQueue.processPending();
     await onDayClosed(date);
   };
-  // FR-16 / FR-29: after a month's closing, queue its final monthly spreadsheet, run the app's
-  // hook (the backup, #22), then the export: the same order as a day closing, so a slow
-  // OneDrive never delays the backup. A closed-again month overwrites the earlier file.
+  // FR-16 / FR-29 / FR-31: after a month's closing, queue its final monthly spreadsheet and a
+  // backup, run the app's hook, then the export (the backup first). A closed-again month
+  // overwrites the earlier file.
   const afterMonthClosed: OnMonthClosed = async (yearMonth) => {
     exportQueue.enqueueMonthlySpreadsheet(yearMonth);
+    exportQueue.enqueueBackup(todayCivilDate(now()));
     try {
       await onMonthClosed(yearMonth);
     } finally {
@@ -149,13 +150,22 @@ export async function buildApp({
   registerMonthGeneration(app, connection, now);
   registerHealthRoutes(app, connection, { version: packageJson.version, now, system });
   registerAuditRoutes(app, connection);
-  registerBackupRoutes(app, backupService);
+  registerBackupRoutes(app, {
+    oneDriveFolder: () => exportQueue.oneDriveFolder(),
+    restore: restore
+      ? createRestoreService({
+          dataDir: restore.dataDir,
+          localBackupDir: restore.localBackupDir,
+          oneDriveFolder: () => exportQueue.oneDriveFolder(),
+          now,
+        })
+      : null,
+    lastRestore: restore?.lastResult ?? null,
+    onRestartRequested: restore?.onRestartRequested ?? (() => {}),
+  });
   registerExportRoutes(app, exportQueue);
   // FR-33: a new OneDrive folder gets today's backup (FR-31) and the pending exports (FR-30).
-  registerSettingsRoutes(app, settingsStore, now, async () => {
-    await backupService.folderChanged();
-    await exportQueue.processAll();
-  });
+  registerSettingsRoutes(app, settingsStore, now, () => exportQueue.folderChanged());
   registerCategoryRoutes(app, connection, now);
   registerPaymentRoutes(app, connection, now);
   registerFixedExpenseTemplateRoutes(app, connection, now);

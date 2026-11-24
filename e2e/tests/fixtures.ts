@@ -17,7 +17,7 @@ export const TODAY = "2026-11-18";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const serverEntry = path.join(repoRoot, "apps/server/dist/main.js");
 
-interface ServerInfo {
+export interface ServerInfo {
   baseURL: string;
   dataDir: string;
   /** #25: the worker's stand-in for the OneDrive folder; backups go to its _backup-sistema. */
@@ -46,6 +46,57 @@ async function waitForHealth(baseURL: string, child: ChildProcess, log: () => st
   throw new Error(`Server did not start in 15 s:\n${log()}`);
 }
 
+export interface StartedServer extends ServerInfo {
+  /** Stops the server and deletes its data folder. */
+  stop: () => Promise<void>;
+}
+
+/**
+ * Starts the built server on `port` with a fresh data folder and its own stand-in "OneDrive"
+ * folder (ADR 0002). Used by the worker's shared server, and by tests that need a server of
+ * their own (FR-32: a restore replaces the whole database).
+ */
+export async function startServer(port: number): Promise<StartedServer> {
+  if (!fs.existsSync(serverEntry)) {
+    throw new Error("apps/server/dist/main.js is missing: run `npm run e2e` (it builds first).");
+  }
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "color-bms-e2e-"));
+  const oneDriveDir = path.join(dataDir, "OneDrive");
+  fs.mkdirSync(oneDriveDir);
+  let output = "";
+  const child = spawn(process.execPath, [serverEntry], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      NODE_ENV: "test",
+      PORT: String(port),
+      COLOR_BMS_DATA_DIR: dataDir,
+      COLOR_BMS_NOW: TEST_NOW,
+      COLOR_BMS_ONEDRIVE_DIR: oneDriveDir,
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  child.stdout?.on("data", (chunk: Buffer) => (output += chunk.toString()));
+  child.stderr?.on("data", (chunk: Buffer) => (output += chunk.toString()));
+  const baseURL = `http://127.0.0.1:${port}`;
+  const stop = async () => {
+    // A server that already exited (e.g. crashed at startup) sends no more "exit" events.
+    if (child.exitCode === null && child.signalCode === null) {
+      const exited = new Promise((resolve) => child.once("exit", resolve));
+      child.kill();
+      await exited;
+    }
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  };
+  try {
+    await waitForHealth(baseURL, child, () => output);
+  } catch (error) {
+    await stop();
+    throw error;
+  }
+  return { baseURL, dataDir, oneDriveDir, stop };
+}
+
 export const test = base.extend<
   { catalog: Catalog; api: APIRequestContext },
   { server: ServerInfo }
@@ -54,42 +105,15 @@ export const test = base.extend<
   server: [
     // eslint-disable-next-line no-empty-pattern -- Playwright needs the object pattern here
     async ({}, use, workerInfo) => {
-      if (!fs.existsSync(serverEntry)) {
-        throw new Error(
-          "apps/server/dist/main.js is missing: run `npm run e2e` (it builds first).",
-        );
-      }
-      const port = 3300 + workerInfo.workerIndex;
-      const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "color-bms-e2e-"));
-      const oneDriveDir = path.join(dataDir, "OneDrive");
-      fs.mkdirSync(oneDriveDir);
-      let output = "";
-      const child = spawn(process.execPath, [serverEntry], {
-        cwd: repoRoot,
-        env: {
-          ...process.env,
-          NODE_ENV: "test",
-          PORT: String(port),
-          COLOR_BMS_DATA_DIR: dataDir,
-          COLOR_BMS_NOW: TEST_NOW,
-          COLOR_BMS_ONEDRIVE_DIR: oneDriveDir,
-        },
-        stdio: ["ignore", "pipe", "pipe"],
-      });
-      child.stdout?.on("data", (chunk: Buffer) => (output += chunk.toString()));
-      child.stderr?.on("data", (chunk: Buffer) => (output += chunk.toString()));
-      const baseURL = `http://127.0.0.1:${port}`;
+      const started = await startServer(3300 + workerInfo.workerIndex);
       try {
-        await waitForHealth(baseURL, child, () => output);
-        await use({ baseURL, dataDir, oneDriveDir });
+        await use({
+          baseURL: started.baseURL,
+          dataDir: started.dataDir,
+          oneDriveDir: started.oneDriveDir,
+        });
       } finally {
-        // A server that already exited (e.g. crashed at startup) sends no more "exit" events.
-        if (child.exitCode === null && child.signalCode === null) {
-          const exited = new Promise((resolve) => child.once("exit", resolve));
-          child.kill();
-          await exited;
-        }
-        fs.rmSync(dataDir, { recursive: true, force: true });
+        await started.stop();
       }
     },
     { scope: "worker" },
