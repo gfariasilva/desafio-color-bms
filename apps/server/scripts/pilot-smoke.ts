@@ -4,10 +4,19 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { unzipSync } from "fflate";
-import { goLive, install, stop, update, type PilotContext } from "../src/pilot/commands";
+import {
+  goLive,
+  install,
+  installOrUpdate,
+  stop,
+  uninstall,
+  update,
+  type PilotContext,
+} from "../src/pilot/commands";
 import { waitForHealth, waitForStop } from "../src/pilot/health-wait";
-import { APP_URL, TASK_NAME, installLayout, readMode } from "../src/pilot/layout";
+import { APP_URL, installLayout, readMode } from "../src/pilot/layout";
 import { packagePilot } from "./package-pilot";
+import { check, crashAndRecover, printLogs, refuseOnRealInstall, step } from "./smoke-helpers";
 
 /**
  * #26: end-to-end check of the pilot package (`npm run pilot:smoke`, after `npm run build`).
@@ -26,15 +35,6 @@ const work = fs.mkdtempSync(path.join(os.tmpdir(), "color-bms-smoke-"));
 const installRoot = path.join(work, "LocalAppData", "ColorBMS");
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-function step(message: string): void {
-  console.log(`\n▶ ${message}`);
-}
-
-function check(condition: unknown, message: string): asserts condition {
-  if (!condition) throw new Error(`Smoke test failed: ${message}`);
-  console.log(`  ✓ ${message}`);
-}
-
 function extract(zipFile: string, into: string): string {
   const files = unzipSync(fs.readFileSync(zipFile));
   for (const [name, data] of Object.entries(files)) {
@@ -49,30 +49,6 @@ function extract(zipFile: string, into: string): string {
     if (fs.existsSync(file)) fs.chmodSync(file, 0o755);
   }
   return dir;
-}
-
-function logText(dataDir: string): string {
-  const logs = path.join(dataDir, "logs");
-  if (!fs.existsSync(logs)) return "";
-  return fs
-    .readdirSync(logs)
-    .map((name) => fs.readFileSync(path.join(logs, name), "utf8"))
-    .join("");
-}
-
-/** Kills the server (not the launcher), like a crash, and checks it comes back. */
-async function crashAndRecover(dataDir: string): Promise<void> {
-  const pids = [...logText(dataDir).matchAll(/Server started \(pid (\d+)\)/g)];
-  const pid = Number(pids.at(-1)?.[1]);
-  check(pid > 0, `the log names the server's pid (${pid})`);
-  process.kill(pid, "SIGKILL");
-  await waitForStop(APP_URL, 10_000);
-  const back = await waitForHealth(APP_URL, { timeoutMs: 30_000 });
-  check(back.ok, "the server is restarted after a crash");
-  check(
-    /Server stopped \((signal SIGKILL|exit code 1)\); restarting/.test(logText(dataDir)),
-    "the crash is in the log",
-  );
 }
 
 async function smokeWindows(zipFile: string): Promise<void> {
@@ -110,7 +86,7 @@ async function smokeWindows(zipFile: string): Promise<void> {
 async function smokeElsewhere(): Promise<void> {
   step("package for this OS");
   const platform = `${process.platform}-${process.arch}`;
-  const zipFile = await packagePilot({
+  const { zipFile } = await packagePilot({
     platform,
     node: process.execPath,
     out: path.join(work, "out"),
@@ -135,6 +111,8 @@ async function smokeElsewhere(): Promise<void> {
       stopProcesses: () => {
         launcher?.kill("SIGTERM");
       },
+      deleteTask: () => {},
+      removeShortcuts: () => [],
     },
     waitForHealth: (options) => waitForHealth(APP_URL, options),
     waitForStop: (timeoutMs) => waitForStop(APP_URL, timeoutMs),
@@ -171,41 +149,23 @@ async function smokeElsewhere(): Promise<void> {
     check((await goLive(ctx, { confirmed: true, oneDriveFolder: null })) === 0, "went live");
     check(fs.existsSync(path.join(layout.realDataDir, "color.db")), "a new real database");
 
+    step("uninstall, then the installer again (#24)");
+    check((await uninstall(ctx)) === 0, "uninstalled (stopped)");
+    // What Inno Setup's uninstaller deletes after cli.js desinstalar: the program only.
+    fs.rmSync(layout.appDir, { recursive: true, force: true });
+    fs.rmSync(layout.previousAppDir, { recursive: true, force: true });
+    check(fs.existsSync(path.join(layout.realDataDir, "color.db")), "the real data was kept");
+    check((await installOrUpdate(ctx)) === 0, "reinstalled and answering");
+    check(readMode(layout) === "real", "still in real mode");
+    const after = (await (await fetch(new URL("api/health", APP_URL))).json()) as {
+      trial: boolean;
+    };
+    check(!after.trial, "the health page says real (not trial)");
+
     step("stop");
     check((await stop(ctx)) === 0, "stopped");
   } finally {
     launcher?.kill("SIGKILL");
-  }
-}
-
-/** On failure, the server logs are the evidence (CI shows the job's output). */
-function printLogs(): void {
-  for (const entry of fs.readdirSync(work, { recursive: true, withFileTypes: true })) {
-    if (entry.isFile() && entry.name.endsWith(".log")) {
-      const file = path.join(entry.parentPath, entry.name);
-      console.error(`\n----- ${file}\n${fs.readFileSync(file, "utf8")}`);
-    }
-  }
-}
-
-/**
- * Never touch a real installation: the smoke test uses the real task name and port 3210, so a
- * running app would answer in its place (a false pass), and `instalar.cmd /F` would point the
- * real task at a temp folder that is deleted at the end.
- */
-async function refuseOnRealInstall(): Promise<void> {
-  if ((await waitForHealth(APP_URL, { timeoutMs: 1_000 })).ok) {
-    throw new Error(`Something already answers on ${APP_URL}: stop it before the smoke test.`);
-  }
-  if (process.platform === "win32") {
-    try {
-      execFileSync("schtasks.exe", ["/Query", "/TN", TASK_NAME], { stdio: "ignore" });
-    } catch {
-      return; // No such task: safe.
-    }
-    throw new Error(
-      `The task "${TASK_NAME}" exists on this PC: run the smoke test elsewhere (CI).`,
-    );
   }
 }
 
@@ -215,17 +175,19 @@ async function main(): Promise<void> {
     if (process.platform === "win32") {
       const zipFile =
         process.argv[2] ??
-        (await packagePilot({
-          platform: "win32-x64",
-          out: path.join(serverRoot, "..", "..", "dist-pilot"),
-        }));
+        (
+          await packagePilot({
+            platform: "win32-x64",
+            out: path.join(serverRoot, "..", "..", "dist-pilot"),
+          })
+        ).zipFile;
       await smokeWindows(path.resolve(zipFile));
     } else {
       await smokeElsewhere();
     }
     console.log("\nPilot smoke test passed.");
   } catch (error) {
-    printLogs();
+    printLogs(work);
     throw error;
   } finally {
     await sleep(500);

@@ -94,7 +94,7 @@ O gráfico mostra, **dia a dia**, as entradas (azul) e as despesas (laranja: ger
 
 ## Se algo der errado
 
-- **A tela não abre ou mostra erro de conexão:** espere 1 minuto e recarregue (**F5**). Se continuar, abra a pasta `%LOCALAPPDATA%\ColorBMS` (tecle **Win + R**, cole o caminho e tecle Enter) e dê dois cliques em **`iniciar.cmd`**.
+- **A tela não abre ou mostra erro de conexão:** espere 1 minuto e recarregue (**F5**). Se continuar, abra o **Menu Iniciar › Sistema Color › Iniciar o Sistema Color** (ou a pasta `%LOCALAPPDATA%\ColorBMS`: tecle **Win + R**, cole o caminho, tecle Enter e dê dois cliques em **`iniciar.cmd`**).
 - **Início mostra "Backup pendente: … não foi gravado(a)"** (uma planilha ou o **backup do banco**): se a planilha citada (do dia ou do mês) estiver aberta no Excel, **feche-a** e clique em **Tentar agora** (o sistema também tenta sozinho a cada 5 minutos). Se o aviso falar da **pasta**, clique em **Verificar a pasta** e confira a pasta do OneDrive em Configurações.
 - **Perdeu lançamentos ou o PC trocou?** Em **Configurações › Backup e restauração**, escolha um backup e clique em **Restaurar** (pede um motivo; o sistema reinicia sozinho). Passo a passo: [`restaurar-backup.md`](restaurar-backup.md). Na dúvida, avise o desenvolvedor antes.
 - **Início mostra "Problema no PC" ou "Atenção no PC"** (por exemplo, relógio ou fuso horário errado): anote ou tire uma foto e avise o desenvolvedor. Os detalhes ficam em **Configurações › Status do sistema**.

@@ -92,5 +92,5 @@ The developer works on Linux, and the owner has no technical knowledge (NFR-13).
 - `node_modules` is copied as installed, so the zip includes drizzle-orm's other dialects (~40 MB unzipped). That's acceptable for a USB stick.
 
 ### Follow-ups
-- [ ] #24: Inno Setup installer reusing these folders and the task; upgrade path that removes the pilot scripts.
+- [x] #24: Inno Setup installer reusing these folders, the task and the CLI ([ADR 0006](0006-windows-installer.md)).
 - [ ] Verify on a Windows 11 VM and on the shop PC (checklist in `docs/pilot/install.md`).

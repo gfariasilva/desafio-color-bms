@@ -1,21 +1,27 @@
-Sistema Color - instalação piloto
-=================================
-
-Na pasta extraída do .zip (pendrive):
-
-  instalar.cmd          Primeira instalação neste PC (modo treino).
-  atualizar.cmd         Instala uma versão nova. Os dados são mantidos e
-                        um backup é feito antes de qualquer mudança no banco.
-
-Na pasta instalada (%LOCALAPPDATA%\ColorBMS) e no pendrive:
-
-  iniciar.cmd           Inicia o sistema e abre a tela inicial.
-  parar.cmd             Para o sistema.
-  iniciar-uso-real.cmd  Começa o uso real (dia 1º do mês): guarda os dados
-                        de treino em "arquivo" e começa com o sistema vazio.
+Sistema Color
+=============
 
 O sistema inicia sozinho quando o Windows é iniciado. Para abrir, use o
 atalho "Sistema Color" na área de trabalho (ou http://127.0.0.1:3210).
 
+Menu Iniciar > Sistema Color (ou a pasta %LOCALAPPDATA%\ColorBMS):
+
+  Iniciar o Sistema Color   (iniciar.cmd) Inicia o sistema e abre a tela inicial.
+  Parar o Sistema Color     (parar.cmd) Para o sistema.
+  Começar o uso real        (iniciar-uso-real.cmd) Dia 1º do mês: guarda os
+                            dados de treino em "arquivo" e começa com o
+                            sistema vazio.
+  Desinstalar               Remove o programa. Os dados (pastas data,
+                            data-treino e arquivo) são mantidos.
+
+Instalar ou atualizar: rode ColorBMS-Setup-<versão>.exe (pendrive). Os dados
+são mantidos, e um backup é feito antes de qualquer mudança no banco.
+
+Sem o instalador (pacote .zip, na pasta extraída):
+
+  instalar.cmd          Primeira instalação neste PC (modo treino).
+  atualizar.cmd         Instala uma versão nova, mantendo os dados.
+
 Se algo der errado, os registros ficam em
-%LOCALAPPDATA%\ColorBMS\data\logs (ou data-treino\logs no modo treino).
+%LOCALAPPDATA%\ColorBMS\data\logs (ou data-treino\logs no modo treino),
+e o da instalação em %LOCALAPPDATA%\ColorBMS\instalador.log.

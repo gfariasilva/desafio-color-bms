@@ -2,7 +2,7 @@
 
 For the developer, done **with the owner** at the shop. Tick each step and write the date. UI labels are quoted as they appear on screen (pt-BR). The rest of the pilot:
 
-- install and update: [`install.md`](install.md);
+- install and update: the Windows installer, [`docs/install/installer.md`](../install/installer.md) (#24), or the pilot zip, [`install.md`](install.md);
 - training and stopwatch: [`treinamento.md`](treinamento.md);
 - the owner's one-page guide (print it): [`guia-rapido.md`](guia-rapido.md);
 - daily comparison during the parallel period (print it): [`conferencia.md`](conferencia.md);
@@ -23,10 +23,10 @@ For the developer, done **with the owner** at the shop. Tick each step and write
 | Done | Step | Date / who |
 |---|---|---|
 | [ ] | Owner questions answered and the answers written into `owner-questions.md` (and the spec, by the owner's decision). | |
-| [ ] | Shop PC acceptance check in [`install.md`](install.md) §7 done (no window at logon, shortcut, offline, not reachable from the LAN, crash → restart, update). | |
-| [ ] | **PC clock and time zone:** Configurações › Status do sistema › Verificações shows "OK" for the time zone (UTC−03:00) and the clock. Windows "Set time automatically" is on. | |
+| [ ] | Shop PC deployment checklist in [`docs/install/installer.md`](../install/installer.md) §6 done (no window at logon, shortcut, offline, not reachable from the LAN, crash → restart, update, uninstall keeps the data). With the pilot zip instead: [`install.md`](install.md) §7. | |
+| [ ] | **PC clock and time zone:** Configurações › Status do sistema › Verificações shows "OK" for the time zone (UTC−03:00) and the clock. Windows "Definir horário automaticamente" is on (time sync) and the time zone is (UTC-03:00) Brasília. | |
 | [ ] | **OneDrive (Q-07):** the OneDrive app is signed in to the owner's account, has free space, and the chosen folder (e.g. `C:\Users\<user>\OneDrive\Color`) exists and syncs. Note the path: ____________________ | |
-| [ ] | **Backup and manual restore test (NFR-07):** the checklist at the end of [`restaurar-backup.md`](restaurar-backup.md), done on the shop PC. | |
+| [ ] | **Backup and restore test (NFR-07):** the restore from Configurações › Backup e restauração, with the installer ([`installer.md`](../install/installer.md) §6), and the manual restore checklist at the end of [`restaurar-backup.md`](restaurar-backup.md), done on the shop PC. | |
 | [ ] | Training session done and CS-2 / CS-4 measured ([`treinamento.md`](treinamento.md)). | |
 | [ ] | `guia-rapido.md` printed and left next to the PC. 14 pages of `conferencia.md` printed (or one booklet). | |
 | [ ] | The pilot version on the shop PC is the latest (Início shows the version), so the go-live does not start with an update. | |
@@ -38,7 +38,7 @@ Do this when no sale of the new month has been made yet: after the last closing 
 | Done | Step | Date / who |
 |---|---|---|
 | [ ] | In trial mode, close every open trial day (it does not matter, the trial data is archived, but it avoids confusion if the folder is opened later). | |
-| [ ] | `iniciar-uso-real.cmd` in `%LOCALAPPDATA%\ColorBMS`: type **SIM**, confirm the OneDrive folder noted above. | |
+| [ ] | Start Menu › Sistema Color › **Começar o uso real** (`iniciar-uso-real.cmd` in `%LOCALAPPDATA%\ColorBMS`): type **SIM**, confirm the OneDrive folder noted above. | |
 | [ ] | Início: **no TREINO badge**, no "Pasta do OneDrive não configurada" or "Problema no PC" alert; Configurações › Status do sistema: all Verificações "OK". | |
 | [ ] | `arquivo\data-treino-AAAA-MM-DD_HHMM\` exists (the trial data is kept, not deleted). | |
 

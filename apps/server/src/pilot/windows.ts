@@ -102,6 +102,27 @@ Write-Output $file`,
     );
   },
 
+  /** #24: uninstall. `schtasks /Delete` fails when there is no task, which is fine. */
+  deleteTask() {
+    try {
+      schtasks(["/Delete", "/TN", TASK_NAME, "/F"]);
+    } catch {
+      // No task: nothing to delete.
+    }
+  },
+
+  /** #24: uninstall. Deletes both kinds of shortcut that `createShortcut` may have made. */
+  removeShortcuts() {
+    const output = powershell(
+      `$desktop = [Environment]::GetFolderPath('Desktop')
+foreach ($name in @('Sistema Color.lnk', 'Sistema Color.url')) {
+  $file = Join-Path $desktop $name
+  if (Test-Path -LiteralPath $file) { Remove-Item -LiteralPath $file -Force; Write-Output $file }
+}`,
+    );
+    return output === "" ? [] : output.split(/\r?\n/).map((line) => line.trim());
+  },
+
   openBrowser(url) {
     powershell(
       `${FIND_EDGE}

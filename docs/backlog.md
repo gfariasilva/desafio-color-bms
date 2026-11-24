@@ -67,7 +67,7 @@ Ordered backlog for the MVP (spec §9.1). Each item is one small PR / GitHub iss
 | [x] | M6 | [#18](#18--dashboard-this-month-vs-the-previous-one) | Dashboard: this month vs the previous one | FR-24; RN-11 | #17 |
 | [x] | M6 | [#19](#19--dashboards-tab-ranking-and-income--expenses) | Dashboards: tab ranking and income × expenses | FR-25, FR-26; RN-11 | #16, #17 |
 | [x] | M6 | [#23](#23--home-screen-alerts) | Home screen alerts | FR-27 | #9, #13, #21, #22 |
-| [ ] | M6 | [#24](#24--windows-installer-auto-start-and-deployment-checklist) | Windows installer, auto-start and deployment checklist | FR-34 | #22, #26 |
+| [x] | M6 | [#24](#24--windows-installer-auto-start-and-deployment-checklist) | Windows installer, auto-start and deployment checklist | FR-34 | #22, #26 |
 
 ---
 
@@ -1553,6 +1553,40 @@ A tela inicial mostra os alertas abaixo, cada um com link para resolver:
 **Technical notes**
 
 - Updates stay physical (USB stick at the shop), as in the pilot.
+
+**Done notes (follow-ups)**
+
+- Decisions in [ADR 0006](adr/0006-windows-installer.md); developer guide and deployment checklist in [`docs/install/installer.md`](install/installer.md).
+- **Installer** (`installer/color-bms.iss`, Inno Setup 6, UTF-8 with BOM):
+  - per user, no admin rights, fixed folder `%LOCALAPPDATA%\ColorBMS`, pt-BR wizard, fixed `AppId`;
+  - it unpacks the pilot package folder to `{tmp}` and runs its `cli.js instalador` hidden, with `--raiz={app}` and `--registro={app}\instalador.log`. On failure: a message box that opens the log, and exit code 9;
+  - Start Menu entries for the support scripts (Iniciar, Parar, Começar o uso real), Leia-me and Desinstalar.
+- **Server** (`src/pilot/`, no migration, no audit rows):
+  - `cli-args.ts`: `parseCliArgs()`, `logToFile()`, the new commands `instalador` and `desinstalar`;
+  - `commands.ts`:
+    - `installOrUpdate()`: `install()` without `app\`, `update()` with it, which covers the upgrade from the pilot;
+    - `uninstall()`: stops the system, deletes the task (`WindowsOps.deleteTask`) and the shortcut (`removeShortcuts`), even when the stop fails. It keeps all the data;
+    - `install()` now keeps the mode of an existing `instalacao.json` or `data\` (a reinstall after an uninstall never hides real data);
+  - `installer.ts`: `installerFileName()`, `isccArgs()`, `findIscc()`. Server version 0.6.0.
+- **Scripts:**
+  - `npm run package:installer` → `dist-installer/ColorBMS-Setup-<version>.exe` (Windows, or `COLOR_BMS_ISCC`);
+  - `npm run installer:smoke` (Windows only): install → crash → update → go-live → uninstall (data kept, task and shortcut gone) → reinstall (same mode);
+  - `npm run pilot:smoke` now also runs uninstall + reinstall;
+  - shared helpers in `scripts/smoke-helpers.ts`; `packagePilot()` returns `{ dir, zipFile, version }`.
+- **CI:** the `installer-windows` job (build + smoke, `color-bms-installer` artifact) and `.github/workflows/release.yml` (tag `vX.Y.Z` = server version → GitHub release with the `.exe` and the zip). It installs Inno Setup with `choco` if the runner lacks it.
+- **Decisions:**
+  - the pilot zip stays as the installer's input and as a fallback;
+  - a fresh install starts in trial mode;
+  - the installer is not signed (SmartScreen: "Mais informações › Executar assim mesmo");
+  - `data\backups\` keeps every copy, so RN-13 stays on OneDrive only (closes the #22 follow-up).
+- **Docs:** `go-live-checklist.md` points to the installer, Windows time sync and the restore test with the installer. `install.md` is marked as the fallback. `guia-rapido.md` and `restaurar-backup.md` mention the Start Menu entries. `LEIA-ME.txt` is rewritten for the installer.
+- **Not verified yet:**
+  - the `.iss` was not compiled in this environment (Linux, no Inno Setup). The first `installer-windows` CI run is its compile and end-to-end check;
+  - FR-34 on a real Windows 11 machine (no window at logon, shortcut, offline, no LAN access) and the NFR-07 restore with the installer: the checklist in `docs/install/installer.md` §6, on a VM and then on the shop PC.
+- **Follow-ups:**
+  - code signing, if SmartScreen bothers;
+  - revisit the `data\backups\` retention if it grows (~1 GB);
+  - the support `.cmd` files find the install folder through `%LOCALAPPDATA%` (or `COLOR_BMS_INSTALL_DIR`), not through their own location: fine for real installs, but an install to another folder (`/DIR=`, CI only) needs the variable.
 
 **Acceptance criteria** _(verbatim from spec §4)_
 

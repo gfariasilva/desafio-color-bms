@@ -11,6 +11,7 @@ An ADR records one significant technical decision: the context, the options we w
 | [0003](0003-pilot-backup.md) | Pilot database backup (triggers, folder setting, backup before migrations) | Proposed | 2026-11-19 |
 | [0004](0004-pilot-install.md) | Pilot install (zip + scripts, Node supervisor, hidden task, trial folder) | Proposed | 2026-11-19 |
 | [0005](0005-backup-queue-and-restore.md) | Database backups in the export queue, and restore by an in-process restart | Proposed | 2026-11-24 |
+| [0006](0006-windows-installer.md) | Windows installer (Inno Setup as a carrier for the pilot CLI, uninstall keeps the data) | Proposed | 2026-11-24 |
 
 ## When to write one
 
