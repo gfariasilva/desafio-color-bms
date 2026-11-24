@@ -9,6 +9,7 @@ import {
   type RestoreResponse,
   type RestoreResult,
 } from "@color-bms/core";
+import type { Clock } from "../../clock";
 import { parseOr400, sendError } from "../../http/route-helpers";
 import { readBackupStatus } from "./backup.service";
 import type { RestoreService } from "./restore.service";
@@ -22,7 +23,11 @@ export interface BackupRoutesOptions {
   lastRestore: RestoreResult | null;
   /** FR-32: called once a restore is staged: main.ts restarts the server. */
   onRestartRequested: () => void;
+  now: Clock;
 }
+
+/** FR-32: how long the result of a restore is shown after the restart. */
+const RESTORE_RESULT_MS = 60 * 60_000;
 
 /**
  * FR-31 / FR-32:
@@ -33,12 +38,19 @@ export interface BackupRoutesOptions {
  */
 export function registerBackupRoutes(
   app: FastifyInstance,
-  { oneDriveFolder, restore, lastRestore, onRestartRequested }: BackupRoutesOptions,
+  { oneDriveFolder, restore, lastRestore, onRestartRequested, now }: BackupRoutesOptions,
 ): void {
   // FR-32: a new id at every start, so the UI knows when a restart is over.
   const startId = randomUUID();
   app.get("/api/backup/status", async (): Promise<BackupStatusResponse> =>
-    readBackupStatus(oneDriveFolder(), lastRestore, startId),
+    readBackupStatus(
+      oneDriveFolder(),
+      // An old result would look like something just happened: shown for an hour only.
+      lastRestore && now().getTime() - Date.parse(lastRestore.at) < RESTORE_RESULT_MS
+        ? lastRestore
+        : null,
+      startId,
+    ),
   );
   if (!restore) return;
 
@@ -74,8 +86,16 @@ export function registerBackupRoutes(
     } catch (error) {
       return sendError(reply, error);
     }
-    // After the answer is sent: the restart closes the server (main.ts).
-    reply.raw.once("finish", () => onRestartRequested());
+    // After the answer is sent: the restart closes the server (main.ts). Also when the browser
+    // went away before the answer ("close" without "finish"): the restore is staged anyway.
+    let restarting = false;
+    const restart = () => {
+      if (restarting) return;
+      restarting = true;
+      onRestartRequested();
+    };
+    reply.raw.once("finish", restart);
+    reply.raw.once("close", restart);
     const answer: RestoreResponse = { restarting: true, startId };
     return reply.code(202).send(answer);
   });

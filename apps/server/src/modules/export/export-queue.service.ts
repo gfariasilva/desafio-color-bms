@@ -196,7 +196,7 @@ export function createExportQueue({
   let nextPass: "pending" | "all" | null = null;
   let cancelSchedule: (() => void) | null = null;
   /** The item being written right now, and whether it was queued again meanwhile. */
-  let inFlight: { id: number; requeued: boolean } | null = null;
+  let inFlight: { id: number; requeued: boolean; reference: string } | null = null;
 
   function enqueue(kind: ExportKind, reference: string): void {
     if (!enabled) return;
@@ -213,7 +213,11 @@ export function createExportQueue({
       )
       .get();
     if (open) {
-      if (inFlight?.id === open.id) inFlight.requeued = true;
+      if (inFlight?.id === open.id) {
+        inFlight.requeued = true;
+        // FR-31: the backup is written again, now about the newer day.
+        inFlight.reference = reference;
+      }
       // A new request for a failed item: it is tried with the other new items.
       else
         db.update(exportQueue)
@@ -258,6 +262,9 @@ export function createExportQueue({
   /** Writes one item's file. Returns normally when written or when there is nothing to write. */
   async function exportItem(kind: ExportKind, reference: string, at: Date): Promise<void> {
     if (kind === "db_backup") {
+      // Yield first: after a closing this runs before Fastify sends the answer, and the
+      // synchronous VACUUM INTO must never delay it (FR-08).
+      await new Promise((resolve) => setImmediate(resolve));
       // FR-31: a consistent copy of the database as it is now, then RN-13.
       const { file, deleted } = writeOneDriveBackup(
         connection.sqlite,
@@ -290,7 +297,7 @@ export function createExportQueue({
     const fileName = exportFileName(item.kind, item.reference);
     const attempts = item.attempts + 1;
     const lastAttemptAt = at.toISOString();
-    inFlight = { id: item.id, requeued: false };
+    inFlight = { id: item.id, requeued: false, reference: item.reference };
     try {
       await exportItem(item.kind, item.reference, at);
       if (inFlight.requeued) {
@@ -298,6 +305,7 @@ export function createExportQueue({
         db.update(exportQueue)
           .set({
             status: "pending",
+            reference: inFlight.reference,
             attempts,
             lastAttemptAt,
             lastError: null,
@@ -343,6 +351,7 @@ export function createExportQueue({
       db.update(exportQueue)
         .set({
           status: requeued ? "pending" : "failed",
+          reference: inFlight.reference,
           attempts,
           lastAttemptAt,
           lastError: message,

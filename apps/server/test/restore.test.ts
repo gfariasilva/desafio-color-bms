@@ -17,6 +17,7 @@ import { writeBackup } from "../src/modules/backup/backup.service";
 import { applyPendingRestore } from "../src/modules/backup/restore.service";
 import { createExportQueue } from "../src/modules/export/export-queue.service";
 import { openAppDatabase } from "../src/startup/open-database";
+import { defaultMigrationsFolder } from "../src/db/migrate";
 import { NOW } from "./sales-fixture";
 
 /**
@@ -44,9 +45,44 @@ function paths(dir = dataDir) {
   };
 }
 
+/** The migrations main.ts applies; a test can add one (a newer app version). */
+let migrationsFolder: string | undefined;
+
+/**
+ * A copy of the migrations plus one that fails when two withdrawals have the same note: a
+ * newer version whose migration breaks on some old data.
+ */
+function migrationsWithFailingOne(): string {
+  const folder = path.join(tempDir, "migrations-next");
+  fs.cpSync(defaultMigrationsFolder(), folder, { recursive: true });
+  const journalFile = path.join(folder, "meta", "_journal.json");
+  const journal = JSON.parse(fs.readFileSync(journalFile, "utf8")) as {
+    entries: { idx: number; when: number }[];
+  };
+  const last = journal.entries.at(-1)!;
+  journal.entries.push({
+    idx: last.idx + 1,
+    version: "6",
+    when: last.when + 1000,
+    tag: "9999_unique_withdrawal_note",
+    breakpoints: true,
+  } as never);
+  fs.writeFileSync(journalFile, JSON.stringify(journal));
+  fs.writeFileSync(
+    path.join(folder, "9999_unique_withdrawal_note.sql"),
+    "CREATE UNIQUE INDEX `test_unique_note` ON `cash_withdrawals` (`note`);",
+  );
+  return folder;
+}
+
 /** Starts the server like main.ts: finish a pending restore, open, migrate, build. */
 async function start(dir = dataDir): Promise<RestoreResult | null> {
-  const opened = openAppDatabase({ ...paths(dir), now: () => current, log: silentLog });
+  const opened = openAppDatabase({
+    ...paths(dir),
+    now: () => current,
+    log: silentLog,
+    migrationsFolder,
+  });
   connection = opened.connection;
   restartRequested = vi.fn();
   app = await buildApp({
@@ -82,6 +118,7 @@ beforeEach(async () => {
   oneDrive = path.join(tempDir, "OneDrive");
   fs.mkdirSync(oneDrive, { recursive: true });
   current = NOW;
+  migrationsFolder = undefined;
   await start();
 });
 
@@ -450,5 +487,101 @@ describe("FR-32: a restore interrupted by a crash", () => {
       ),
     });
     expect(fs.readdirSync(path.join(dataDir, "restore"))).toEqual([]);
+  });
+
+  it("FR-32: a crash right after the swap (before the marker was updated) still finishes the restore", async () => {
+    await addWithdrawal("no backup");
+    backupToOneDrive();
+    await addWithdrawal("perdido");
+    expect(
+      (await postRestore({ source: "onedrive", name: BACKUP_NAME, reason: "x" })).statusCode,
+    ).toBe(202);
+    await app.close();
+    connection.sqlite.close();
+    // The file was moved into place, then the power went out: the marker still says "staged".
+    fs.renameSync(path.join(dataDir, "restore", "incoming.db"), paths().databaseFile);
+
+    const result = await start();
+
+    expect(result?.ok).toBe(true);
+    expect(withdrawalNotes()).toEqual(["no backup"]);
+    expect(
+      connection.sqlite
+        .prepare(
+          "select count(*) as n from audit_log where entity = 'backup' and action = 'restore'",
+        )
+        .get(),
+    ).toEqual({ n: 1 });
+  });
+
+  it("FR-32: if the restored backup cannot be migrated, the previous database is put back", async () => {
+    await addWithdrawal("repetida");
+    await addWithdrawal("repetida");
+    backupToOneDrive();
+    // The current database has no repeated note: the newer migration works on it.
+    connection.sqlite.prepare("delete from cash_withdrawals where id = 2").run();
+    await addWithdrawal("atual");
+    expect(
+      (await postRestore({ source: "onedrive", name: BACKUP_NAME, reason: "x" })).statusCode,
+    ).toBe(202);
+
+    // The restart is done by a newer version whose migration fails on the backup's data.
+    migrationsFolder = migrationsWithFailingOne();
+    const result = await restart();
+
+    expect(withdrawalNotes()).toEqual(["repetida", "atual"]);
+    expect(result).toEqual({
+      ok: false,
+      at: NOW.toISOString(),
+      file: BACKUP_NAME,
+      message:
+        "Não foi possível preparar o backup escolhido para esta versão do sistema. O banco anterior foi mantido. Avise o desenvolvedor.",
+    });
+    expect(fs.readdirSync(path.join(dataDir, "restore"))).toEqual([]);
+    // The next start is a normal one.
+    expect(await restart()).toBeNull();
+  });
+});
+
+describe("FR-32: the safety copy", () => {
+  it("FR-32: two restores in the same minute keep two different safety copies", async () => {
+    await addWithdrawal("estado 0");
+    backupToOneDrive();
+    await addWithdrawal("estado 1");
+    expect(
+      (await postRestore({ source: "onedrive", name: BACKUP_NAME, reason: "1" })).statusCode,
+    ).toBe(202);
+    await restart();
+    await addWithdrawal("estado 2");
+    expect(
+      (await postRestore({ source: "onedrive", name: BACKUP_NAME, reason: "2" })).statusCode,
+    ).toBe(202);
+    await restart();
+
+    // Same clock minute (15:00): the second copy takes the next free minute.
+    const local = paths().localBackupDir;
+    expect(fs.readdirSync(local).sort()).toEqual([
+      "color-2026-11-18_1500.db",
+      "color-2026-11-18_1501.db",
+    ]);
+    expect(notesIn(path.join(local, "color-2026-11-18_1500.db"))).toEqual(["estado 0", "estado 1"]);
+    expect(notesIn(path.join(local, "color-2026-11-18_1501.db"))).toEqual(["estado 0", "estado 2"]);
+  });
+});
+
+describe("FR-32: the result after the restart", () => {
+  it("FR-32: the result is shown for an hour after the restore, then no more", async () => {
+    backupToOneDrive();
+    expect(
+      (await postRestore({ source: "onedrive", name: BACKUP_NAME, reason: "x" })).statusCode,
+    ).toBe(202);
+    await restart();
+    const lastRestore = async () =>
+      backupStatusResponseSchema.parse(
+        (await app.inject({ method: "GET", url: "/api/backup/status" })).json(),
+      ).lastRestore;
+    expect(await lastRestore()).not.toBeNull();
+    current = new Date(NOW.getTime() + 61 * 60_000);
+    expect(await lastRestore()).toBeNull();
   });
 });

@@ -162,6 +162,7 @@ export async function buildApp({
       : null,
     lastRestore: restore?.lastResult ?? null,
     onRestartRequested: restore?.onRestartRequested ?? (() => {}),
+    now,
   });
   registerExportRoutes(app, exportQueue);
   // FR-33: a new OneDrive folder gets today's backup (FR-31) and the pending exports (FR-30).

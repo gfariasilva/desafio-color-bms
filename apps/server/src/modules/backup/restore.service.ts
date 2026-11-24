@@ -6,7 +6,6 @@ import {
   BACKUP_FOLDER_NAME,
   BACKUP_SOURCE_LABELS,
   backupFileInstant,
-  backupFileName,
   describeBackupFile,
   formatInstant,
   parseBackupFileName,
@@ -22,7 +21,7 @@ import { defaultMigrationsFolder } from "../../db/migrate";
 import { BusinessError } from "../../http/route-helpers";
 import { recordAudit } from "../audit/audit.repository";
 import { writeFileAtomic } from "../export/atomic-write";
-import { writeBackup } from "./backup.service";
+import { writeNewBackup } from "./backup.service";
 
 /**
  * FR-32: restore a database backup (ADR 0005).
@@ -295,12 +294,16 @@ export function createRestoreService({
 }
 
 /**
- * FR-32, at startup, before the database is opened: carries out a staged restore. Writes the
- * safety copy of the current database (never overwriting an existing file), removes its
- * leftover `-wal`/`-shm` files (they belong to the old database), and moves the backup into
- * place. Returns the marker (null when no restore is pending); `finishRestore` completes it
- * once the database is open. Throws when the restore cannot be done; the database is then
- * untouched (or already fully swapped).
+ * FR-32, at startup, before the database is opened: carries out a staged restore.
+ *
+ * 1. A safety copy of the current database goes to `<data>/backups/` (never replacing a file);
+ * 2. the old database's WAL is folded into it, so its `-wal`/`-shm` files are empty and can be
+ *    removed (a WAL replayed onto the restored file would corrupt it);
+ * 3. the backup is moved over `color.db`.
+ *
+ * Returns the marker (null when no restore is pending); `finishRestore` completes it once the
+ * database is open. Throws when the restore cannot be done: the database is then untouched.
+ * Once the file is moved, nothing throws: the restore is finished at this or the next start.
  */
 export function applyPendingRestore({
   dataDir,
@@ -312,39 +315,90 @@ export function applyPendingRestore({
   const marker = readMarker(dataDir);
   if (!marker || marker.swapped) return marker;
   const incoming = path.join(restoreDir(dataDir), INCOMING_FILE);
-  if (!fs.existsSync(incoming)) {
-    throw new Error(`The staged backup ${incoming} is missing.`);
-  }
-  if (marker.safetyCopy === null && fs.existsSync(databaseFile)) {
-    let safetyCopy: string;
+  // Only the move removes `incoming.db` while the marker exists: without it, the move was done
+  // and the power went out before the marker was updated.
+  if (!fs.existsSync(incoming)) return markSwapped(dataDir, marker, log);
+
+  if (fs.existsSync(databaseFile)) {
+    const current = new Database(databaseFile);
     try {
-      const current = new Database(databaseFile);
-      try {
-        const target = path.join(localBackupDir, backupFileName(now()));
-        // Two restores in the same minute: keep the first safety copy (the state before them).
-        safetyCopy = fs.existsSync(target) ? target : writeBackup(current, localBackupDir, now());
-      } finally {
-        current.close();
+      if (marker.safetyCopy === null) {
+        let safetyCopy: string;
+        try {
+          safetyCopy = writeNewBackup(current, localBackupDir, now());
+        } catch (error) {
+          throw Object.assign(new Error(`Safety copy failed: ${String(error)}`), {
+            safetyCopyFailed: true,
+            cause: error,
+          });
+        }
+        marker.safetyCopy = path.basename(safetyCopy);
+        writeMarker(dataDir, marker);
+        log.info(`Restore: safety copy of the current database at ${safetyCopy}`);
       }
-    } catch (error) {
-      throw Object.assign(new Error(`Safety copy failed: ${String(error)}`), {
-        safetyCopyFailed: true,
-        cause: error,
-      });
+      current.pragma("wal_checkpoint(TRUNCATE)");
+    } finally {
+      current.close();
     }
-    marker.safetyCopy = path.basename(safetyCopy);
-    writeMarker(dataDir, marker);
-    log.info(`Restore: safety copy of the current database at ${safetyCopy}`);
   }
-  // A WAL left by the old database would be replayed onto the restored one: remove it.
+  // Empty after the checkpoint: removing them can never lose data, even if the move fails.
   fs.rmSync(`${databaseFile}-wal`, { force: true });
   fs.rmSync(`${databaseFile}-shm`, { force: true });
   fs.mkdirSync(path.dirname(databaseFile), { recursive: true });
   fs.renameSync(incoming, databaseFile);
-  marker.swapped = true;
-  writeMarker(dataDir, marker);
   log.info(`Restore: ${marker.name} is now the database.`);
+  return markSwapped(dataDir, marker, log);
+}
+
+/** The backup is in place: record it. A failure to write the marker is not a failure. */
+function markSwapped(dataDir: string, marker: PendingRestore, log: Log): PendingRestore {
+  marker.swapped = true;
+  try {
+    writeMarker(dataDir, marker);
+  } catch (error) {
+    log.error(`Restore: could not update the marker (${String(error)}); finishing anyway.`);
+  }
   return marker;
+}
+
+/**
+ * FR-32: the restored backup could not be opened or migrated by this version. The safety copy
+ * goes back in place (with no safety copy, a new PC, the empty database is started again), the
+ * staged files go, and the failure is reported.
+ */
+export function rollBackRestore({
+  dataDir,
+  databaseFile,
+  localBackupDir,
+  marker,
+  error,
+  now,
+  log,
+}: RestorePaths & {
+  marker: PendingRestore;
+  error: unknown;
+  now: Clock;
+  log: Log;
+}): RestoreResult {
+  log.error(`Restore of ${marker.name} failed after the swap: ${String(error)}`);
+  fs.rmSync(`${databaseFile}-wal`, { force: true });
+  fs.rmSync(`${databaseFile}-shm`, { force: true });
+  if (marker.safetyCopy) {
+    const temp = `${databaseFile}.tmp`;
+    fs.copyFileSync(path.join(localBackupDir, marker.safetyCopy), temp);
+    fs.renameSync(temp, databaseFile);
+  } else {
+    fs.rmSync(databaseFile, { force: true });
+  }
+  clearRestoreFolder(dataDir);
+  return {
+    ok: false,
+    at: now().toISOString(),
+    file: marker.name,
+    message: marker.safetyCopy
+      ? "Não foi possível preparar o backup escolhido para esta versão do sistema. O banco anterior foi mantido. Avise o desenvolvedor."
+      : "Não foi possível preparar o backup escolhido para esta versão do sistema. Avise o desenvolvedor.",
+  };
 }
 
 /** The pt-BR "Backup de 18/11/2026 19:03" (or the file name when it has no date). */

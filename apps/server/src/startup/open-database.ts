@@ -7,6 +7,7 @@ import {
   abandonRestore,
   applyPendingRestore,
   finishRestore,
+  rollBackRestore,
   type PendingRestore,
   type RestorePaths,
 } from "../modules/backup/restore.service";
@@ -33,7 +34,8 @@ export interface OpenAppDatabaseResult {
  *    is skipped here: the backup itself is the copy from before its migrations;
  * 3. FR-32: the restore is written to the restored database's audit log.
  *
- * A restore that cannot be done leaves the current database as it was, and says why.
+ * A restore that cannot be done leaves the current database as it was, and says why; one whose
+ * backup cannot be migrated puts the safety copy back.
  */
 export function openAppDatabase({
   dataDir,
@@ -51,18 +53,35 @@ export function openAppDatabase({
     restore = abandonRestore(dataDir, error, now, log);
   }
 
-  const connection = openDatabase(databaseFile);
-  let backupFile: string | null = null;
   if (pending) {
-    runMigrations(connection.db, migrationsFolder);
-    restore = finishRestore(connection, pending, dataDir, now);
-    log.info(`Restore of ${pending.name} done.`);
-  } else {
-    ({ backupFile } = migrateWithBackup(connection, {
-      backupDir: localBackupDir,
-      now,
-      migrationsFolder,
-    }));
+    let connection: DatabaseConnection | null = null;
+    try {
+      connection = openDatabase(databaseFile);
+      runMigrations(connection.db, migrationsFolder);
+      restore = finishRestore(connection, pending, dataDir, now);
+      log.info(`Restore of ${pending.name} done.`);
+      return { connection, backupFile: null, restore };
+    } catch (error) {
+      // This version cannot open or migrate the backup: put the previous database back, so
+      // the system still starts (never a restart loop on a broken restore).
+      connection?.sqlite.close();
+      restore = rollBackRestore({
+        dataDir,
+        databaseFile,
+        localBackupDir,
+        marker: pending,
+        error,
+        now,
+        log,
+      });
+    }
   }
+
+  const connection = openDatabase(databaseFile);
+  const { backupFile } = migrateWithBackup(connection, {
+    backupDir: localBackupDir,
+    now,
+    migrationsFolder,
+  });
   return { connection, backupFile, restore };
 }

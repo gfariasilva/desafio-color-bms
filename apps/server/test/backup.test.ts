@@ -225,6 +225,32 @@ describe("FR-31: backup on day close", () => {
     ]);
   });
 
+  it("FR-31: a backup asked for while the backup item is being written keeps the newer day", async () => {
+    queue.enqueueBackup(TODAY);
+    const running = queue.processPending();
+    // The item is in flight now (the backup waits for the event loop before copying).
+    queue.enqueueBackup("2026-11-19");
+    await running;
+    await queue.idle();
+    expect(backupRows()).toEqual([
+      { reference: "2026-11-19", status: "done", attempts: 2, lastError: null, cause: null },
+    ]);
+  });
+
+  it("FR-08: the closing answers before the backup is written (VACUUM never delays it)", async () => {
+    await createSale(ctx);
+    const closing = await ctx.app.inject({
+      method: "POST",
+      url: `/api/days/${TODAY}/close`,
+      payload: { openingCashCents: 0, countedCashCents: 2500 },
+    });
+    expect(closing.statusCode, closing.body).toBe(200);
+    // Answered, and the backup has not started yet.
+    expect(fs.existsSync(backupFolder())).toBe(false);
+    await settled();
+    expect(fs.readdirSync(backupFolder())).toEqual([BACKUP_NAME]);
+  });
+
   it('FR-31: a backup file locked by OneDrive reads as "em uso", not as a permission problem', async () => {
     const spy = vi.spyOn(fs, "renameSync").mockImplementation((from, to) => {
       if (String(to).endsWith(".db")) {

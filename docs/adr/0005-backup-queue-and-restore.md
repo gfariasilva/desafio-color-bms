@@ -48,14 +48,15 @@ We choose **an in-process restart** and **backups as export queue items**.
    - `quick_check` is ok;
    - it has no migration newer than the app's.
 
-   Then the marker is written, the server answers `202`, and `main.ts` restarts.
+   Then the marker is written, the server answers `202`, and `main.ts` restarts. The restart is triggered when the answer is sent, or when the connection closes first (the browser went away): a staged restore is never left waiting.
 2. **Restart, before the database is opened** (`applyPendingRestore`):
-   - a safety copy of the current database goes to `data\backups\`. It never overwrites a file; the marker records it;
-   - leftover `color.db-wal`/`-shm` files are deleted, because an old WAL replayed onto the restored file would corrupt it;
-   - `incoming.db` is renamed over `color.db`, and the marker is updated.
+   - a safety copy of the current database goes to `data\backups\`. It never replaces a file: when this minute's name is taken, it takes the next free minute (`writeNewBackup`, also used before migrations). The marker records it;
+   - the old database's WAL is checkpointed into it (`wal_checkpoint(TRUNCATE)`), then its `-wal`/`-shm` files are deleted: an old WAL replayed onto the restored file would corrupt it, and an empty one loses nothing if the rename then fails;
+   - `incoming.db` is renamed over `color.db`, and the marker is updated. After the rename nothing fails the restore: a missing `incoming.db` with a marker means the rename was done.
 
-   If any of this fails, the staged files are dropped, the current database stays, and the result says so in pt-BR.
-3. **Once opened and migrated** (`finishRestore`): the audit row (`backup` / `restore`, with the reason) goes into the **restored** database, and the marker is removed. A crash at any step is finished at the next start.
+   If anything before the rename fails, the staged files are dropped, the current database stays, and the result says so in pt-BR.
+3. **Once opened and migrated** (`finishRestore`): the audit row (`backup` / `restore`, with the reason) goes into the **restored** database, and the marker is removed. A crash at any step is finished at the next start. If this version cannot open or migrate the backup (`rollBackRestore`), the safety copy is put back and the failure is reported: never a restart loop.
+- The result (`lastRestore`) is shown for an hour after the restart, so an old message never looks new.
 - The pre-migration backup (#25) is skipped right after a restore: the restored file itself is that copy. Skipping it also keeps the backup from replacing the safety copy written in the same minute.
 - Each start has a new `startId` (`GET /api/backup/status`). The page waits for a new one, then reloads its data and shows `lastRestore`.
 

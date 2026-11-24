@@ -56,6 +56,17 @@ export function writeBackup(sqlite: Database.Database, dir: string, now: Date): 
 }
 
 /**
+ * Like `writeBackup`, but never replaces a file: when `dir` already has a backup named for this
+ * minute, the copy takes the next free minute. Used for the local copies that must all be kept
+ * (before migrations, #25, and before a restore, FR-32).
+ */
+export function writeNewBackup(sqlite: Database.Database, dir: string, now: Date): string {
+  let at = now;
+  while (fs.existsSync(path.join(dir, backupFileName(at)))) at = new Date(at.getTime() + 60_000);
+  return writeBackup(sqlite, dir, at);
+}
+
+/**
  * FR-31: writes a backup into `<OneDrive>/_backup-sistema/` and applies the retention policy
  * (RN-13). Called by the export queue (FR-30), which owns every file written to OneDrive and
  * retries a failure. `root` must already be checked as an existing folder; only
