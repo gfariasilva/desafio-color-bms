@@ -2,7 +2,7 @@ import { readMigrationFiles } from "drizzle-orm/migrator";
 import type { Clock } from "../../clock";
 import type { DatabaseConnection } from "../../db/client";
 import { defaultMigrationsFolder, runMigrations } from "../../db/migrate";
-import { writeBackup } from "./backup.service";
+import { writeNewBackup } from "./backup.service";
 
 /**
  * How many migrations in `migrationsFolder` are not applied yet. Drizzle applies, in order,
@@ -44,7 +44,7 @@ export function migrateWithBackup(
   let backupFile: string | null = null;
   if (pendingMigrationCount(connection, migrationsFolder) > 0) {
     try {
-      backupFile = writeBackup(connection.sqlite, backupDir, now());
+      backupFile = writeNewBackup(connection.sqlite, backupDir, now());
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       throw new Error(

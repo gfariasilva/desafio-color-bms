@@ -222,9 +222,11 @@ describe("FR-30: the export queue and its retries", () => {
 
     const status = await getStatus();
     expect(status.hasFailures).toBe(true);
-    // The daily item first, then the month's (FR-29), which fails for the same reason.
-    expect(status.items).toHaveLength(2);
+    // The daily item first, then the month's (FR-29) and the backup (FR-31, #22), which fail
+    // for the same reason.
+    expect(status.items).toHaveLength(3);
     expect(status.items[1]).toMatchObject({ kind: "monthly_spreadsheet", status: "failed" });
+    expect(status.items[2]).toMatchObject({ kind: "db_backup", status: "failed" });
     expect(status.items.slice(0, 1)).toEqual([
       {
         id: expect.any(Number),

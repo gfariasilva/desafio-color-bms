@@ -1,15 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { History } from "lucide-react";
-import { HubLinkCard, UpcomingCard } from "@/components/layout/HubCards";
+import { DatabaseBackup, History } from "lucide-react";
+import { HubLinkCard } from "@/components/layout/HubCards";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { SettingsForm } from "@/components/settings/SettingsForm";
 import { NAV_ITEMS } from "@/config/navigation";
 import { api, QUERY_KEYS } from "@/lib/api";
 
 const settingsArea = NAV_ITEMS.find((item) => item.path === "/configuracoes");
-
-/** Sections that later backlog items will build (shown so the owner knows what is coming). */
-const UPCOMING = [{ label: "Backup e restauração", requirements: "FR-31, FR-32" }];
 
 /** Configurações: the settings form (FR-33), then the other settings sections. */
 export function SettingsPage() {
@@ -37,9 +34,12 @@ export function SettingsPage() {
           description="Histórico de criações, edições, exclusões e fechamentos."
           icon={History}
         />
-        {UPCOMING.map((section) => (
-          <UpcomingCard key={section.label} {...section} />
-        ))}
+        <HubLinkCard
+          to="/configuracoes/backup"
+          label="Backup e restauração"
+          description="Backups do banco no OneDrive e neste PC; restaurar um backup."
+          icon={DatabaseBackup}
+        />
       </div>
     </>
   );

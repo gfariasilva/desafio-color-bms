@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "@/components/layout/AppShell";
 import { NAV_ITEMS } from "@/config/navigation";
 import { AuditPage } from "@/pages/AuditPage";
+import { BackupRestorePage } from "@/pages/BackupRestorePage";
 import { CatalogPage } from "@/pages/CatalogPage";
 import { CardFeesPage } from "@/pages/CardFeesPage";
 import { ExpensesPage } from "@/pages/ExpensesPage";
@@ -65,6 +66,7 @@ export function AppRoutes() {
         <Route path="cadastros/taxas" element={<CardFeesPage />} />
         <Route path="configuracoes" element={<SettingsPage />} />
         <Route path="configuracoes/auditoria" element={<AuditPage />} />
+        <Route path="configuracoes/backup" element={<BackupRestorePage />} />
         {NAV_ITEMS.filter((item) => !BUILT_AREAS.has(item.path)).map((item) => (
           <Route key={item.path} path={item.path} element={<PlaceholderPage item={item} />} />
         ))}

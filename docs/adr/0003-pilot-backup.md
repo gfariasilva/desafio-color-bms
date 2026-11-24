@@ -44,4 +44,4 @@ We choose **Option A**.
 
 ### Follow-ups
 - [x] #20: migrate `config.json`'s `oneDriveFolder` into `settings` (imported once on start; `COLOR_BMS_ONEDRIVE_DIR` still overrides, for dev and E2E).
-- [ ] #22: RN-13 retention, the FR-30 queue, a backup on month close, restore UI.
+- [x] #22: RN-13 retention, the FR-30 queue, a backup on month close, restore UI ([ADR 0005](0005-backup-queue-and-restore.md)).

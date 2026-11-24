@@ -42,7 +42,8 @@ beforeEach(() => {
     configured: true,
     folder: "C:\\OneDrive\\Color\\_backup-sistema",
     lastSuccess: null,
-    lastFailure: null,
+    lastRestore: null,
+    startId: "s1",
   };
   vi.stubGlobal(
     "fetch",
@@ -87,27 +88,49 @@ describe("FR-27 (pilot slice): Início warns about days left open", () => {
   });
 });
 
-describe("#25: Início shows the state of the backup", () => {
-  it('#25: a failed backup shows "Backup pendente" with the reason', async () => {
-    backupStatus = {
-      configured: true,
-      folder: "C:\\OneDrive\\Color\\_backup-sistema",
-      lastSuccess: null,
-      lastFailure: {
-        at: "2026-11-18T22:03:00.000Z",
-        trigger: "day-close",
-        message: "A pasta do OneDrive não existe: C:\\OneDrive\\Color",
-      },
+describe("#25 / #22: Início shows the state of the backup", () => {
+  it("FR-31: a failed backup is in the same Backup pendente notice as the spreadsheets (FR-30)", async () => {
+    exportStatus = {
+      enabled: true,
+      hasFailures: true,
+      items: [
+        {
+          ...failedItem,
+          kind: "db_backup",
+          reference: "2026-11-18",
+          fileName: "Backup do banco 2026-11-18",
+          lastError:
+            "A pasta do OneDrive não existe: C:\\OneDrive\\Color. Verifique a pasta em Configurações",
+          lastErrorCause: "folder",
+        },
+      ],
     };
     renderAt("/");
-    const alerts = await screen.findByRole("region", { name: "Alertas" });
-    // "Backup pendente:" is in bold, so the sentence spans two elements.
-    const notice = await within(alerts).findByText(
-      (_, element) =>
-        element?.tagName === "SPAN" && /^Backup pendente:/.test(element.textContent ?? ""),
+    const notice = await screen.findByRole("group", { name: "Backup pendente" });
+    expect(notice).toHaveTextContent(
+      "Backup pendente: o backup do banco não foi gravado no OneDrive. Nova tentativa a cada 5 minutos.",
     );
     expect(notice).toHaveTextContent(
-      "Backup pendente: A pasta do OneDrive não existe: C:\\OneDrive\\Color. Tentativa em 18/11/2026 19:03. Nova tentativa no próximo fechamento do dia ou ao reiniciar o sistema.",
+      "Backup do banco 2026-11-18: A pasta do OneDrive não existe: C:\\OneDrive\\Color. Verifique a pasta em Configurações.",
+    );
+    expect(within(notice).getByRole("link", { name: "Verificar a pasta" })).toBeInTheDocument();
+    // #22: no second, separate backup notice.
+    expect(screen.getAllByText(/Backup pendente:/)).toHaveLength(1);
+  });
+
+  it("FR-31: a failed backup and spreadsheets are summed up together", async () => {
+    exportStatus = {
+      enabled: true,
+      hasFailures: true,
+      items: [
+        failedItem,
+        { ...failedItem, id: 2, kind: "db_backup", fileName: "Backup do banco 2026-11-18" },
+      ],
+    };
+    renderAt("/");
+    const notice = await screen.findByRole("group", { name: "Backup pendente" });
+    expect(notice).toHaveTextContent(
+      "Backup pendente: 1 planilha e o backup do banco não foram gravados no OneDrive.",
     );
   });
 
@@ -129,7 +152,13 @@ describe("#25: Início shows the state of the backup", () => {
   });
 
   it("#25/#20: no OneDrive folder configured, with a link to Configurações", async () => {
-    backupStatus = { configured: false, folder: null, lastSuccess: null, lastFailure: null };
+    backupStatus = {
+      configured: false,
+      folder: null,
+      lastSuccess: null,
+      lastRestore: null,
+      startId: "s1",
+    };
     renderAt("/");
     const alerts = await screen.findByRole("region", { name: "Alertas" });
     expect(
@@ -145,7 +174,13 @@ describe("#25: Início shows the state of the backup", () => {
   });
 
   it("#26/#20: in trial mode, no 'não configurada' prompt and no Configurar link", async () => {
-    backupStatus = { configured: false, folder: null, lastSuccess: null, lastFailure: null };
+    backupStatus = {
+      configured: false,
+      folder: null,
+      lastSuccess: null,
+      lastRestore: null,
+      startId: "s1",
+    };
     healthBody = { ...healthBody, trial: true };
     renderAt("/");
     const alerts = await screen.findByRole("region", { name: "Alertas" });
@@ -161,7 +196,8 @@ describe("#25: Início shows the state of the backup", () => {
       configured: true,
       folder: "C:\\OneDrive\\Color\\_backup-sistema",
       lastSuccess: { at: "2026-11-18T22:03:00.000Z", file: "color-2026-11-18_1903.db" },
-      lastFailure: null,
+      lastRestore: null,
+      startId: "s1",
     };
     renderAt("/");
     expect(await screen.findByText("Último backup")).toBeInTheDocument();

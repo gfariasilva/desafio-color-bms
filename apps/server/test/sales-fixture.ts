@@ -17,7 +17,6 @@ import {
 import { buildApp } from "../src/app";
 import { openDatabase, type DatabaseConnection } from "../src/db/client";
 import { runMigrations } from "../src/db/migrate";
-import type { BackupService } from "../src/modules/backup/backup.service";
 import type { ExportQueueService } from "../src/modules/export/export-queue.service";
 
 /** 18/11/2026 at 15:00 in São Paulo (UTC−3). */
@@ -57,7 +56,6 @@ export interface SalesContext {
  */
 export function useSalesApp(
   options: {
-    backup?: (connection: DatabaseConnection) => BackupService;
     /** FR-30 (#21): the export queue; the app's default (disabled) when left out. */
     exports?: (connection: DatabaseConnection) => ExportQueueService;
   } = {},
@@ -76,7 +74,6 @@ export function useSalesApp(
     context.app = await buildApp({
       connection: context.connection,
       now: () => NOW,
-      backup: options.backup?.(context.connection),
       exports: options.exports?.(context.connection),
       onDayClosed: (date) => {
         context.dayClosedCalls.push(date);

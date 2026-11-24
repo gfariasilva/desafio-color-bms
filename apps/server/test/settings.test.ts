@@ -14,7 +14,7 @@ import {
 import { buildApp } from "../src/app";
 import { openDatabase, type DatabaseConnection } from "../src/db/client";
 import { runMigrations } from "../src/db/migrate";
-import { createBackupService } from "../src/modules/backup/backup.service";
+import { createExportQueue } from "../src/modules/export/export-queue.service";
 import {
   createSettingsStore,
   type SettingsStore,
@@ -37,17 +37,19 @@ interface AppOptions {
 
 async function startApp({ envOneDriveFolder = null, trial = false }: AppOptions = {}) {
   store = createSettingsStore(connection, { envOneDriveFolder, trial });
-  const backup = createBackupService({
-    sqlite: connection.sqlite,
+  const exports = createExportQueue({
+    connection,
     folder: () => store.backupFolder(),
+    enabled: true,
     now: () => NOW,
     log: silentLog,
+    schedule: () => () => {},
   });
   app = await buildApp({
     connection,
     now: () => NOW,
     settings: store,
-    backup,
+    exports,
     system: {
       dataDir: tempDir,
       oneDriveFolder: () => store.backupFolder(),
@@ -252,7 +254,7 @@ describe("FR-33: PUT /api/settings", () => {
       expect(fs.existsSync(path.join(backupDir, "color-2026-11-18_1500.db"))).toBe(true),
     );
     const status = (await app.inject({ method: "GET", url: "/api/backup/status" })).json();
-    expect(status).toMatchObject({ configured: true, folder: backupDir, lastFailure: null });
+    expect(status).toMatchObject({ configured: true, folder: backupDir, lastRestore: null });
   });
 });
 

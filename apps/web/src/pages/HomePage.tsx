@@ -1,17 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import {
-  AlertTriangle,
-  CheckCircle2,
-  DatabaseBackup,
-  FileSpreadsheet,
-  XCircle,
-} from "lucide-react";
+import { AlertTriangle, CheckCircle2, FileSpreadsheet, XCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 import {
   EXPORT_RETRY_MINUTES,
   formatCivilDate,
   formatInstant,
+  type ExportQueueItem,
   type StartupCheck,
 } from "@color-bms/core";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -24,8 +19,9 @@ import { api, QUERY_KEYS } from "@/lib/api";
 const home = NAV_ITEMS[0];
 
 /**
- * #25: the pilot backup's notices. A failure shows "Backup pendente" (the FR-27 alert name)
- * with the reason; a missing OneDrive folder is a warning. #23 folds them into the alert list.
+ * #25: the backup's configuration notices: a missing OneDrive folder is a warning (trial mode
+ * says it never backs up). A failed backup is an item of the export queue since #22 (FR-31),
+ * shown by ExportNotices. #23 folds them into the alert list.
  */
 function BackupNotices() {
   const status = useQuery({ queryKey: QUERY_KEYS.backupStatus, queryFn: api.backupStatus });
@@ -34,41 +30,37 @@ function BackupNotices() {
   if (status.isError) {
     return <p className="mb-2 text-destructive">Não foi possível verificar o backup.</p>;
   }
-  if (!status.data) return null;
-  const { configured, lastFailure } = status.data;
-  if (!configured && health.data?.trial) {
+  if (!status.data || status.data.configured) return null;
+  if (health.data?.trial) {
     return <p className="mb-2 text-muted-foreground">Modo treino: sem backup no OneDrive.</p>;
   }
-  if (!configured) {
-    return (
-      <p className="mb-2 flex items-center gap-2">
-        <AlertTriangle className="h-4 w-4 shrink-0 text-rainbow-orange" aria-hidden />
-        <span>Pasta do OneDrive não configurada: os backups não estão sendo gravados.</span>
-        {/* FR-27: each alert links to where it is fixed (FR-33, Configurações). */}
-        <Link
-          to="/configuracoes"
-          className="rounded-md px-2 py-1 font-medium text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          Configurar
-        </Link>
-      </p>
-    );
-  }
-  if (!lastFailure) return null;
   return (
-    <p className="mb-2 flex items-start gap-2 text-destructive">
-      <DatabaseBackup className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-      <span>
-        <strong>Backup pendente:</strong> {lastFailure.message}. Tentativa em{" "}
-        {formatInstant(lastFailure.at)}. Nova tentativa no próximo fechamento do dia ou ao reiniciar
-        o sistema.
-      </span>
+    <p className="mb-2 flex items-center gap-2">
+      <AlertTriangle className="h-4 w-4 shrink-0 text-rainbow-orange" aria-hidden />
+      <span>Pasta do OneDrive não configurada: os backups não estão sendo gravados.</span>
+      {/* FR-27: each alert links to where it is fixed (FR-33, Configurações). */}
+      <Link
+        to="/configuracoes"
+        className="rounded-md px-2 py-1 font-medium text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        Configurar
+      </Link>
     </p>
   );
 }
 
+/** FR-30 / FR-31: "1 planilha não foi gravada", "o backup do banco não foi gravado", or both. */
+function pendingSummary(failed: readonly ExportQueueItem[]): string {
+  const sheets = failed.filter((item) => item.kind !== "db_backup").length;
+  const backup = failed.some((item) => item.kind === "db_backup");
+  const sheetsText = sheets === 1 ? "1 planilha" : `${sheets} planilhas`;
+  if (sheets === 0) return "o backup do banco não foi gravado";
+  if (backup) return `${sheetsText} e o backup do banco não foram gravados`;
+  return sheets === 1 ? "1 planilha não foi gravada" : `${sheetsText} não foram gravadas`;
+}
+
 /**
- * FR-30 (#21): the spreadsheets that could not be written to the OneDrive folder ("Backup
+ * FR-30 (#21) / FR-31 (#22): the spreadsheets and database backups that could not be written to the OneDrive folder ("Backup
  * pendente", the FR-27 alert name): each file with its reason and last try, the automatic
  * retry, a "Tentar agora" button, and a link to Configurações when the folder is the problem
  * (spec §7.4). #23 folds it into the alert list.
@@ -105,11 +97,8 @@ function ExportNotices() {
       <p className="flex items-start gap-2">
         <FileSpreadsheet className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
         <span>
-          <strong>Backup pendente:</strong>{" "}
-          {failed.length === 1
-            ? "1 planilha não foi gravada"
-            : `${failed.length} planilhas não foram gravadas`}{" "}
-          no OneDrive. Nova tentativa a cada {EXPORT_RETRY_MINUTES} minutos.
+          <strong>Backup pendente:</strong> {pendingSummary(failed)} no OneDrive. Nova tentativa a
+          cada {EXPORT_RETRY_MINUTES} minutos.
         </span>
       </p>
       <ul className="ml-6 list-disc">

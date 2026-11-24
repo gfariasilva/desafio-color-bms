@@ -1,6 +1,6 @@
 {
   "name": "@color-bms/server",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "type": "module",
   "description": "Local Fastify server: REST API, SQLite database, exports and backups",
