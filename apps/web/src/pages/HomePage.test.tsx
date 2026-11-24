@@ -114,10 +114,9 @@ describe("FR-27: Início alerts", () => {
     expect(row).toHaveTextContent(
       "Conta vencida: Luz (10/2026), venceu há 29 dias (20/10/2026) · previsto R$ 200,00",
     );
-    expect(within(row).getByRole("link", { name: "Pagar Luz (10/2026)" })).toHaveAttribute(
-      "href",
-      "/despesas-fixas/mes?mes=2026-10&pagar=7",
-    );
+    expect(
+      within(row).getByRole("link", { name: "Pagar Luz (10/2026) (vencimento 20/10/2026)" }),
+    ).toHaveAttribute("href", "/despesas-fixas/mes?mes=2026-10&pagar=7");
   });
 
   it("FR-27: Conta a vencer, without an expected amount", async () => {
@@ -127,10 +126,9 @@ describe("FR-27: Início alerts", () => {
     // The current month is not repeated.
     expect(row).toHaveTextContent("Conta a vencer: Luz, vence em 2 dias (20/11/2026)");
     expect(row).not.toHaveTextContent("previsto");
-    expect(within(row).getByRole("link", { name: "Pagar Luz" })).toHaveAttribute(
-      "href",
-      "/despesas-fixas/mes?mes=2026-11&pagar=7",
-    );
+    expect(
+      within(row).getByRole("link", { name: "Pagar Luz (vencimento 20/11/2026)" }),
+    ).toHaveAttribute("href", "/despesas-fixas/mes?mes=2026-11&pagar=7");
   });
 
   it("FR-27: Diferença de caixa in the last closing, with a link to it", async () => {
@@ -207,6 +205,45 @@ describe("FR-27: Início alerts", () => {
     // An OK check is not an alert.
     expect(screen.queryByText(/Fuso horário/)).toBeNull();
     expect(screen.queryByText("Tudo em dia")).toBeNull();
+  });
+
+  it("#26: a startup warning (time zone) is a softer alert; the folder warning is not repeated", async () => {
+    healthBody.checks = [
+      {
+        id: "timeZone",
+        status: "warning",
+        message:
+          "O fuso horário do PC (America/Manaus, UTC−04:00) não é o de São Paulo (UTC−03:00).",
+      },
+      { id: "oneDriveFolder", status: "warning", message: "Pasta do OneDrive não configurada." },
+    ];
+    renderAt("/");
+    const row = (await screen.findByText(/Atenção no PC:/)).closest("li")!;
+    expect(row).toHaveTextContent(
+      "Atenção no PC: O fuso horário do PC (America/Manaus, UTC−04:00) não é o de São Paulo (UTC−03:00).",
+    );
+    expect(within(row).getByRole("link", { name: "Ver detalhes" })).toHaveAttribute(
+      "href",
+      "/configuracoes",
+    );
+    // The folder is configured (backup status): its warning is not an extra row.
+    expect(screen.queryByText("Pasta do OneDrive não configurada.")).toBeNull();
+    expect(screen.queryByText("Tudo em dia")).toBeNull();
+  });
+
+  it("FR-27: two bills with the same name have distinct Pagar links (due date)", async () => {
+    alerts = {
+      ...NO_ALERTS,
+      overdueBills: [{ ...LUZ, id: 8, label: "IPTU", dueDate: "2026-11-10" }],
+      dueSoonBills: [{ ...LUZ, id: 9, label: "IPTU", dueDate: "2026-11-20" }],
+    };
+    renderAt("/");
+    expect(
+      await screen.findByRole("link", { name: "Pagar IPTU (vencimento 10/11/2026)" }),
+    ).toHaveAttribute("href", "/despesas-fixas/mes?mes=2026-11&pagar=8");
+    expect(
+      screen.getByRole("link", { name: "Pagar IPTU (vencimento 20/11/2026)" }),
+    ).toHaveAttribute("href", "/despesas-fixas/mes?mes=2026-11&pagar=9");
   });
 
   it("FR-27: a failed alerts request is shown, never Tudo em dia", async () => {
@@ -355,6 +392,35 @@ describe("#25 / #22: Início shows the state of the backup", () => {
     expect(within(alerts).queryByRole("link", { name: "Configurar" })).not.toBeInTheDocument();
     // #26: trial mode is a note, not an alert.
     expect(within(alerts).getByText("Tudo em dia")).toBeInTheDocument();
+  });
+
+  it("#26/#20: while /api/health has not answered, no 'não configurada' alert (no flash in trial mode)", async () => {
+    backupStatus = {
+      configured: false,
+      folder: null,
+      lastSuccess: null,
+      lastRestore: null,
+      startId: "s1",
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        // The health probes are still running.
+        if (url.startsWith("/api/health")) return new Promise<Response>(() => {});
+        if (url.startsWith("/api/alerts")) return json(NO_ALERTS);
+        if (url.startsWith("/api/exports/status")) return json(exportStatus);
+        if (url.startsWith("/api/backup/status")) return json(backupStatus);
+        return json({ error: "not found" }, 404);
+      }),
+    );
+    renderAt("/");
+    const alerts = await screen.findByRole("region", { name: "Alertas" });
+    // The alerts and the backup status have answered; health has not.
+    await within(alerts).findByRole("list", { hidden: true });
+    await vi.waitFor(() => expect(within(alerts).queryByText("Verificando…")).toBeNull());
+    expect(within(alerts).queryByText(/não configurada/)).toBeNull();
+    expect(within(alerts).queryByText("Tudo em dia")).toBeNull();
   });
 });
 

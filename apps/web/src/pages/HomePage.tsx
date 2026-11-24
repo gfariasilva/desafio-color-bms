@@ -181,7 +181,7 @@ function BillAlertRow({
       action={
         <Link
           to={`/despesas-fixas/mes?mes=${bill.referenceMonth}&pagar=${bill.id}`}
-          aria-label={`Pagar ${name}`}
+          aria-label={`Pagar ${name} (vencimento ${formatCivilDate(bill.dueDate)})`}
           className={LINK_CLASS}
         >
           Pagar
@@ -244,9 +244,20 @@ function AlertsCard() {
 
   const failedCount = failedExports(exportStatus.data).length;
   const trial = health.data?.trial ?? false;
-  // #25/#20: in real use, no OneDrive folder means no backup at all.
-  const folderMissing = backup.data !== undefined && !backup.data.configured && !trial;
-  const startupErrors = health.data?.checks.filter((check) => check.status === "error") ?? [];
+  // #25/#20: in real use, no OneDrive folder means no backup at all. Decided only once both
+  // answered, so trial mode never flashes this alert while /api/health is still running.
+  const folderMissing =
+    backup.data !== undefined &&
+    health.data !== undefined &&
+    !backup.data.configured &&
+    !health.data.trial;
+  // #26: startup checks in error, and warnings (e.g. the PC time zone) except the missing
+  // OneDrive folder, which has its own alert above.
+  const startupProblems =
+    health.data?.checks.filter(
+      (check) =>
+        check.status === "error" || (check.status === "warning" && check.id !== "oneDriveFolder"),
+    ) ?? [];
   const data = alerts.data;
 
   // "Tudo em dia" only when every source answered: an unknown state is never "all clear".
@@ -259,7 +270,7 @@ function AlertsCard() {
       alerts: data,
       failedExports: failedCount,
       oneDriveNotConfigured: folderMissing,
-      startupErrors: startupErrors.length,
+      startupProblems: startupProblems.length,
     }) === 0;
 
   return (
@@ -285,18 +296,21 @@ function AlertsCard() {
           ) : null}
 
           <ul className="divide-y empty:hidden">
-            {startupErrors.map((check) => (
+            {startupProblems.map((check) => (
               <AlertRow
                 key={check.id}
-                icon={XCircle}
-                iconClassName="text-destructive"
+                icon={check.status === "error" ? XCircle : AlertTriangle}
+                iconClassName={
+                  check.status === "error" ? "text-destructive" : "text-rainbow-orange"
+                }
                 action={
                   <Link to="/configuracoes" className={LINK_CLASS}>
                     Ver detalhes
                   </Link>
                 }
               >
-                <strong>Problema no PC:</strong> {check.message}
+                <strong>{check.status === "error" ? "Problema no PC:" : "Atenção no PC:"}</strong>{" "}
+                {check.message}
               </AlertRow>
             ))}
             {folderMissing ? (

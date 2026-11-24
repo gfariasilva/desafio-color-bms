@@ -114,7 +114,3 @@ export const dayCashClosingResponseSchema = z.object({
   closing: cashClosingSchema.nullable(),
 });
 export type DayCashClosingResponse = z.infer<typeof dayCashClosingResponseSchema>;
-
-/** Response of GET /api/days/unclosed (FR-27 "Dia não fechado"), oldest first. */
-export const unclosedDaysResponseSchema = z.object({ days: z.array(z.string()) });
-export type UnclosedDaysResponse = z.infer<typeof unclosedDaysResponseSchema>;

@@ -92,8 +92,11 @@ export interface HomeAlertSources {
   failedExports: number;
   /** #25/#20: no OneDrive folder in real use, so nothing is backed up. */
   oneDriveNotConfigured: boolean;
-  /** #26: startup checks in error (e.g. the PC clock is wrong). */
-  startupErrors: number;
+  /**
+   * #26: startup checks shown on Início: errors (e.g. the PC clock is wrong) and warnings
+   * (e.g. the PC time zone is not São Paulo's).
+   */
+  startupProblems: number;
 }
 
 /** FR-27: how many alerts are active (each failed export counts); 0 means "Tudo em dia". */
@@ -106,6 +109,6 @@ export function homeAlertCount(sources: HomeAlertSources): number {
     (alerts.cashDifference ? 1 : 0) +
     sources.failedExports +
     (sources.oneDriveNotConfigured ? 1 : 0) +
-    sources.startupErrors
+    sources.startupProblems
   );
 }

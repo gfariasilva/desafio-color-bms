@@ -4,12 +4,11 @@ import {
   dayParamsSchema,
   reopenDayInputSchema,
   type CivilDate,
-  type UnclosedDaysResponse,
 } from "@color-bms/core";
 import type { Clock } from "../../clock";
 import type { DatabaseConnection } from "../../db/client";
 import { parseOr400, sendError } from "../../http/route-helpers";
-import { closeDay, getCashClosing, listUnclosedDays, reopenDay } from "./cash-closing.repository";
+import { closeDay, getCashClosing, reopenDay } from "./cash-closing.repository";
 
 /**
  * Runs after a day is closed and committed (FR-08): the place where the daily and monthly
@@ -35,18 +34,13 @@ export function runAfterDayClosed(
     });
 }
 
-/** FR-08: the closing screen, closing a day; FR-09: reopening it; FR-27: the days left open. */
+/** FR-08: the closing screen, closing a day; FR-09: reopening it. */
 export function registerCashClosingRoutes(
   app: FastifyInstance,
   { db }: DatabaseConnection,
   clock: Clock,
   onDayClosed: OnDayClosed,
 ): void {
-  // FR-27 (pilot slice): earlier days with movement still open.
-  app.get("/api/days/unclosed", async (): Promise<UnclosedDaysResponse> => {
-    return { days: listUnclosedDays(db, clock()) };
-  });
-
   app.get("/api/days/:date/cash-closing", async (request, reply) => {
     const params = parseOr400(dayParamsSchema, request.params, reply);
     if (!params) return reply;

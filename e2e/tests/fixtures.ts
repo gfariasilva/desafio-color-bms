@@ -73,6 +73,9 @@ export async function startServer(port: number): Promise<StartedServer> {
       COLOR_BMS_DATA_DIR: dataDir,
       COLOR_BMS_NOW: TEST_NOW,
       COLOR_BMS_ONEDRIVE_DIR: oneDriveDir,
+      // The shop PC runs in São Paulo: without it, a UTC machine gets the #26 time-zone
+      // warning, which Início shows as an alert (#23).
+      TZ: "America/Sao_Paulo",
     },
     stdio: ["ignore", "pipe", "pipe"],
   });

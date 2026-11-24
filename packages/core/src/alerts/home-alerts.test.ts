@@ -105,7 +105,7 @@ describe("FR-27: Tudo em dia", () => {
         alerts: NOTHING,
         failedExports: 0,
         oneDriveNotConfigured: false,
-        startupErrors: 0,
+        startupProblems: 0,
       }),
     ).toBe(0);
   });
@@ -122,7 +122,7 @@ describe("FR-27: Tudo em dia", () => {
         },
         failedExports: 2,
         oneDriveNotConfigured: true,
-        startupErrors: 1,
+        startupProblems: 1,
       }),
     ).toBe(9);
   });
@@ -133,7 +133,7 @@ describe("FR-27: Tudo em dia", () => {
         alerts: NOTHING,
         failedExports: 1,
         oneDriveNotConfigured: false,
-        startupErrors: 0,
+        startupProblems: 0,
       }),
     ).toBe(1);
   });
