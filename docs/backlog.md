@@ -1559,12 +1559,12 @@ A tela inicial mostra os alertas abaixo, cada um com link para resolver:
 - Decisions in [ADR 0006](adr/0006-windows-installer.md); developer guide and deployment checklist in [`docs/install/installer.md`](install/installer.md).
 - **Installer** (`installer/color-bms.iss`, Inno Setup 6, UTF-8 with BOM):
   - per user, no admin rights, fixed folder `%LOCALAPPDATA%\ColorBMS`, pt-BR wizard, fixed `AppId`;
-  - it unpacks the pilot package folder to `{tmp}` and runs its `cli.js instalador` hidden, with `--raiz={app}` and `--registro={app}\instalador.log`. On failure: a message box that opens the log, and exit code 9;
+  - it unpacks the pilot package folder to `{tmp}` and runs its `cli.js instalador` hidden, with `--raiz={app}` and `--registro={app}\instalador.log`. On failure: a message box that opens the log, a failure text on the last page, and exit code 9. An older installer refuses to replace a newer version unless `/PERMITIRVERSAOANTERIOR=1`. Uninstall (Pascal `CurUninstallStepChanged`) runs `cli.js desinstalar`, deletes the task with `schtasks` too, and warns when the system could not be stopped. The installer's pt-BR texts are in `[CustomMessages]`;
   - Start Menu entries for the support scripts (Iniciar, Parar, Começar o uso real), Leia-me and Desinstalar.
 - **Server** (`src/pilot/`, no migration, no audit rows):
   - `cli-args.ts`: `parseCliArgs()`, `logToFile()`, the new commands `instalador` and `desinstalar`;
   - `commands.ts`:
-    - `installOrUpdate()`: `install()` without `app\`, `update()` with it, which covers the upgrade from the pilot;
+    - `installOrUpdate()`: `install()` without `app\`, `update()` with it, which covers the upgrade from the pilot; refuses a downgrade (`compareVersions()` in `layout.ts`) without `--permitir-versao-anterior`;
     - `uninstall()`: stops the system, deletes the task (`WindowsOps.deleteTask`) and the shortcut (`removeShortcuts`), even when the stop fails. It keeps all the data;
     - `install()` now keeps the mode of an existing `instalacao.json` or `data\` (a reinstall after an uninstall never hides real data);
   - `installer.ts`: `installerFileName()`, `isccArgs()`, `findIscc()`. Server version 0.6.0.

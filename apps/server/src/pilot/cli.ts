@@ -24,7 +24,7 @@ import { windowsOps } from "./windows";
  *
  *   cli.js instalar | atualizar | iniciar | parar | iniciar-uso-real | instalador | desinstalar
  *          [/silencioso] [--raiz=<pasta>] [--registro=<arquivo>]
- *          [--confirmar] [--pasta-onedrive=<pasta>|--sem-onedrive]
+ *          [--confirmar] [--pasta-onedrive=<pasta>|--sem-onedrive] [--permitir-versao-anterior]
  */
 async function main(argv: string[]): Promise<number> {
   const args = parseCliArgs(argv);
@@ -78,7 +78,7 @@ async function main(argv: string[]): Promise<number> {
           oneDriveFolder: args.oneDriveFolder,
         });
       case "instalador":
-        return await installOrUpdate(ctx);
+        return await installOrUpdate(ctx, { allowDowngrade: args.allowDowngrade });
       case "desinstalar":
         return await uninstall(ctx);
     }

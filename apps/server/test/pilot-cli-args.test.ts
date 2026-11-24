@@ -29,6 +29,10 @@ describe("#24: cli.js arguments", () => {
       logFile: "C:\\Users\\dono\\AppData\\Local\\ColorBMS\\instalador.log",
       confirmed: false,
       oneDriveFolder: undefined,
+      allowDowngrade: false,
+    });
+    expect(parseCliArgs(["instalador", "--permitir-versao-anterior"])).toMatchObject({
+      allowDowngrade: true,
     });
     expect(parseCliArgs(["desinstalar", "/SILENCIOSO"])).toMatchObject({
       command: "desinstalar",

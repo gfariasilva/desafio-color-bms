@@ -123,10 +123,14 @@ foreach ($name in @('Sistema Color.lnk', 'Sistema Color.url')) {
     return output === "" ? [] : output.split(/\r?\n/).map((line) => line.trim());
   },
 
+  /**
+   * The browser starts in %SystemRoot%, not in the CLI's folder: Setup.exe runs the CLI from its
+   * temp folder, which a long-running Edge would otherwise keep in use (#24).
+   */
   openBrowser(url) {
     powershell(
       `${FIND_EDGE}
-if ($edge) { Start-Process -FilePath $edge -ArgumentList "--app=$env:COLOR_BMS_URL" } else { Start-Process $env:COLOR_BMS_URL }`,
+if ($edge) { Start-Process -FilePath $edge -ArgumentList "--app=$env:COLOR_BMS_URL" -WorkingDirectory $env:SystemRoot } else { Start-Process $env:COLOR_BMS_URL -WorkingDirectory $env:SystemRoot }`,
       { COLOR_BMS_URL: url },
     );
   },

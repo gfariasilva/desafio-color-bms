@@ -7,6 +7,7 @@ import {
   APP_URL,
   SUPPORT_FILES,
   appVersion,
+  compareVersions,
   dataDirFor,
   readMode,
   writeMode,
@@ -218,8 +219,24 @@ export async function update(ctx: PilotContext): Promise<number> {
  * reinstall after an uninstall), or an update of an installed system, including a pilot
  * install (#26), which has the same folders, task name and shortcut.
  */
-export async function installOrUpdate(ctx: PilotContext): Promise<number> {
-  return fs.existsSync(ctx.layout.appDir) ? update(ctx) : install(ctx);
+export async function installOrUpdate(
+  ctx: PilotContext,
+  options: { allowDowngrade?: boolean } = {},
+): Promise<number> {
+  if (!fs.existsSync(ctx.layout.appDir)) return install(ctx);
+  // An older installer would run against a database already migrated by the newer version.
+  const installed = appVersion(ctx.layout.appDir);
+  const incoming = appVersion(path.join(ctx.packageDir, "app"));
+  const order = installed && incoming ? compareVersions(incoming, installed) : null;
+  if (order !== null && order < 0 && !options.allowDowngrade) {
+    ctx.print(
+      `ERRO: a versão instalada (${installed}) é mais nova que este instalador (${incoming}).`,
+    );
+    ctx.print("Nada foi alterado. Use o instalador da versão mais nova.");
+    ctx.print("Para voltar a uma versão anterior de propósito, veja docs/install/installer.md.");
+    return 1;
+  }
+  return update(ctx);
 }
 
 /**

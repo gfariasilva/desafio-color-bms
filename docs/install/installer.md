@@ -49,6 +49,8 @@ If something fails, a message points to `%LOCALAPPDATA%\ColorBMS\instalador.log`
 | Leia-me | `LEIA-ME.txt` |
 | Desinstalar o Sistema Color | the uninstaller (also in Windows › Configurações › Aplicativos) |
 
+An **older** installer refuses to replace a newer version ("a versão instalada … é mais nova que este instalador"), because the newer version may have migrated the database. To go back on purpose, run it from a command prompt with `ColorBMS-Setup-<versão>.exe /PERMITIRVERSAOANTERIOR=1`, and restore the pre-migration copy from `data\backups\` if there were migrations.
+
 **To go back to the previous version:** Parar, delete `app\`, rename `app.anterior\` to `app\`, Iniciar. If the new version had migrated the database, also restore the pre-migration copy from `data\backups\` ([`restaurar-backup.md`](../pilot/restaurar-backup.md)).
 
 ## 3. Upgrade from the pilot install

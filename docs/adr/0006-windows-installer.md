@@ -66,11 +66,13 @@ Options rejected early:
   - **no `app\`** → `install()`: trial mode, but the mode in `instalacao.json` (or an existing `data\`) is kept, so a reinstall never hides real data;
   - **`app\` exists** (the pilot, or an older installer) → `update()`: copy to `app.novo`, stop, swap, keep `app.anterior`, re-register the task, start, and wait for the new version on `/api/health`. The server backs up before migrating (#25, ADR 0003).
 
-  If the CLI fails, a message box points to the log, and Setup.exe exits with code **9** (`GetCustomSetupExitCode`), so CI sees it.
+  An **older** installer never replaces a newer installed version (the database may already be migrated): it stops with a message, unless `Setup.exe /PERMITIRVERSAOANTERIOR=1` (`--permitir-versao-anterior`) asks for it.
+
+  If the CLI fails, a message box points to the log, the last page says the installation did not finish, and Setup.exe exits with code **9** (`GetCustomSetupExitCode`), so CI sees it.
 - **Upgrade from the pilot:** nothing special. The folders, the task name ("Color BMS") and the shortcut are the same, and they are overwritten. The pilot's `instalar.cmd` and `atualizar.cmd` only ever lived on the USB stick.
 - **Start Menu (Sistema Color):** Iniciar, Parar, Começar o uso real (the support `.cmd` files, installed next to `app\`), Leia-me and Desinstalar.
 - **Uninstall:**
-  1. `cli.js desinstalar` stops the system, deletes the logon task and the desktop shortcut. It deletes the task even if the stop fails;
+  1. `CurUninstallStepChanged(usUninstall)` runs `cli.js desinstalar`: it stops the system, deletes the logon task and the desktop shortcut (the task even if the stop fails). The uninstaller then deletes the task again with `schtasks`, so that never depends on `node.exe`, and warns the owner when the system could not be stopped;
   2. Inno then deletes `app\`, `app.anterior\`, `app.novo\` and `instalador.log`;
   3. **`data\`, `data-treino\`, `arquivo\` and `instalacao.json` are always kept.**
 - **Release:** `.github/workflows/release.yml` on `windows-latest`, for a tag `vX.Y.Z`, which must equal `apps/server/package.json`:
@@ -80,6 +82,7 @@ Options rejected early:
 
   The `installer-windows` CI job builds and smoke-tests it on every PR.
 - **The zip stays** (`npm run package:pilot`): it is the installer's input, the only package the developer can build on Linux, and a fallback. The installer is the main path.
+- **pt-BR texts:** the installer's own texts (Start Menu names, the error boxes, the failure page) are all in the `.iss` `[CustomMessages]` section, an exception to "pt-BR messages in `src/pilot/`" (CLAUDE.md); the rest of the `.iss` is ASCII, which the contract test checks.
 - **Not signed.** Windows SmartScreen shows "O Windows protegeu o computador" the first time; the developer clicks "Mais informações › Executar assim mesmo" (the developer installs, NFR-13).
 - **Local backups:** **keep everything** in `data\backups\`. A copy is a few MB, made once per update (weekly at most) or restore, and these copies are what lets an update or a restore be undone. Revisit if the folder passes ~1 GB. RN-13 stays on the OneDrive folder only.
 

@@ -17,7 +17,7 @@ import {
   type PilotContext,
   type WindowsOps,
 } from "../src/pilot/commands";
-import { installLayout, readMode, SUPPORT_FILES } from "../src/pilot/layout";
+import { compareVersions, installLayout, readMode, SUPPORT_FILES } from "../src/pilot/layout";
 
 let tempDir: string;
 let calls: string[];
@@ -430,6 +430,42 @@ describe("#24: the Windows installer (Setup.exe runs cli.js instalador / desinst
       "openBrowser http://127.0.0.1:3210/",
     ]);
     expect(printed.join("\n")).toContain("Atualizado: versão 0.5.0 → 0.6.0.");
+  });
+
+  it("#24: an older installer never replaces a newer installed version (the database may be migrated)", async () => {
+    healthResult = { ok: true, version: "0.7.0" };
+    await install(context(makePackage("color-bms-0.7.0", "0.7.0"), { silent: true }));
+    const layout = installLayout(root(), "win32");
+    calls = [];
+    printed = [];
+
+    expect(await installOrUpdate(context(makePackage("pacote", "0.6.0")))).toBe(1);
+
+    expect(read(layout.appDir, "server", "dist", "main.js")).toBe("// 0.7.0");
+    expect(calls).toEqual([]); // never stopped
+    expect(printed.join("\n")).toContain("mais nova que este instalador (0.6.0)");
+  });
+
+  it("#24: a deliberate downgrade (--permitir-versao-anterior) and a same-version reinstall are allowed", async () => {
+    healthResult = { ok: true, version: "0.7.0" };
+    await install(context(makePackage("color-bms-0.7.0", "0.7.0"), { silent: true }));
+    const layout = installLayout(root(), "win32");
+
+    expect(await installOrUpdate(context(makePackage("mesma", "0.7.0"), { silent: true }))).toBe(0);
+    healthResult = { ok: true, version: "0.6.0" };
+    expect(
+      await installOrUpdate(context(makePackage("pacote", "0.6.0"), { silent: true }), {
+        allowDowngrade: true,
+      }),
+    ).toBe(0);
+    expect(read(layout.appDir, "server", "dist", "main.js")).toBe("// 0.6.0");
+  });
+
+  it("#24: versions compare as numbers (0.10.0 is newer than 0.9.0)", () => {
+    expect(compareVersions("0.10.0", "0.9.0")).toBeGreaterThan(0);
+    expect(compareVersions("0.6.0", "0.6.0")).toBe(0);
+    expect(compareVersions("0.6.0", "1.0.0")).toBeLessThan(0);
+    expect(compareVersions("?", "0.6.0")).toBeNull();
   });
 
   it("#24: desinstalar stops the system, deletes the task and the shortcut, and keeps every data folder", async () => {

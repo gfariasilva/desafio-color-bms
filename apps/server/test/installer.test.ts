@@ -54,16 +54,43 @@ describe("#24: Inno Setup script (installer/color-bms.iss)", () => {
     expect(code).toContain("GetCustomSetupExitCode");
   });
 
-  it("#24: the uninstaller runs cli.js desinstalar from the installed app", () => {
+  it("#24: the uninstaller runs cli.js desinstalar from the installed app, and reports a failed stop", () => {
     const { nodeExe, launcherJs } = appFiles(path.join("ROOT", "app"), "win32");
     const cliJs = path.join(path.dirname(launcherJs), "cli.js");
-    const run = section("UninstallRun").join("\n");
-    expect(run).toContain(`{app}\\${relativeWindows(nodeExe)}`);
-    expect(run).toContain(`{app}\\${relativeWindows(cliJs)}`);
-    expect(run).toContain("desinstalar");
+    const code = script.slice(script.indexOf("procedure CurUninstallStepChanged"));
+    expect(code).toContain(`{app}\\${relativeWindows(nodeExe)}`);
+    expect(code).toContain(`{app}\\${relativeWindows(cliJs)}`);
+    expect(code).toContain("desinstalar");
+    expect(code).toContain("CustomMessage('StopFailed')");
     for (const command of ["instalador", "desinstalar"]) {
       expect(COMMANDS).toContain(command);
     }
+  });
+
+  it("#24: the uninstaller deletes the logon task itself too (even without node.exe)", () => {
+    expect(script).toContain(`#define TaskName "${TASK_NAME}"`);
+    const code = script.slice(script.indexOf("procedure CurUninstallStepChanged"));
+    expect(code).toContain(`'/Delete /TN "{#TaskName}" /F'`);
+  });
+
+  it("#24: a failed configuration is not shown as a success on the last page", () => {
+    const code = script.slice(script.indexOf("[Code]"));
+    expect(code).toMatch(/CurPageID = wpFinished\) and CliFailed/);
+    expect(code).toContain("CustomMessage('FinishedFailed')");
+  });
+
+  it("#24: a deliberate downgrade is passed to the CLI only with /PERMITIRVERSAOANTERIOR=1", () => {
+    const code = script.slice(script.indexOf("[Code]"));
+    expect(code).toContain("{param:PERMITIRVERSAOANTERIOR|0}");
+    expect(code).toContain("--permitir-versao-anterior");
+  });
+
+  it("CLAUDE.md: the installer's pt-BR texts are all in [CustomMessages]", () => {
+    const messages = section("CustomMessages").join("\n");
+    expect(messages).toContain("ConfigFailed=");
+    // Everything else (Pascal strings, Start Menu names) refers to them: plain ASCII.
+    const rest = script.slice(script.indexOf("[Icons]"));
+    expect([...rest].filter((char) => char.charCodeAt(0) > 0x7f)).toEqual([]);
   });
 
   it("#24: the uninstall never deletes the data folders, the archive or instalacao.json", () => {

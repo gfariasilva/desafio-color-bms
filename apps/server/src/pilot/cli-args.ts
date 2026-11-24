@@ -32,6 +32,8 @@ export interface CliArgs {
   confirmed: boolean;
   /** `--pasta-onedrive=<pasta>`, or null for `--sem-onedrive` (iniciar-uso-real). */
   oneDriveFolder: string | null | undefined;
+  /** `--permitir-versao-anterior` (instalador): a deliberate downgrade. */
+  allowDowngrade: boolean;
 }
 
 function flagValue(flags: string[], name: string): string | undefined {
@@ -53,6 +55,7 @@ export function parseCliArgs(argv: readonly string[]): CliArgs | null {
     confirmed: flags.includes("--confirmar"),
     oneDriveFolder:
       folder !== undefined ? folder : flags.includes("--sem-onedrive") ? null : undefined,
+    allowDowngrade: flags.includes("--permitir-versao-anterior"),
   };
 }
 
