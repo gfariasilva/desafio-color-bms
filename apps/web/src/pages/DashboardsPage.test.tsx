@@ -300,6 +300,36 @@ describe("FR-25: Dashboards › Quais abas vendem mais?", () => {
     expect(fetched).toContain("/api/dashboards/tab-ranking?month=2026-10");
   });
 
+  it("FR-25: a month after today's asks for another month, without a request (RN-15)", async () => {
+    renderAt("/dashboards?mes=2026-12");
+    expect(await screen.findByText("Escolha um mês até o atual.")).toBeVisible();
+    expect(screen.queryByRole("table", { name: "Ranking das abas" })).toBeNull();
+    expect(screen.queryByText(/Recarregue a página/)).toBeNull();
+    expect(fetched.some((url) => url.includes("tab-ranking"))).toBe(false);
+
+    fireEvent.change(screen.getByLabelText("Mês"), { target: { value: "2026-11" } });
+    expect(await screen.findByRole("table", { name: "Ranking das abas" })).toBeVisible();
+    expect(screen.queryByText("Escolha um mês até o atual.")).toBeNull();
+  });
+
+  it('FR-25: in the current month, no previous sales means "nesses dias"', async () => {
+    serve(withPrevious, {
+      rankings: {
+        "2026-11": buildTabRanking({
+          yearMonth: "2026-11",
+          today: "2026-11-18",
+          tabs,
+          current: [{ saleCategoryId: tabId("Toner"), grossCents: 1000 }],
+          previous: [],
+        }),
+      },
+    });
+    renderAt("/dashboards");
+    expect(
+      await screen.findByText("“—” na variação: sem vendas nesses dias do mês anterior."),
+    ).toBeVisible();
+  });
+
   it("FR-25: a link with ?mes= opens that month", async () => {
     renderAt("/dashboards?mes=2026-10");
     expect(await screen.findByLabelText("Mês")).toHaveValue("2026-10");

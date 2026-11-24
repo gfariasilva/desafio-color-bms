@@ -3,6 +3,7 @@ import type { SaleCategory } from "../catalog/categories";
 import {
   buildTabRanking,
   formatShare,
+  isMonthAfterToday,
   rankingPeriods,
   shareTenths,
   tabRankingQuerySchema,
@@ -53,6 +54,15 @@ describe("rankingPeriods (FR-25)", () => {
     expect(() => rankingPeriods("2026-12", "2026-11-18")).toThrow(RangeError);
     expect(() => rankingPeriods("2026-13", "2026-11-18")).toThrow(RangeError);
     expect(() => rankingPeriods("2026-11", "18/11/2026")).toThrow(RangeError);
+  });
+});
+
+describe("isMonthAfterToday (FR-25, RN-15)", () => {
+  it("RN-15: only a month after today's is in the future", () => {
+    expect(isMonthAfterToday("2026-12", "2026-11-18")).toBe(true);
+    expect(isMonthAfterToday("2027-01", "2026-12-31")).toBe(true);
+    expect(isMonthAfterToday("2026-11", "2026-11-30")).toBe(false);
+    expect(isMonthAfterToday("2026-10", "2026-11-01")).toBe(false);
   });
 });
 

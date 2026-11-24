@@ -43,6 +43,12 @@ describe("variationTenths (RN-11)", () => {
     expect(variationTenths(1_000_000_001, 1_000_000_000)).toBe(0);
   });
 
+  it("RN-11: any two safe integers work, even when their difference is not safe", () => {
+    const max = Number.MAX_SAFE_INTEGER;
+    expect(variationTenths(max, -max)).toBe(2000); // +200,0 %
+    expect(variationTenths(-max, max)).toBe(-2000);
+  });
+
   it("RN-11: rejects amounts that are not integer cents", () => {
     expect(() => variationTenths(10.5, 100)).toThrow(RangeError);
     expect(() => variationTenths(100, Number.NaN)).toThrow(RangeError);

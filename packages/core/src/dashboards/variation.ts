@@ -23,7 +23,11 @@ export function variationTenths(currentCents: number, previousCents: number): nu
     );
   }
   if (previousCents === 0) return null;
-  return percentTenths(currentCents - previousCents, Math.abs(previousCents));
+  // The difference in BigInt: two safe integers can differ by more than a safe integer.
+  return roundedTenths(
+    BigInt(currentCents) - BigInt(previousCents),
+    BigInt(Math.abs(previousCents)),
+  );
 }
 
 /**
@@ -37,12 +41,15 @@ export function percentTenths(part: number, base: number): number {
   if (!Number.isSafeInteger(part) || !Number.isSafeInteger(base) || base <= 0) {
     throw new RangeError(`percentTenths expects integers and base > 0, received ${part}, ${base}`);
   }
+  return roundedTenths(BigInt(part), BigInt(base));
+}
+
+/** `part ÷ base × 1000` rounded half away from zero, in BigInt so it stays exact; base > 0. */
+function roundedTenths(part: bigint, base: bigint): number {
   // |part| × 1000 / base, rounded half up: floor((2 × n + d) / (2 × d)).
-  // BigInt keeps it exact even for very large amounts.
-  const numerator = BigInt(Math.abs(part)) * 1000n;
-  const denominator = BigInt(base);
-  const tenths = Number((2n * numerator + denominator) / (2n * denominator));
-  return part < 0 && tenths !== 0 ? -tenths : tenths;
+  const numerator = (part < 0n ? -part : part) * 1000n;
+  const tenths = Number((2n * numerator + base) / (2n * base));
+  return part < 0n && tenths !== 0 ? -tenths : tenths;
 }
 
 /** The minus sign used for negative variations (U+2212), as in the spec. */

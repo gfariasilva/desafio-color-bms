@@ -15,7 +15,10 @@ test.beforeEach(async ({}, testInfo) => {
   server = await startServer(3400 + testInfo.workerIndex);
 });
 
-test.afterEach(async () => {
+test.afterEach(async ({ context }) => {
+  // Close the browser first: `afterEach` runs before the page fixture closes, and a socket
+  // Chromium opened ahead of time (no request yet) keeps the server's close() waiting.
+  await context.close();
   await server.stop();
 });
 

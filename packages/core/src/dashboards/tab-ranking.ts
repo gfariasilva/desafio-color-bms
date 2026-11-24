@@ -21,6 +21,16 @@ export const tabRankingQuerySchema = z.object({ month: yearMonthSchema("Mês inv
 export const TAB_RANKING_FUTURE_MONTH_ERROR = "Escolha um mês até o atual.";
 
 /**
+ * RN-15: true when `yearMonth` comes after the month of `today` (no sale can be there).
+ *
+ * @example isMonthAfterToday("2026-12", "2026-11-18") // true
+ */
+export function isMonthAfterToday(yearMonth: YearMonth, today: CivilDate): boolean {
+  // "YYYY-MM" compares correctly as text.
+  return yearMonth > today.slice(0, 7);
+}
+
+/**
  * FR-25: the two periods of the ranking of `yearMonth` on `today`.
  * - The current month runs from day 1 to today, against the same days of the previous month
  *   (A-13, the same periods as FR-24).
@@ -45,8 +55,7 @@ export function rankingPeriods(
     throw new RangeError(`rankingPeriods expects a civil date, received "${today}"`);
   }
   const currentMonth = today.slice(0, 7);
-  // "YYYY-MM" compares correctly as text.
-  if (yearMonth > currentMonth) {
+  if (isMonthAfterToday(yearMonth, today)) {
     throw new RangeError(`rankingPeriods: ${yearMonth} is after today's month (${today})`);
   }
   if (yearMonth === currentMonth) {

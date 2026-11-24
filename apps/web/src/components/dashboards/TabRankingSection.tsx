@@ -4,6 +4,8 @@ import {
   formatDayRange,
   formatShare,
   formatYearMonthLong,
+  isMonthAfterToday,
+  TAB_RANKING_FUTURE_MONTH_ERROR,
   type RankedTab,
   type TabRanking,
 } from "@color-bms/core";
@@ -35,10 +37,18 @@ import { VariationCell } from "./VariationCell";
  */
 export function TabRankingSection() {
   const month = useReportMonth();
+  // The same cached query as `useReportMonth`: the server's today (ADR 0002).
+  const today = useQuery({ queryKey: QUERY_KEYS.today, queryFn: api.today });
+  // RN-15: a month after today's (typed, or from a link) has no sales; ask for another one
+  // instead of a request the server refuses.
+  const future =
+    month.yearMonth !== null &&
+    today.data !== undefined &&
+    isMonthAfterToday(month.yearMonth, today.data);
   const ranking = useQuery({
     queryKey: [...QUERY_KEYS.tabRanking, month.yearMonth],
     queryFn: () => api.dashboards.tabRanking(month.yearMonth as string),
-    enabled: month.yearMonth !== null,
+    enabled: month.yearMonth !== null && today.data !== undefined && !future,
   });
 
   return (
@@ -55,7 +65,12 @@ export function TabRankingSection() {
         isError={ranking.isError}
         what="o ranking das abas"
       />
-      {ranking.data ? <TabRankingView ranking={ranking.data} /> : null}
+      {future ? (
+        <p role="alert" className="text-sm text-destructive">
+          {TAB_RANKING_FUTURE_MONTH_ERROR}
+        </p>
+      ) : null}
+      {ranking.data && !future ? <TabRankingView ranking={ranking.data} /> : null}
     </section>
   );
 }
@@ -109,7 +124,9 @@ function TabRankingView({ ranking }: { ranking: TabRanking }) {
             : `${monthName(ranking.yearMonth)} completo, comparado com ${formatYearMonthLong(ranking.previousMonth)} completo.`}
         </p>
         {noPreviousSales ? (
-          <p>“—” na variação: sem vendas no mês anterior.</p>
+          <p>
+            “—” na variação: sem vendas {ranking.partial ? "nesses dias do" : "no"} mês anterior.
+          </p>
         ) : someDash ? (
           <p>“—” na variação: a aba não vendeu nada nesses dias do mês anterior.</p>
         ) : null}

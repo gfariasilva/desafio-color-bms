@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import {
   incomeVsExpensesQuerySchema,
+  isMonthAfterToday,
   TAB_RANKING_FUTURE_MONTH_ERROR,
   tabRankingQuerySchema,
   todayCivilDate,
@@ -26,8 +27,8 @@ export function registerDashboardRoutes(
     const query = parseOr400(tabRankingQuerySchema, request.query, reply);
     if (!query) return reply;
     const today = todayCivilDate(clock());
-    // "YYYY-MM" compares correctly as text; no sale can be in the future (RN-15).
-    if (query.month > today.slice(0, 7)) {
+    // RN-15: no sale can be in the future.
+    if (isMonthAfterToday(query.month, today)) {
       return reply.code(400).send({ error: TAB_RANKING_FUTURE_MONTH_ERROR });
     }
     return getTabRanking(db, query.month, today);
