@@ -7,6 +7,7 @@ import {
   APP_URL,
   SUPPORT_FILES,
   appVersion,
+  compareVersions,
   dataDirFor,
   readMode,
   writeMode,
@@ -26,6 +27,10 @@ export interface WindowsOps {
   /** Creates the desktop shortcut; returns its path. */
   createShortcut(url: string): string;
   openBrowser(url: string): void;
+  /** Deletes the Task Scheduler task (#24, uninstall); no error when there is none. */
+  deleteTask(): void;
+  /** Deletes the desktop shortcuts created by `createShortcut`; returns the deleted paths. */
+  removeShortcuts(): string[];
 }
 
 export interface PilotContext {
@@ -113,7 +118,11 @@ async function stopAll(ctx: PilotContext): Promise<boolean> {
   return false;
 }
 
-/** instalar.cmd: first install, in trial mode (#26). */
+/**
+ * instalar.cmd: first install, in trial mode (#26). Also the installer's path on a PC without
+ * `app\` (#24): after an uninstall the data folders and `instalacao.json` are still there, so the
+ * mode in use is kept and real data is never hidden behind a new trial folder.
+ */
 export async function install(ctx: PilotContext): Promise<number> {
   const { layout } = ctx;
   if (fs.existsSync(layout.appDir)) {
@@ -123,13 +132,15 @@ export async function install(ctx: PilotContext): Promise<number> {
   }
   const source = path.join(ctx.packageDir, "app");
   const version = appVersion(source) ?? "?";
+  const previousData = fs.existsSync(layout.settingsFile) || fs.existsSync(layout.realDataDir);
+  const mode = previousData ? readMode(layout) : "treino";
   ctx.print(`Instalando o sistema Color (versão ${version}) em ${layout.root} …`);
 
   fs.mkdirSync(layout.root, { recursive: true });
   fs.cpSync(source, layout.appDir, { recursive: true });
   // #26: training days use their own folder; the go-live reset archives it.
-  fs.mkdirSync(layout.trialDataDir, { recursive: true });
-  writeMode(layout, "treino");
+  fs.mkdirSync(dataDirFor(layout, mode), { recursive: true });
+  writeMode(layout, mode);
   copySupportFiles(ctx);
 
   registerTask(ctx);
@@ -137,9 +148,16 @@ export async function install(ctx: PilotContext): Promise<number> {
   ctx.print(`Atalho criado: ${shortcut}`);
   if (!(await startAndWait(ctx, version))) return 1;
 
-  ctx.print(`Instalação concluída (versão ${version}, modo treino).`);
+  if (mode === "real") {
+    ctx.print(
+      `Instalação concluída (versão ${version}, modo real: os dados existentes foram mantidos).`,
+    );
+  } else {
+    ctx.print(`Instalação concluída (versão ${version}, modo treino).`);
+  }
   ctx.print("O sistema inicia sozinho quando o Windows é iniciado.");
-  ctx.print("Para começar o uso real (dia 1º do mês): iniciar-uso-real.cmd.");
+  if (mode === "treino")
+    ctx.print("Para começar o uso real (dia 1º do mês): iniciar-uso-real.cmd.");
   return 0;
 }
 
@@ -194,6 +212,50 @@ export async function update(ctx: PilotContext): Promise<number> {
   }
   ctx.print(`Atualizado: versão ${from} → ${to}.`);
   return 0;
+}
+
+/**
+ * #24: Setup.exe, after unpacking the package to its temp folder: a first install (or a
+ * reinstall after an uninstall), or an update of an installed system, including a pilot
+ * install (#26), which has the same folders, task name and shortcut.
+ */
+export async function installOrUpdate(
+  ctx: PilotContext,
+  options: { allowDowngrade?: boolean } = {},
+): Promise<number> {
+  if (!fs.existsSync(ctx.layout.appDir)) return install(ctx);
+  // An older installer would run against a database already migrated by the newer version.
+  const installed = appVersion(ctx.layout.appDir);
+  const incoming = appVersion(path.join(ctx.packageDir, "app"));
+  const order = installed && incoming ? compareVersions(incoming, installed) : null;
+  if (order !== null && order < 0 && !options.allowDowngrade) {
+    ctx.print(
+      `ERRO: a versão instalada (${installed}) é mais nova que este instalador (${incoming}).`,
+    );
+    ctx.print("Nada foi alterado. Use o instalador da versão mais nova.");
+    ctx.print("Para voltar a uma versão anterior de propósito, veja docs/install/installer.md.");
+    return 1;
+  }
+  return update(ctx);
+}
+
+/**
+ * #24: the uninstaller, before it deletes `app\` and the support files: stops the system and
+ * removes what Windows keeps outside the folder (the logon task, the desktop shortcut). The
+ * data folders, the archive and `instalacao.json` are kept, so a reinstall finds everything.
+ */
+export async function uninstall(ctx: PilotContext): Promise<number> {
+  let stopped = false;
+  try {
+    stopped = await stopAll(ctx);
+  } catch (error) {
+    ctx.print(`ERRO: não foi possível parar o sistema (${(error as Error).message}).`);
+  }
+  // Even if the system did not stop, it must not start again at the next logon.
+  ctx.windows.deleteTask();
+  for (const shortcut of ctx.windows.removeShortcuts()) ctx.print(`Atalho removido: ${shortcut}`);
+  ctx.print(`Os dados foram mantidos em ${ctx.layout.root}.`);
+  return stopped ? 0 : 1;
 }
 
 /** iniciar.cmd */

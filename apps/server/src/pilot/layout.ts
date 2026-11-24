@@ -111,3 +111,18 @@ export function appVersion(appDir: string): string | null {
     return null;
   }
 }
+
+/**
+ * Compares two `x.y.z` versions: negative when `a` is older than `b`, 0 when equal, positive
+ * when newer. Null when either is not `x.y.z` (an unknown version never blocks anything).
+ */
+export function compareVersions(a: string, b: string): number | null {
+  const parse = (v: string) => (/^\d+\.\d+\.\d+$/.test(v) ? v.split(".").map(Number) : null);
+  const left = parse(a);
+  const right = parse(b);
+  if (!left || !right) return null;
+  for (let i = 0; i < 3; i++) {
+    if (left[i] !== right[i]) return left[i]! - right[i]!;
+  }
+  return 0;
+}

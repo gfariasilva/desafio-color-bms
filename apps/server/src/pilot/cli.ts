@@ -2,30 +2,39 @@ import path from "node:path";
 import readline from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 import { systemClock } from "../clock";
-import { goLive, install, start, stop, update, type PilotContext } from "./commands";
+import { COMMANDS, logToFile, parseCliArgs } from "./cli-args";
+import {
+  goLive,
+  install,
+  installOrUpdate,
+  start,
+  stop,
+  uninstall,
+  update,
+  type PilotContext,
+} from "./commands";
 import { waitForHealth, waitForStop } from "./health-wait";
 import { APP_URL, defaultInstallRoot, installLayout } from "./layout";
 import { windowsOps } from "./windows";
 
 /**
- * #26: the pilot scripts' logic. Each `.cmd` only runs `app\node\node.exe` with this file and
- * a command, so all the logic (and every pt-BR message) lives here, in tested TypeScript.
+ * #26, #24: the logic of the pilot scripts and of the Windows installer. Each `.cmd` (and
+ * Setup.exe) only runs `app\node\node.exe` with this file and a command, so all the logic (and
+ * every pt-BR message) lives here, in tested TypeScript.
  *
- *   cli.js instalar | atualizar | iniciar | parar | iniciar-uso-real
- *          [/silencioso] [--confirmar] [--pasta-onedrive=<pasta>|--sem-onedrive]
+ *   cli.js instalar | atualizar | iniciar | parar | iniciar-uso-real | instalador | desinstalar
+ *          [/silencioso] [--raiz=<pasta>] [--registro=<arquivo>]
+ *          [--confirmar] [--pasta-onedrive=<pasta>|--sem-onedrive] [--permitir-versao-anterior]
  */
-const COMMANDS = ["instalar", "atualizar", "iniciar", "parar", "iniciar-uso-real"] as const;
-type Command = (typeof COMMANDS)[number];
-
 async function main(argv: string[]): Promise<number> {
-  const command = argv[0] as Command | undefined;
-  if (!command || !COMMANDS.includes(command)) {
+  const args = parseCliArgs(argv);
+  if (!args) {
     console.error(`Uso: cli.js ${COMMANDS.join(" | ")} [/silencioso]`);
     return 2;
   }
-  const flags = argv.slice(1);
-  const silent = flags.some((flag) => flag.toLowerCase() === "/silencioso");
-  const folderFlag = flags.find((flag) => flag.startsWith("--pasta-onedrive="));
+  const print = logToFile((line) => console.log(line), args.logFile);
+  // One header per run in the log only (the log keeps every install and update).
+  logToFile(() => {}, args.logFile)(`===== ${systemClock().toISOString()} cli.js ${args.command}`);
 
   // This file is app\server\dist\pilot\cli.js; the scripts sit next to app\.
   const here = path.dirname(fileURLToPath(import.meta.url));
@@ -33,14 +42,14 @@ async function main(argv: string[]): Promise<number> {
 
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   const ctx: PilotContext = {
-    layout: installLayout(defaultInstallRoot()),
+    layout: installLayout(args.root ? path.resolve(args.root) : defaultInstallRoot()),
     packageDir,
     windows: windowsOps,
     waitForHealth: (options) => waitForHealth(APP_URL, options),
     waitForStop: (timeoutMs) => waitForStop(APP_URL, timeoutMs),
     // Silent mode (CI) never waits for an answer: a missing flag fails at once.
     prompt: (question) =>
-      silent
+      args.silent
         ? Promise.reject(
             new Error(
               `modo silencioso sem resposta para "${question.trim()}": ` +
@@ -48,13 +57,13 @@ async function main(argv: string[]): Promise<number> {
             ),
           )
         : rl.question(question),
-    print: (line) => console.log(line),
+    print,
     now: systemClock,
-    silent,
+    silent: args.silent,
     env: { OneDrive: process.env.OneDrive, SystemRoot: process.env.SystemRoot },
   };
   try {
-    switch (command) {
+    switch (args.command) {
       case "instalar":
         return await install(ctx);
       case "atualizar":
@@ -65,14 +74,17 @@ async function main(argv: string[]): Promise<number> {
         return await stop(ctx);
       case "iniciar-uso-real":
         return await goLive(ctx, {
-          confirmed: flags.includes("--confirmar") || undefined,
-          oneDriveFolder: folderFlag
-            ? folderFlag.slice("--pasta-onedrive=".length)
-            : flags.includes("--sem-onedrive")
-              ? null
-              : undefined,
+          confirmed: args.confirmed || undefined,
+          oneDriveFolder: args.oneDriveFolder,
         });
+      case "instalador":
+        return await installOrUpdate(ctx, { allowDowngrade: args.allowDowngrade });
+      case "desinstalar":
+        return await uninstall(ctx);
     }
+  } catch (error) {
+    print(`ERRO inesperado: ${error instanceof Error ? (error.stack ?? error.message) : error}`);
+    return 1;
   } finally {
     rl.close();
   }

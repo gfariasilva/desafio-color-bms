@@ -61,8 +61,15 @@ async function nodeWindowsZip(options: PackageOptions): Promise<Buffer> {
   return zip;
 }
 
-/** Builds the package folder and its zip; returns the zip's path. */
-export async function packagePilot(options: PackageOptions): Promise<string> {
+export interface PilotPackage {
+  /** The package folder (`app\` plus the scripts): what the zip holds, and what the installer carries (#24). */
+  dir: string;
+  zipFile: string;
+  version: string;
+}
+
+/** Builds the package folder and its zip. */
+export async function packagePilot(options: PackageOptions): Promise<PilotPackage> {
   for (const required of [
     path.join(serverRoot, "dist", "main.js"),
     path.join(serverRoot, "dist", "pilot", "launcher.js"),
@@ -125,7 +132,7 @@ export async function packagePilot(options: PackageOptions): Promise<string> {
   zipDirectory(staging, zipFile);
   const megabytes = (fs.statSync(zipFile).size / 1024 / 1024).toFixed(1);
   console.log(`${zipFile} (${megabytes} MB, ${packages.length} runtime packages)`);
-  return zipFile;
+  return { dir: staging, zipFile, version: serverPackage.version };
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {

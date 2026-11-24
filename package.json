@@ -24,7 +24,9 @@
     "check": "npm run lint && npm run format:check && npm run typecheck && npm run test",
     "e2e": "npm run build && npm run test -w @color-bms/e2e --",
     "package:pilot": "npm run build && tsx apps/server/scripts/package-pilot.ts",
-    "pilot:smoke": "tsx apps/server/scripts/pilot-smoke.ts"
+    "pilot:smoke": "tsx apps/server/scripts/pilot-smoke.ts",
+    "package:installer": "npm run build && tsx apps/server/scripts/package-installer.ts",
+    "installer:smoke": "tsx apps/server/scripts/installer-smoke.ts"
   },
   "allowScripts": {
     "esbuild": true,

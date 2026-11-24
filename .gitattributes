@@ -4,3 +4,4 @@
 *.ico binary
 *.woff2 binary
 *.cmd text eol=crlf
+*.iss text eol=crlf

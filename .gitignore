@@ -20,3 +20,6 @@ e2e/test-results/
 
 # Pilot package (#26)
 dist-pilot/
+
+# Windows installer (#24)
+dist-installer/

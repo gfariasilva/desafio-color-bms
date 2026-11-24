@@ -128,3 +128,29 @@ jobs:
         run: |
           $zip = (Get-ChildItem pilot-zip/*.zip | Select-Object -First 1).FullName
           npm run pilot:smoke -- "$zip"
+
+  installer-windows:
+    # #24: the Inno Setup installer, built and run for real: install → crash → update → go-live →
+    # uninstall (data kept) → reinstall. The .exe is uploaded for the shop PC.
+    name: Windows installer (build + smoke)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Inno Setup 6
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup -y --no-progress
+          }
+      - run: npm run package:installer
+      - run: npm run installer:smoke
+      - uses: actions/upload-artifact@v4
+        with:
+          name: color-bms-installer
+          path: dist-installer/*.exe
+          retention-days: 30

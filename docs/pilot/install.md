@@ -1,5 +1,7 @@
 # Pilot install on the shop PC (#26)
 
+> **Superseded by the Windows installer (#24):** [`docs/install/installer.md`](../install/installer.md). The installer carries this same package and uses the same folders, task and scripts, so this page still explains them (go-live reset §4, support §6). The zip below stays as a fallback when no installer can be built (it builds on Linux).
+
 For the developer. How to build the pilot package, install it on the shop's Windows 11 PC, update it, run the trial days and do the go-live reset. The decisions are in [ADR 0004](../adr/0004-pilot-install.md). The owner-facing text is `LEIA-ME.txt` in the zip, and the manual restore is in [`restaurar-backup.md`](restaurar-backup.md).
 
 ## 1. Build the package

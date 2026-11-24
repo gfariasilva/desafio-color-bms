@@ -349,8 +349,9 @@ describe("Despesas (FR-06)", () => {
     dayLock = "O dia 18/11/2026 está fechado. Reabra o dia para alterar ou excluir esta despesa.";
     const confirm = vi.spyOn(window, "confirm");
     await openPage();
-    // One badge on the expenses and one on the sangrias (FR-07) of the closed day.
-    expect(await screen.findAllByText("Dia fechado")).toHaveLength(2);
+    // One badge on the expenses and one on the sangrias (FR-07) of the closed day. They come
+    // from two requests, and findAllByText returns at the first match: wait for both.
+    await waitFor(() => expect(screen.getAllByText("Dia fechado")).toHaveLength(2));
     fireEvent.click(screen.getByRole("button", { name: /Editar despesa/ }));
     expect(await screen.findByRole("alert")).toHaveTextContent(dayLock);
     expect(screen.getByRole("form", { name: "Nova despesa" })).toBeInTheDocument();

@@ -9,13 +9,15 @@ import { runMigrations } from "../src/db/migrate";
 import {
   goLive,
   install,
+  installOrUpdate,
   start,
   stop,
+  uninstall,
   update,
   type PilotContext,
   type WindowsOps,
 } from "../src/pilot/commands";
-import { installLayout, readMode, SUPPORT_FILES } from "../src/pilot/layout";
+import { compareVersions, installLayout, readMode, SUPPORT_FILES } from "../src/pilot/layout";
 
 let tempDir: string;
 let calls: string[];
@@ -63,6 +65,11 @@ const fakeWindows: WindowsOps = {
     return "C:\\Users\\dono\\Desktop\\Sistema Color.lnk";
   },
   openBrowser: (url) => void calls.push(`openBrowser ${url}`),
+  deleteTask: () => void calls.push("deleteTask"),
+  removeShortcuts: () => {
+    calls.push("removeShortcuts");
+    return ["C:\\Users\\dono\\Desktop\\Sistema Color.lnk"];
+  },
 };
 
 const root = () => path.join(tempDir, "LocalAppData", "ColorBMS");
@@ -365,5 +372,196 @@ describe("#26: go-live reset (iniciar-uso-real.cmd)", () => {
     } finally {
       connection.sqlite.close();
     }
+  });
+});
+
+describe("#24: the Windows installer (Setup.exe runs cli.js instalador / desinstalar)", () => {
+  /** What Inno Setup leaves after the uninstall: it deletes app\ and the support files. */
+  function removeProgramLikeInno() {
+    const layout = installLayout(root(), "win32");
+    for (const dir of [layout.appDir, layout.previousAppDir, layout.newAppDir]) {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+    for (const file of SUPPORT_FILES) fs.rmSync(path.join(root(), file), { force: true });
+  }
+
+  it("FR-34 / #24: on a new PC it installs in trial mode, registers the logon task and the desktop shortcut", async () => {
+    const setup = makePackage("pacote", "0.6.0");
+    healthResult = { ok: true, version: "0.6.0" };
+
+    expect(await installOrUpdate(context(setup))).toBe(0);
+
+    const layout = installLayout(root(), "win32");
+    expect(read(layout.appDir, "server", "dist", "main.js")).toBe("// 0.6.0");
+    expect(readMode(layout)).toBe("treino");
+    expect(calls).toEqual([
+      "registerTask true",
+      "createShortcut http://127.0.0.1:3210/",
+      "runTask",
+      "waitForHealth 0.6.0",
+      "openBrowser http://127.0.0.1:3210/",
+    ]);
+  });
+
+  it("#24: over a pilot install it updates app\\ only, keeps the data and app.anterior, and waits for the new version", async () => {
+    // The pilot (#26) installed 0.5.0 from the zip; trial data exists.
+    healthResult = { ok: true, version: "0.5.0" };
+    await install(context(makePackage("color-bms-0.5.0", "0.5.0"), { silent: true }));
+    const layout = installLayout(root(), "win32");
+    fs.writeFileSync(path.join(layout.trialDataDir, "color.db"), "trial data");
+    calls = [];
+    printed = [];
+    healthResult = { ok: true, version: "0.6.0" };
+
+    expect(await installOrUpdate(context(makePackage("pacote", "0.6.0")))).toBe(0);
+
+    expect(read(layout.appDir, "server", "dist", "main.js")).toBe("// 0.6.0");
+    expect(read(layout.previousAppDir, "server", "dist", "main.js")).toBe("// 0.5.0");
+    expect(read(layout.trialDataDir, "color.db")).toBe("trial data");
+    expect(readMode(layout)).toBe("treino");
+    // Same task name and shortcut as the pilot: re-registered, not duplicated.
+    expect(calls).toEqual([
+      "endTask",
+      `stopProcesses ${layout.nodeExe}`,
+      "waitForStop",
+      "registerTask true",
+      "runTask",
+      "waitForHealth 0.6.0",
+      "openBrowser http://127.0.0.1:3210/",
+    ]);
+    expect(printed.join("\n")).toContain("Atualizado: versão 0.5.0 → 0.6.0.");
+  });
+
+  it("#24: an older installer never replaces a newer installed version (the database may be migrated)", async () => {
+    healthResult = { ok: true, version: "0.7.0" };
+    await install(context(makePackage("color-bms-0.7.0", "0.7.0"), { silent: true }));
+    const layout = installLayout(root(), "win32");
+    calls = [];
+    printed = [];
+
+    expect(await installOrUpdate(context(makePackage("pacote", "0.6.0")))).toBe(1);
+
+    expect(read(layout.appDir, "server", "dist", "main.js")).toBe("// 0.7.0");
+    expect(calls).toEqual([]); // never stopped
+    expect(printed.join("\n")).toContain("mais nova que este instalador (0.6.0)");
+  });
+
+  it("#24: a deliberate downgrade (--permitir-versao-anterior) and a same-version reinstall are allowed", async () => {
+    healthResult = { ok: true, version: "0.7.0" };
+    await install(context(makePackage("color-bms-0.7.0", "0.7.0"), { silent: true }));
+    const layout = installLayout(root(), "win32");
+
+    expect(await installOrUpdate(context(makePackage("mesma", "0.7.0"), { silent: true }))).toBe(0);
+    healthResult = { ok: true, version: "0.6.0" };
+    expect(
+      await installOrUpdate(context(makePackage("pacote", "0.6.0"), { silent: true }), {
+        allowDowngrade: true,
+      }),
+    ).toBe(0);
+    expect(read(layout.appDir, "server", "dist", "main.js")).toBe("// 0.6.0");
+  });
+
+  it("#24: versions compare as numbers (0.10.0 is newer than 0.9.0)", () => {
+    expect(compareVersions("0.10.0", "0.9.0")).toBeGreaterThan(0);
+    expect(compareVersions("0.6.0", "0.6.0")).toBe(0);
+    expect(compareVersions("0.6.0", "1.0.0")).toBeLessThan(0);
+    expect(compareVersions("?", "0.6.0")).toBeNull();
+  });
+
+  it("#24: desinstalar stops the system, deletes the task and the shortcut, and keeps every data folder", async () => {
+    await install(context(makePackage("pacote", "0.2.0"), { silent: true }));
+    const layout = installLayout(root(), "win32");
+    fs.writeFileSync(path.join(layout.trialDataDir, "color.db"), "trial data");
+    fs.mkdirSync(layout.realDataDir, { recursive: true });
+    fs.writeFileSync(path.join(layout.realDataDir, "color.db"), "real data");
+    fs.mkdirSync(layout.archiveDir, { recursive: true });
+    calls = [];
+    printed = [];
+
+    expect(await uninstall(context(root(), { silent: true }))).toBe(0);
+
+    expect(calls).toEqual([
+      "endTask",
+      `stopProcesses ${layout.nodeExe}`,
+      "waitForStop",
+      "deleteTask",
+      "removeShortcuts",
+    ]);
+    expect(read(layout.trialDataDir, "color.db")).toBe("trial data");
+    expect(read(layout.realDataDir, "color.db")).toBe("real data");
+    expect(fs.existsSync(layout.archiveDir)).toBe(true);
+    expect(fs.existsSync(layout.settingsFile)).toBe(true);
+    // app\ is Inno Setup's to delete, after this process (which runs from it) has exited.
+    expect(fs.existsSync(layout.appDir)).toBe(true);
+    expect(printed.join("\n")).toContain("Os dados foram mantidos");
+  });
+
+  it("#24: desinstalar still deletes the task and the shortcut when the system does not stop", async () => {
+    await install(context(makePackage("pacote", "0.2.0"), { silent: true }));
+    calls = [];
+    printed = [];
+
+    const code = await uninstall(
+      context(root(), {
+        waitForStop: async () => {
+          calls.push("waitForStop");
+          return false;
+        },
+      }),
+    );
+
+    expect(code).toBe(1);
+    expect(calls.slice(-2)).toEqual(["deleteTask", "removeShortcuts"]);
+  });
+
+  it("#24: desinstalar still deletes the task when stopping fails with an error", async () => {
+    await install(context(makePackage("pacote", "0.2.0"), { silent: true }));
+    calls = [];
+    printed = [];
+    const failingStop: WindowsOps = {
+      ...fakeWindows,
+      stopProcesses: () => {
+        throw new Error("powershell.exe falhou");
+      },
+    };
+
+    expect(await uninstall(context(root(), { windows: failingStop }))).toBe(1);
+
+    expect(calls).toEqual(["endTask", "deleteTask", "removeShortcuts"]);
+    expect(printed.join("\n")).toContain("powershell.exe falhou");
+  });
+
+  it("#24: reinstalling after an uninstall keeps the real mode and the real data", async () => {
+    await install(context(makePackage("pacote", "0.2.0"), { silent: true }));
+    answers = ["SIM", ""];
+    await goLive(context(root(), { silent: true }));
+    const layout = installLayout(root(), "win32");
+    fs.writeFileSync(path.join(layout.realDataDir, "color.db"), "real data");
+    await uninstall(context(root(), { silent: true }));
+    removeProgramLikeInno();
+    calls = [];
+    printed = [];
+    healthResult = { ok: true, version: "0.6.0" };
+
+    expect(await installOrUpdate(context(makePackage("pacote-novo", "0.6.0")))).toBe(0);
+
+    expect(readMode(layout)).toBe("real");
+    expect(read(layout.realDataDir, "color.db")).toBe("real data");
+    expect(fs.existsSync(layout.trialDataDir)).toBe(false);
+    expect(printed.join("\n")).toContain("modo real");
+  });
+
+  it("#24: without instalacao.json, an existing real data folder is never hidden behind trial mode", async () => {
+    const layout = installLayout(root(), "win32");
+    fs.mkdirSync(layout.realDataDir, { recursive: true });
+    fs.writeFileSync(path.join(layout.realDataDir, "color.db"), "real data");
+
+    expect(await installOrUpdate(context(makePackage("pacote", "0.2.0"), { silent: true }))).toBe(
+      0,
+    );
+
+    expect(readMode(layout)).toBe("real");
+    expect(JSON.parse(read(layout.settingsFile))).toEqual({ mode: "real" });
+    expect(fs.existsSync(layout.trialDataDir)).toBe(false);
   });
 });

@@ -102,10 +102,35 @@ Write-Output $file`,
     );
   },
 
+  /** #24: uninstall. `schtasks /Delete` fails when there is no task, which is fine. */
+  deleteTask() {
+    try {
+      schtasks(["/Delete", "/TN", TASK_NAME, "/F"]);
+    } catch {
+      // No task: nothing to delete.
+    }
+  },
+
+  /** #24: uninstall. Deletes both kinds of shortcut that `createShortcut` may have made. */
+  removeShortcuts() {
+    const output = powershell(
+      `$desktop = [Environment]::GetFolderPath('Desktop')
+foreach ($name in @('Sistema Color.lnk', 'Sistema Color.url')) {
+  $file = Join-Path $desktop $name
+  if (Test-Path -LiteralPath $file) { Remove-Item -LiteralPath $file -Force; Write-Output $file }
+}`,
+    );
+    return output === "" ? [] : output.split(/\r?\n/).map((line) => line.trim());
+  },
+
+  /**
+   * The browser starts in %SystemRoot%, not in the CLI's folder: Setup.exe runs the CLI from its
+   * temp folder, which a long-running Edge would otherwise keep in use (#24).
+   */
   openBrowser(url) {
     powershell(
       `${FIND_EDGE}
-if ($edge) { Start-Process -FilePath $edge -ArgumentList "--app=$env:COLOR_BMS_URL" } else { Start-Process $env:COLOR_BMS_URL }`,
+if ($edge) { Start-Process -FilePath $edge -ArgumentList "--app=$env:COLOR_BMS_URL" -WorkingDirectory $env:SystemRoot } else { Start-Process $env:COLOR_BMS_URL -WorkingDirectory $env:SystemRoot }`,
       { COLOR_BMS_URL: url },
     );
   },

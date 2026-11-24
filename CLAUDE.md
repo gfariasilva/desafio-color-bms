@@ -30,7 +30,9 @@ npm run build          # build web (Vite) and server (tsup)
 npm run e2e            # build, then Playwright E2E tests in e2e/ (ADR 0002; not part of check)
 npm start              # run the built app on http://127.0.0.1:3210
 npm run package:pilot  # build, then dist-pilot/color-bms-<version>.zip for the shop PC (#26)
-npm run pilot:smoke    # the pilot package end to end (install, crash → restart, update, go-live)
+npm run pilot:smoke    # the pilot package end to end (install, crash → restart, update, go-live, uninstall)
+npm run package:installer  # Windows + Inno Setup 6: dist-installer/ColorBMS-Setup-<version>.exe (#24)
+npm run installer:smoke    # Windows only: the real installer end to end (CI installer-windows)
 npm run db:generate -w @color-bms/server -- --name <what_changed>   # new migration from schema.ts
 ```
 
@@ -39,6 +41,8 @@ Dev data lives in `apps/server/.data/` (git-ignored). Override it with `COLOR_BM
 Backups (#25, [ADR 0003](docs/adr/0003-pilot-backup.md)) go to `<OneDrive folder>/_backup-sistema/`. The folder is set in **Configurações** (FR-33, #20; the `settings` table, read through `SettingsStore` in `apps/server/src/modules/settings/`). `COLOR_BMS_ONEDRIVE_DIR` overrides it (dev and E2E; the field is then read-only). A pilot `<data dir>/config.json` with `{ "oneDriveFolder": "C:\\Users\\dono\\OneDrive\\Color" }` is imported once into `settings` when no folder is stored. Unset means no backup, and Início says so. Backups are `db_backup` items of the export queue (FR-31, #22, [ADR 0005](docs/adr/0005-backup-queue-and-restore.md)): written before the spreadsheets, then RN-13 retention (`backupsToDelete()` in core). The daily spreadsheets (#21) go to `<OneDrive folder>/AAAA/MM - Mês/Diária AAAA-MM-DD.xlsx`, and the monthly one (#28) to `…/Mensal AAAA-MM.xlsx` in the same folder (spec §7.2). Before pending migrations, a local backup goes to `<data dir>/backups/`. Restore (FR-32) is in **Configurações › Backup e restauração**: the request stages the file in `<data dir>/restore/` (marker `pending.json`), and `main.ts` restarts **in its own process**; `openAppDatabase()` (`src/startup/open-database.ts`) writes the safety copy to `<data dir>/backups/`, swaps the file, migrates and writes the audit row. Never swap `color.db` while it is open. Manual restore (when the system does not open): [`docs/pilot/restaurar-backup.md`](docs/pilot/restaurar-backup.md).
 
 Pilot install (#26, [ADR 0004](docs/adr/0004-pilot-install.md), [`docs/pilot/install.md`](docs/pilot/install.md)): the zip's `.cmd` scripts only call `app\node\node.exe app\server\dist\pilot\cli.js <command>`. Put all logic and pt-BR messages in `apps/server/src/pilot/`, and keep the `.cmd` files ASCII. A Task Scheduler task starts `launcher.js` at logon, hidden; it restarts the server and writes `<data dir>/logs/`. Trial mode (`data-treino\`, `COLOR_BMS_TRIAL=1`) never backs up to OneDrive. Bump `apps/server/package.json` `version` for each pilot update.
+
+Windows installer (#24, [ADR 0006](docs/adr/0006-windows-installer.md), [`docs/install/installer.md`](docs/install/installer.md)): `installer/color-bms.iss` only carries the pilot package. It unpacks it to `{tmp}` and runs `cli.js instalador` (install or update) and, on uninstall, `cli.js desinstalar`; keep the logic in `apps/server/src/pilot/`, not in Pascal. The installer's own few pt-BR texts (Start Menu names, the error boxes) live only in the `.iss` `[CustomMessages]` section; everything after it stays ASCII. An older installer refuses to replace a newer version (`Setup.exe /PERMITIRVERSAOANTERIOR=1` to do it on purpose). The `.iss` is UTF-8 with BOM and is checked by `apps/server/test/installer.test.ts`. Uninstall never deletes `data\`, `data-treino\`, `arquivo\` or `instalacao.json`. Releases: tag `vX.Y.Z` (= the server version) → `.github/workflows/release.yml` on `windows-latest`.
 
 Go-live and the 2-week parallel period (#27, spec §9.5): start from [`docs/pilot/go-live-checklist.md`](docs/pilot/go-live-checklist.md). It links the owner guide (`guia-rapido.md`), the training session (`treinamento.md`), the daily comparison sheet (`conferencia.md`) and the CS-1 to CS-5 record (`resultado-piloto.md`). When the UI changes a flow, update `guia-rapido.md` too.
 
@@ -58,6 +62,7 @@ apps/web/        Vite + React 18 + Tailwind 3 + shadcn/ui (design system from th
   src/config/navigation.ts  main areas + Alt+N shortcuts
   src/pages/              one page per area
 e2e/             Playwright E2E tests against the built app (one server + temp DB per worker)
+installer/       Inno Setup script of the Windows installer (#24)
 docs/            spec, ADRs, design system
 ```
 
