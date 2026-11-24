@@ -1,16 +1,33 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { AlertTriangle, CheckCircle2, FileSpreadsheet, XCircle } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import {
+  AlertCircle,
+  AlertTriangle,
+  CalendarClock,
+  CheckCircle2,
+  FileSpreadsheet,
+  Lock,
+  Receipt,
+  ShoppingCart,
+  XCircle,
+  type LucideIcon,
+} from "lucide-react";
 import { Link } from "react-router-dom";
 import {
+  cashDifferenceLabel,
+  dueAlertText,
   EXPORT_RETRY_MINUTES,
+  formatCents,
   formatCivilDate,
   formatInstant,
+  formatYearMonth,
+  homeAlertCount,
+  type AlertBill,
   type ExportQueueItem,
-  type StartupCheck,
+  type ExportQueueStatusResponse,
+  type HomeAlertsResponse,
 } from "@color-bms/core";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { NAV_ITEMS } from "@/config/navigation";
@@ -18,36 +35,11 @@ import { api, QUERY_KEYS } from "@/lib/api";
 
 const home = NAV_ITEMS[0];
 
-/**
- * #25: the backup's configuration notices: a missing OneDrive folder is a warning (trial mode
- * says it never backs up). A failed backup is an item of the export queue since #22 (FR-31),
- * shown by ExportNotices. #23 folds them into the alert list.
- */
-function BackupNotices() {
-  const status = useQuery({ queryKey: QUERY_KEYS.backupStatus, queryFn: api.backupStatus });
-  // #26: trial mode never backs up, whatever the folder: no "configure it" prompt then.
-  const health = useQuery({ queryKey: QUERY_KEYS.health, queryFn: api.health });
-  if (status.isError) {
-    return <p className="mb-2 text-destructive">Não foi possível verificar o backup.</p>;
-  }
-  if (!status.data || status.data.configured) return null;
-  if (health.data?.trial) {
-    return <p className="mb-2 text-muted-foreground">Modo treino: sem backup no OneDrive.</p>;
-  }
-  return (
-    <p className="mb-2 flex items-center gap-2">
-      <AlertTriangle className="h-4 w-4 shrink-0 text-rainbow-orange" aria-hidden />
-      <span>Pasta do OneDrive não configurada: os backups não estão sendo gravados.</span>
-      {/* FR-27: each alert links to where it is fixed (FR-33, Configurações). */}
-      <Link
-        to="/configuracoes"
-        className="rounded-md px-2 py-1 font-medium text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        Configurar
-      </Link>
-    </p>
-  );
-}
+/** The checks refresh every minute: the server retries the exports every 5 (FR-30). */
+const REFRESH_MS = 60_000;
+
+const LINK_CLASS =
+  "shrink-0 rounded-md px-2 py-1 font-medium text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring";
 
 /** FR-30 / FR-31: "1 planilha não foi gravada", "o backup do banco não foi gravado", or both. */
 function pendingSummary(failed: readonly ExportQueueItem[]): string {
@@ -60,19 +52,16 @@ function pendingSummary(failed: readonly ExportQueueItem[]): string {
 }
 
 /**
- * FR-30 (#21) / FR-31 (#22): the spreadsheets and database backups that could not be written to the OneDrive folder ("Backup
- * pendente", the FR-27 alert name): each file with its reason and last try, the automatic
+ * FR-27 "Backup pendente" (FR-30, FR-31): the spreadsheets and database backups that could not
+ * be written to the OneDrive folder: each file with its reason and last try, the automatic
  * retry, a "Tentar agora" button, and a link to Configurações when the folder is the problem
- * (spec §7.4). #23 folds it into the alert list.
+ * (spec §7.4).
  */
-function ExportNotices() {
+function BackupPendingNotice() {
+  // Its own observer of the shared query (no extra request): "Tentar agora" compares the
+  // update time, and a parent's result object would be stale here.
+  const status = useExportStatus();
   const queryClient = useQueryClient();
-  const status = useQuery({
-    queryKey: QUERY_KEYS.exportStatus,
-    queryFn: api.exportStatus,
-    // The server retries every 5 minutes: check now and then, so a fixed problem disappears.
-    refetchInterval: 60_000,
-  });
   /**
    * The status update that "Tentar agora" produced: its "still failing" message stays only
    * until the list is refreshed, so it never describes an older list.
@@ -85,10 +74,7 @@ function ExportNotices() {
       setRetriedUpdateAt(queryClient.getQueryState(QUERY_KEYS.exportStatus)?.dataUpdatedAt ?? null);
     },
   });
-  if (status.isError) {
-    return <p className="mb-2 text-destructive">Não foi possível verificar as planilhas.</p>;
-  }
-  const failed = status.data?.items.filter((item) => item.status === "failed") ?? [];
+  const failed = failedExports(status.data);
   if (failed.length === 0) return null;
   const folderProblem = failed.some((item) => item.lastErrorCause === "folder");
 
@@ -121,10 +107,7 @@ function ExportNotices() {
           {retry.isPending ? "Tentando…" : "Tentar agora"}
         </Button>
         {folderProblem ? (
-          <Link
-            to="/configuracoes"
-            className="rounded-md px-2 py-1 font-medium text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
-          >
+          <Link to="/configuracoes" className={LINK_CLASS}>
             Verificar a pasta
           </Link>
         ) : null}
@@ -139,19 +122,159 @@ function ExportNotices() {
   );
 }
 
+/** FR-30: the export queue, shared by the alert count and the Backup pendente notice. */
+function useExportStatus() {
+  return useQuery({
+    queryKey: QUERY_KEYS.exportStatus,
+    queryFn: api.exportStatus,
+    refetchInterval: REFRESH_MS,
+  });
+}
+
+function failedExports(status: ExportQueueStatusResponse | undefined): ExportQueueItem[] {
+  return status?.items.filter((item) => item.status === "failed") ?? [];
+}
+
+/** One dense alert line: an icon, the text (it names the alert) and the link that resolves it. */
+function AlertRow({
+  icon: Icon,
+  iconClassName,
+  children,
+  action,
+}: {
+  icon: LucideIcon;
+  iconClassName: string;
+  children: ReactNode;
+  action: ReactNode;
+}) {
+  return (
+    <li className="flex min-h-9 items-center justify-between gap-3 py-1">
+      <span className="flex items-start gap-2">
+        <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${iconClassName}`} aria-hidden />
+        <span className="break-words">{children}</span>
+      </span>
+      {action}
+    </li>
+  );
+}
+
 /**
- * FR-27 (pilot slice): the "Dia não fechado" alert: earlier days with movement still open, each
- * with a link to close it, and the backup notices (#25). The other alerts and "Tudo em dia"
- * come in #23.
+ * FR-27 Conta vencida / Conta a vencer: "Luz (10/2026), venceu há 2 dias (16/11/2026) ·
+ * previsto R$ 200,00". The month is named only when it is not the current one. "Pagar" opens
+ * the payment card on Contas do mês (`?pagar=`).
+ */
+function BillAlertRow({
+  bill,
+  kind,
+  today,
+}: {
+  bill: AlertBill;
+  kind: "overdue" | "due_soon";
+  today: string;
+}) {
+  const otherMonth = bill.referenceMonth !== today.slice(0, 7);
+  const name = otherMonth ? `${bill.label} (${formatYearMonth(bill.referenceMonth)})` : bill.label;
+  return (
+    <AlertRow
+      icon={kind === "overdue" ? AlertCircle : CalendarClock}
+      iconClassName={kind === "overdue" ? "text-destructive" : "text-rainbow-orange"}
+      action={
+        <Link
+          to={`/despesas-fixas/mes?mes=${bill.referenceMonth}&pagar=${bill.id}`}
+          aria-label={`Pagar ${name} (vencimento ${formatCivilDate(bill.dueDate)})`}
+          className={LINK_CLASS}
+        >
+          Pagar
+        </Link>
+      }
+    >
+      <strong>{kind === "overdue" ? "Conta vencida:" : "Conta a vencer:"}</strong> {name},{" "}
+      {dueAlertText(bill.dueDate, today)} ({formatCivilDate(bill.dueDate)})
+      {bill.expectedAmountCents !== null
+        ? ` · previsto ${formatCents(bill.expectedAmountCents)}`
+        : ""}
+    </AlertRow>
+  );
+}
+
+/** FR-27 Diferença de caixa: the last closing's surplus or shortage above the limit (A-17). */
+function CashDifferenceRow({
+  cashDifference,
+}: {
+  cashDifference: NonNullable<HomeAlertsResponse["cashDifference"]>;
+}) {
+  const { date, differenceCents, limitCents } = cashDifference;
+  return (
+    <AlertRow
+      icon={AlertTriangle}
+      iconClassName="text-rainbow-orange"
+      action={
+        <Link
+          to={`/fechamento?data=${date}`}
+          aria-label={`Ver o fechamento de ${formatCivilDate(date)}`}
+          className={LINK_CLASS}
+        >
+          Ver fechamento
+        </Link>
+      }
+    >
+      <strong>Diferença de caixa</strong> no fechamento de {formatCivilDate(date)}:{" "}
+      {cashDifferenceLabel(differenceCents)}
+      {/* The default limit R$ 0,00 (A-17) means "any difference": not worth repeating. */}
+      {limitCents > 0 ? ` (limite ${formatCents(limitCents)})` : ""}
+    </AlertRow>
+  );
+}
+
+/**
+ * FR-27: the alerts of Início, most urgent first, each with a link to where it is fixed, or
+ * "Tudo em dia". Sources: GET /api/alerts (bills, open days, cash difference), the export
+ * queue (Backup pendente), the backup configuration (#25) and the startup checks (#26).
  */
 function AlertsCard() {
-  const unclosed = useQuery({
-    queryKey: QUERY_KEYS.unclosedDays,
-    queryFn: api.cashClosing.unclosed,
+  const alerts = useQuery({
+    queryKey: QUERY_KEYS.homeAlerts,
+    queryFn: api.homeAlerts,
+    refetchInterval: REFRESH_MS,
   });
+  const exportStatus = useExportStatus();
+  const backup = useQuery({ queryKey: QUERY_KEYS.backupStatus, queryFn: api.backupStatus });
+  // #26: trial mode never backs up (no "configure it" prompt), and the startup checks.
+  const health = useQuery({ queryKey: QUERY_KEYS.health, queryFn: api.health });
+
+  const failedCount = failedExports(exportStatus.data).length;
+  const trial = health.data?.trial ?? false;
+  // #25/#20: in real use, no OneDrive folder means no backup at all. Decided only once both
+  // answered, so trial mode never flashes this alert while /api/health is still running.
+  const folderMissing =
+    backup.data !== undefined &&
+    health.data !== undefined &&
+    !backup.data.configured &&
+    !health.data.trial;
+  // #26: startup checks in error, and warnings (e.g. the PC time zone) except the missing
+  // OneDrive folder, which has its own alert above.
+  const startupProblems =
+    health.data?.checks.filter(
+      (check) =>
+        check.status === "error" || (check.status === "warning" && check.id !== "oneDriveFolder"),
+    ) ?? [];
+  const data = alerts.data;
+
+  // "Tudo em dia" only when every source answered: an unknown state is never "all clear".
+  const allClear =
+    data !== undefined &&
+    exportStatus.isSuccess &&
+    backup.isSuccess &&
+    health.isSuccess &&
+    homeAlertCount({
+      alerts: data,
+      failedExports: failedCount,
+      oneDriveNotConfigured: folderMissing,
+      startupProblems: startupProblems.length,
+    }) === 0;
 
   return (
-    <section aria-labelledby="alerts-title" className="mb-4 max-w-xl">
+    <section aria-labelledby="alerts-title" className="max-w-3xl">
       <Card>
         <CardHeader className="p-4 pb-2">
           <CardTitle id="alerts-title" className="text-base">
@@ -159,36 +282,88 @@ function AlertsCard() {
           </CardTitle>
         </CardHeader>
         <CardContent className="p-4 pt-0">
-          <BackupNotices />
-          <ExportNotices />
-          {unclosed.isPending ? <p className="text-muted-foreground">Verificando…</p> : null}
-          {unclosed.isError ? (
+          {exportStatus.isError ? (
+            <p className="mb-2 text-destructive">Não foi possível verificar as planilhas.</p>
+          ) : null}
+          {backup.isError ? (
+            <p className="mb-2 text-destructive">Não foi possível verificar o backup.</p>
+          ) : null}
+          <BackupPendingNotice />
+
+          {alerts.isPending ? <p className="text-muted-foreground">Verificando…</p> : null}
+          {alerts.isError ? (
             <p className="text-destructive">Não foi possível verificar os alertas.</p>
           ) : null}
-          {unclosed.data?.length === 0 ? (
-            <p className="flex items-center gap-2 text-muted-foreground">
-              <CheckCircle2 className="h-4 w-4 text-rainbow-green" aria-hidden />
-              Nenhum dia anterior pendente de fechamento.
-            </p>
-          ) : null}
-          {unclosed.data && unclosed.data.length > 0 ? (
-            <ul className="divide-y">
-              {unclosed.data.map((date) => (
-                <li key={date} className="flex min-h-9 items-center justify-between gap-3 py-1">
-                  <span className="flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4 text-rainbow-orange" aria-hidden />
-                    Dia {formatCivilDate(date)} não fechado
-                  </span>
+
+          <ul className="divide-y empty:hidden">
+            {startupProblems.map((check) => (
+              <AlertRow
+                key={check.id}
+                icon={check.status === "error" ? XCircle : AlertTriangle}
+                iconClassName={
+                  check.status === "error" ? "text-destructive" : "text-rainbow-orange"
+                }
+                action={
+                  <Link to="/configuracoes" className={LINK_CLASS}>
+                    Ver detalhes
+                  </Link>
+                }
+              >
+                <strong>{check.status === "error" ? "Problema no PC:" : "Atenção no PC:"}</strong>{" "}
+                {check.message}
+              </AlertRow>
+            ))}
+            {folderMissing ? (
+              <AlertRow
+                icon={AlertTriangle}
+                iconClassName="text-rainbow-orange"
+                action={
+                  <Link to="/configuracoes" className={LINK_CLASS}>
+                    Configurar
+                  </Link>
+                }
+              >
+                Pasta do OneDrive não configurada: os backups não estão sendo gravados.
+              </AlertRow>
+            ) : null}
+            {data?.unclosedDays.map((date) => (
+              <AlertRow
+                key={date}
+                icon={AlertTriangle}
+                iconClassName="text-rainbow-orange"
+                action={
                   <Link
                     to={`/fechamento?data=${date}`}
                     aria-label={`Fechar o dia ${formatCivilDate(date)}`}
-                    className="rounded-md px-2 py-1 font-medium text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                    className={LINK_CLASS}
                   >
                     Fechar
                   </Link>
-                </li>
-              ))}
-            </ul>
+                }
+              >
+                Dia {formatCivilDate(date)} não fechado
+              </AlertRow>
+            ))}
+            {data?.overdueBills.map((bill) => (
+              <BillAlertRow key={bill.id} bill={bill} kind="overdue" today={data.today} />
+            ))}
+            {data?.cashDifference ? (
+              <CashDifferenceRow cashDifference={data.cashDifference} />
+            ) : null}
+            {data?.dueSoonBills.map((bill) => (
+              <BillAlertRow key={bill.id} bill={bill} kind="due_soon" today={data.today} />
+            ))}
+          </ul>
+
+          {allClear ? (
+            <p role="status" className="flex items-center gap-2 font-medium">
+              <CheckCircle2 className="h-4 w-4 text-rainbow-green" aria-hidden />
+              Tudo em dia
+            </p>
+          ) : null}
+          {/* #26: trial mode is a note, not an alert. */}
+          {trial && backup.data && !backup.data.configured ? (
+            <p className="mt-2 text-muted-foreground">Modo treino: sem backup no OneDrive.</p>
           ) : null}
         </CardContent>
       </Card>
@@ -196,87 +371,58 @@ function AlertsCard() {
   );
 }
 
-const CHECK_STATUS = {
-  ok: { label: "OK", Icon: CheckCircle2, className: "text-rainbow-green" },
-  warning: { label: "Atenção", Icon: AlertTriangle, className: "text-rainbow-orange" },
-  error: { label: "Erro", Icon: XCircle, className: "text-destructive" },
-} as const;
+const SHORTCUTS: readonly { label: string; path: string; icon: LucideIcon }[] = [
+  { label: "Registrar venda", path: "/vendas", icon: ShoppingCart },
+  { label: "Registrar despesa", path: "/despesas", icon: Receipt },
+  { label: "Fechar o dia", path: "/fechamento", icon: Lock },
+];
 
-/**
- * #26: the server's startup checks (time zone, clock, port, data and OneDrive folders), one
- * line each, with an icon and a text label (color alone is not enough).
- */
-function StartupChecks({ checks }: { checks: StartupCheck[] }) {
-  if (checks.length === 0) return null;
+/** FR-27: the shortcuts to the day's main tasks, with their Alt+N keys (NFR-05). */
+function ShortcutsCard() {
   return (
-    <ul aria-label="Verificações" className="mt-3 space-y-1 border-t pt-3">
-      {checks.map((check) => {
-        const { label, Icon, className } = CHECK_STATUS[check.status];
-        return (
-          <li
-            key={check.id}
-            className={`flex items-start gap-2 ${check.status === "error" ? "text-destructive" : ""}`}
-          >
-            <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${className}`} aria-hidden />
-            <span className="break-words">
-              <span className="sr-only">{label}: </span>
-              {check.message}
-            </span>
-          </li>
-        );
-      })}
-    </ul>
+    <section aria-labelledby="shortcuts-title" className="max-w-3xl">
+      <Card>
+        <CardHeader className="p-4 pb-2">
+          <CardTitle id="shortcuts-title" className="text-base">
+            Atalhos
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2 p-4 pt-0">
+          {SHORTCUTS.map(({ label, path, icon: Icon }) => {
+            const shortcut = NAV_ITEMS.find((item) => item.path === path)?.shortcut;
+            return (
+              <Button key={path} asChild variant="outline">
+                <Link
+                  to={path}
+                  aria-keyshortcuts={shortcut ? `Alt+${shortcut}` : undefined}
+                  aria-label={label}
+                >
+                  <Icon aria-hidden />
+                  {label}
+                  {shortcut ? (
+                    <kbd className="text-[10px] font-normal text-muted-foreground" aria-hidden>
+                      Alt+{shortcut}
+                    </kbd>
+                  ) : null}
+                </Link>
+              </Button>
+            );
+          })}
+        </CardContent>
+      </Card>
+    </section>
   );
 }
 
-/** Início: the alerts (FR-27, pilot slice) and the system status. */
+/** Início: what needs attention today (FR-27) and the shortcuts to the day's tasks. */
 export function HomePage() {
-  const health = useQuery({ queryKey: QUERY_KEYS.health, queryFn: api.health });
-  const backup = useQuery({ queryKey: QUERY_KEYS.backupStatus, queryFn: api.backupStatus });
-
   return (
     <>
       <PageHeader title={home?.label ?? "Início"} description={home?.description} />
-
-      <AlertsCard />
-
-      <Card className="max-w-xl">
-        <CardHeader className="flex-row items-center justify-between space-y-0 p-4 pb-2">
-          <CardTitle className="text-base">Status do sistema</CardTitle>
-          {health.isPending && <Badge variant="secondary">Verificando…</Badge>}
-          {health.isSuccess && <Badge variant="success">Conectado</Badge>}
-          {health.isError && <Badge variant="destructive">Sem conexão</Badge>}
-        </CardHeader>
-        <CardContent className="p-4 pt-0">
-          {health.isSuccess && (
-            <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-1">
-              <dt className="text-muted-foreground">Versão</dt>
-              <dd>{health.data.version}</dd>
-              <dt className="text-muted-foreground">Banco de dados</dt>
-              <dd>
-                SQLite {health.data.db.sqliteVersion} ({health.data.db.journalMode.toUpperCase()})
-              </dd>
-              <dt className="text-muted-foreground">Hora do servidor</dt>
-              <dd className="tabular-nums">{formatInstant(health.data.serverTime)}</dd>
-              {/* #25: when the newest backup in the OneDrive folder was made. */}
-              {backup.data?.configured && (
-                <>
-                  <dt className="text-muted-foreground">Último backup</dt>
-                  <dd className="tabular-nums">
-                    {backup.data.lastSuccess ? formatInstant(backup.data.lastSuccess.at) : "Nenhum"}
-                  </dd>
-                </>
-              )}
-            </dl>
-          )}
-          {health.isSuccess && <StartupChecks checks={health.data.checks} />}
-          {health.isError && (
-            <p className="text-destructive">
-              Não foi possível falar com o servidor. Verifique se o sistema está em execução.
-            </p>
-          )}
-        </CardContent>
-      </Card>
+      <div className="grid gap-4">
+        <AlertsCard />
+        <ShortcutsCard />
+      </div>
     </>
   );
 }

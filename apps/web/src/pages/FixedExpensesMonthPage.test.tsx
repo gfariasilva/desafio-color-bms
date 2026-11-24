@@ -422,3 +422,33 @@ describe("Conversão das sangrias CONTA: (#13)", () => {
     expect(posts).toEqual([{ target: "existing", fixedExpenseId: 1 }]);
   });
 });
+
+describe("FR-27: Pagar from an Início alert (?pagar=)", () => {
+  it("FR-27: ?pagar=<id> opens the payment of that bill, focused on the amount", async () => {
+    await openPage("/despesas-fixas/mes?mes=2026-11&pagar=1");
+    const form = await screen.findByRole("form", { name: "Pagar Luz" });
+    expect(within(form).getByLabelText("Valor pago (R$)")).toHaveFocus();
+  });
+
+  it("FR-27: after Esc the payment does not open again; focus goes to the row's Pagar", async () => {
+    await openPage("/despesas-fixas/mes?pagar=1");
+    const form = await screen.findByRole("form", { name: "Pagar Luz" });
+    fireEvent.keyDown(within(form).getByLabelText("Valor pago (R$)"), { key: "Escape" });
+    await waitFor(() =>
+      expect(screen.queryByRole("form", { name: "Pagar Luz" })).not.toBeInTheDocument(),
+    );
+    expect(screen.getByRole("button", { name: "Pagar Luz" })).toHaveFocus();
+  });
+
+  it("FR-27: a bill that is no longer pending (paid meanwhile) opens nothing", async () => {
+    response = {
+      ...response,
+      expenses: [
+        entry(1, "Luz", { status: "paid", amountCents: 20000, paymentDate: "2026-11-10" }),
+      ],
+    };
+    await openPage("/despesas-fixas/mes?pagar=1");
+    await screen.findByText("Luz");
+    expect(screen.queryByRole("form", { name: /Pagar/ })).not.toBeInTheDocument();
+  });
+});

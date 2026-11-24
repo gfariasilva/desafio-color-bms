@@ -29,7 +29,7 @@ function dayStatusInLatestBackup(oneDriveDir: string, date: string): string | nu
   }
 }
 
-test("FR-31 (#25): the first start of the day writes a backup, shown on Início", async ({
+test("FR-31 (#25): the first start of the day writes a backup, shown in Configurações", async ({
   page,
   server,
 }) => {
@@ -37,9 +37,11 @@ test("FR-31 (#25): the first start of the day writes a backup, shown on Início"
     expect.stringMatching(/^color-2026-11-18_\d{4}\.db$/),
   );
 
-  await page.goto("/");
+  // #23: the system status moved from Início to Configurações.
+  await page.goto("/configuracoes");
   await expect(page.getByText("Último backup")).toBeVisible();
   await expect(page.getByText(/^18\/11\/2026 \d{2}:\d{2}$/).first()).toBeVisible();
+  await page.goto("/");
   await expect(page.getByText(/Backup pendente/)).toHaveCount(0);
 });
 

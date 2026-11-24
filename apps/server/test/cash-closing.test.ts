@@ -396,7 +396,7 @@ describe("FR-08: exports and backup are queued after the closing (onDayClosed)",
   });
 });
 
-describe("FR-27 (pilot slice): days left open (GET /api/days/unclosed)", () => {
+describe("FR-27: Dia não fechado (GET /api/alerts)", () => {
   it("FR-27: lists the days before today with movement that are still open, oldest first", async () => {
     await createSale(ctx, { date: "2026-11-15" });
     await closeDayWithCount(ctx, "2026-11-15", { openingCashCents: 0, countedCashCents: 2500 });

@@ -2,7 +2,7 @@ import { expect } from "vitest";
 import {
   auditListResponseSchema,
   dayCashClosingResponseSchema,
-  unclosedDaysResponseSchema,
+  homeAlertsResponseSchema,
   type CloseDayInput,
 } from "@color-bms/core";
 import type { SalesContext } from "./sales-fixture";
@@ -29,10 +29,11 @@ export async function getCashClosing(ctx: SalesContext, date: string) {
   return dayCashClosingResponseSchema.parse(response.json());
 }
 
+/** FR-27 "Dia não fechado": the open days listed by GET /api/alerts. */
 export async function getUnclosedDays(ctx: SalesContext) {
-  const response = await ctx.app.inject({ method: "GET", url: "/api/days/unclosed" });
+  const response = await ctx.app.inject({ method: "GET", url: "/api/alerts" });
   expect(response.statusCode, response.body).toBe(200);
-  return unclosedDaysResponseSchema.parse(response.json()).days;
+  return homeAlertsResponseSchema.parse(response.json()).unclosedDays;
 }
 
 export async function dayAudit(ctx: SalesContext) {

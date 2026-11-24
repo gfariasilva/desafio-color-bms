@@ -5,6 +5,7 @@ import { todayCivilDate, type RestoreResult } from "@color-bms/core";
 import { systemClock, type Clock } from "./clock";
 import type { DatabaseConnection } from "./db/client";
 import { registerHostGuard } from "./http/host-guard";
+import { registerAlertRoutes } from "./modules/alerts/alerts.routes";
 import { registerAuditRoutes } from "./modules/audit/audit.routes";
 import { registerBackupRoutes } from "./modules/backup/backup.routes";
 import { createRestoreService } from "./modules/backup/restore.service";
@@ -181,6 +182,8 @@ export async function buildApp({
   registerDayReportRoutes(app, connection, now);
   registerMonthReportRoutes(app, connection, now);
   registerDashboardRoutes(app, connection, now);
+  // FR-27: the alerts of Início, with the FR-33 thresholds.
+  registerAlertRoutes(app, connection, settingsStore, now);
 
   if (webDistDir && fs.existsSync(webDistDir)) {
     await app.register(fastifyStatic, { root: webDistDir });

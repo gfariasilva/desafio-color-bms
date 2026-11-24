@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppRoutes, ROUTER_FUTURE } from "@/App";
@@ -22,6 +22,9 @@ let settings: Record<string, unknown>;
 let putResponse: () => Response;
 let testResponse: () => Response;
 let fetchMock: ReturnType<typeof vi.fn>;
+/** GET /api/health and GET /api/backup/status: the system status card (#25, #26). */
+let healthBody: Record<string, unknown> | null;
+let backupStatus: Record<string, unknown> | null;
 
 function requestsTo(method: string, url: string) {
   return fetchMock.mock.calls.filter(
@@ -44,9 +47,13 @@ beforeEach(() => {
   putResponse = () => json(settings);
   testResponse = () =>
     json({ ok: true, message: `Pasta OK: o sistema consegue gravar em ${FOLDER}.` });
+  healthBody = null;
+  backupStatus = null;
   fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     const method = init?.method ?? "GET";
+    if (url === "/api/health" && healthBody) return json(healthBody);
+    if (url === "/api/backup/status" && backupStatus) return json(backupStatus);
     if (url === "/api/settings" && method === "GET") return json(settings);
     if (url === "/api/settings" && method === "PUT") return putResponse();
     if (url === "/api/settings/onedrive-folder/test") return testResponse();
@@ -211,5 +218,79 @@ describe("#20: special cases", () => {
       "href",
       "/configuracoes/auditoria",
     );
+  });
+});
+
+const HEALTH = {
+  status: "ok",
+  version: "0.1.0",
+  serverTime: "2026-11-18T22:10:00.000Z",
+  db: { sqliteVersion: "3.54.1", journalMode: "wal", settingsCount: 0 },
+  trial: false,
+  checks: [],
+};
+
+describe("#23: the system status is in Configurações (moved from Início)", () => {
+  it("#25: shows the version, the database and the time of the last backup", async () => {
+    healthBody = HEALTH;
+    backupStatus = {
+      configured: true,
+      folder: "C:\\OneDrive\\Color\\_backup-sistema",
+      lastSuccess: { at: "2026-11-18T22:03:00.000Z", file: "color-2026-11-18_1903.db" },
+      lastRestore: null,
+      startId: "s1",
+    };
+    renderSettings();
+    const status = await screen.findByRole("region", { name: "Status do sistema" });
+    expect(await within(status).findByText("Conectado")).toBeInTheDocument();
+    expect(within(status).getByText("0.1.0")).toBeInTheDocument();
+    expect(within(status).getByText("SQLite 3.54.1 (WAL)")).toBeInTheDocument();
+    expect(within(status).getByText("Último backup")).toBeInTheDocument();
+    expect(within(status).getByText("18/11/2026 19:03")).toBeInTheDocument();
+  });
+
+  it("#26: lists each startup check with its status", async () => {
+    healthBody = {
+      ...HEALTH,
+      checks: [
+        {
+          id: "timeZone",
+          status: "ok",
+          message: "Fuso horário do PC: UTC−03:00, o mesmo de São Paulo.",
+        },
+        {
+          id: "clock",
+          status: "error",
+          message: "O relógio do PC está atrasado: acerte a data e a hora do Windows.",
+        },
+        { id: "oneDriveFolder", status: "warning", message: "Pasta do OneDrive não configurada." },
+      ],
+    };
+    renderSettings();
+    const list = await screen.findByRole("list", { name: "Verificações" });
+    const items = within(list).getAllByRole("listitem");
+    expect(items).toHaveLength(3);
+    expect(items[0]).toHaveTextContent("OK: Fuso horário do PC: UTC−03:00, o mesmo de São Paulo.");
+    expect(items[1]).toHaveTextContent(
+      "Erro: O relógio do PC está atrasado: acerte a data e a hora do Windows.",
+    );
+    expect(items[2]).toHaveTextContent("Atenção: Pasta do OneDrive não configurada.");
+  });
+
+  it("#26: no list when the server sends no checks", async () => {
+    healthBody = HEALTH;
+    renderSettings();
+    expect(await screen.findByText("Versão")).toBeInTheDocument();
+    expect(screen.queryByRole("list", { name: "Verificações" })).not.toBeInTheDocument();
+  });
+
+  it("#23: the server is unreachable", async () => {
+    renderSettings();
+    const status = await screen.findByRole("region", { name: "Status do sistema" });
+    expect(
+      await within(status).findByText(
+        "Não foi possível falar com o servidor. Verifique se o sistema está em execução.",
+      ),
+    ).toBeInTheDocument();
   });
 });

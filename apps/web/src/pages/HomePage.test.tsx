@@ -16,7 +16,7 @@ function renderAt(path: string) {
   return { ...view, queryClient };
 }
 
-let unclosed: string[];
+let alerts: Record<string, unknown>;
 let backupStatus: unknown;
 let healthBody: Record<string, unknown>;
 let exportStatus: Record<string, unknown>;
@@ -25,8 +25,17 @@ let retryAnswer: Record<string, unknown>;
 const retryCalls: string[] = [];
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 
+const NO_ALERTS = {
+  today: "2026-11-18",
+  dueSoonDays: 3,
+  overdueBills: [],
+  dueSoonBills: [],
+  unclosedDays: [],
+  cashDifference: null,
+};
+
 beforeEach(() => {
-  unclosed = [];
+  alerts = { ...NO_ALERTS };
   healthBody = {
     status: "ok",
     version: "0.1.0",
@@ -54,7 +63,7 @@ beforeEach(() => {
         return json(retryAnswer);
       }
       if (url.startsWith("/api/exports/status")) return json(exportStatus);
-      if (url.startsWith("/api/days/unclosed")) return json({ days: unclosed });
+      if (url.startsWith("/api/alerts")) return json(alerts);
       if (url.startsWith("/api/backup/status")) return json(backupStatus);
       if (url.startsWith("/api/health")) return json(healthBody);
       return json({ error: "not found" }, 404);
@@ -66,25 +75,216 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("FR-27 (pilot slice): Início warns about days left open", () => {
-  it("FR-27: lists each earlier day with movement still open, with a link to close it", async () => {
-    unclosed = ["2026-11-14", "2026-11-17"];
+const LUZ = {
+  id: 7,
+  label: "Luz",
+  referenceMonth: "2026-11",
+  dueDate: "2026-11-20",
+  expectedAmountCents: 20000,
+};
+
+describe("FR-27: Início alerts", () => {
+  it("FR-27: no active condition → Tudo em dia", async () => {
     renderAt("/");
     const alerts = await screen.findByRole("region", { name: "Alertas" });
-    expect(await within(alerts).findByText("Dia 14/11/2026 não fechado")).toBeInTheDocument();
-    expect(within(alerts).getByText("Dia 17/11/2026 não fechado")).toBeInTheDocument();
-    expect(within(alerts).getByRole("link", { name: "Fechar o dia 14/11/2026" })).toHaveAttribute(
+    expect(await within(alerts).findByText("Tudo em dia")).toBeInTheDocument();
+    expect(within(alerts).queryByRole("listitem")).toBeNull();
+  });
+
+  it("FR-27: Dia não fechado: each earlier day open, with a link to close it", async () => {
+    alerts = { ...NO_ALERTS, unclosedDays: ["2026-11-14", "2026-11-17"] };
+    renderAt("/");
+    const region = await screen.findByRole("region", { name: "Alertas" });
+    expect(await within(region).findByText("Dia 14/11/2026 não fechado")).toBeInTheDocument();
+    expect(within(region).getByText("Dia 17/11/2026 não fechado")).toBeInTheDocument();
+    expect(within(region).getByRole("link", { name: "Fechar o dia 14/11/2026" })).toHaveAttribute(
       "href",
       "/fechamento?data=2026-11-14",
     );
+    expect(within(region).queryByText("Tudo em dia")).toBeNull();
   });
 
-  it("FR-27: no pending day", async () => {
+  it("FR-27: Conta vencida, with the month and a link that opens the payment", async () => {
+    alerts = {
+      ...NO_ALERTS,
+      overdueBills: [{ ...LUZ, referenceMonth: "2026-10", dueDate: "2026-10-20" }],
+    };
     renderAt("/");
-    const alerts = await screen.findByRole("region", { name: "Alertas" });
+    const row = (await screen.findByText(/Conta vencida:/)).closest("li")!;
+    expect(row).toHaveTextContent(
+      "Conta vencida: Luz (10/2026), venceu há 29 dias (20/10/2026) · previsto R$ 200,00",
+    );
     expect(
-      await within(alerts).findByText("Nenhum dia anterior pendente de fechamento."),
-    ).toBeInTheDocument();
+      within(row).getByRole("link", { name: "Pagar Luz (10/2026) (vencimento 20/10/2026)" }),
+    ).toHaveAttribute("href", "/despesas-fixas/mes?mes=2026-10&pagar=7");
+  });
+
+  it("FR-27: Conta a vencer, without an expected amount", async () => {
+    alerts = { ...NO_ALERTS, dueSoonBills: [{ ...LUZ, expectedAmountCents: null }] };
+    renderAt("/");
+    const row = (await screen.findByText(/Conta a vencer:/)).closest("li")!;
+    // The current month is not repeated.
+    expect(row).toHaveTextContent("Conta a vencer: Luz, vence em 2 dias (20/11/2026)");
+    expect(row).not.toHaveTextContent("previsto");
+    expect(
+      within(row).getByRole("link", { name: "Pagar Luz (vencimento 20/11/2026)" }),
+    ).toHaveAttribute("href", "/despesas-fixas/mes?mes=2026-11&pagar=7");
+  });
+
+  it("FR-27: Diferença de caixa in the last closing, with a link to it", async () => {
+    alerts = {
+      ...NO_ALERTS,
+      cashDifference: { date: "2026-11-17", differenceCents: -500, limitCents: 0 },
+    };
+    renderAt("/");
+    const row = (await screen.findByText(/Diferença de caixa/)).closest("li")!;
+    expect(row).toHaveTextContent(
+      "Diferença de caixa no fechamento de 17/11/2026: Falta de R$ 5,00",
+    );
+    // The default limit R$ 0,00 (A-17) is not worth repeating.
+    expect(row).not.toHaveTextContent("limite");
+    expect(
+      within(row).getByRole("link", { name: "Ver o fechamento de 17/11/2026" }),
+    ).toHaveAttribute("href", "/fechamento?data=2026-11-17");
+  });
+
+  it("FR-27/FR-33: a configured limit is shown with the difference", async () => {
+    alerts = {
+      ...NO_ALERTS,
+      cashDifference: { date: "2026-11-17", differenceCents: 1200, limitCents: 1000 },
+    };
+    renderAt("/");
+    const row = (await screen.findByText(/Diferença de caixa/)).closest("li")!;
+    expect(row).toHaveTextContent(
+      "Diferença de caixa no fechamento de 17/11/2026: Sobra de R$ 12,00 (limite R$ 10,00)",
+    );
+  });
+
+  it("FR-27: the alerts come in order of urgency", async () => {
+    alerts = {
+      ...NO_ALERTS,
+      dueSoonBills: [LUZ],
+      overdueBills: [{ ...LUZ, id: 8, label: "Água", dueDate: "2026-11-10" }],
+      unclosedDays: ["2026-11-17"],
+      cashDifference: { date: "2026-11-16", differenceCents: -500, limitCents: 0 },
+    };
+    renderAt("/");
+    const region = await screen.findByRole("region", { name: "Alertas" });
+    await within(region).findByText("Dia 17/11/2026 não fechado");
+    const rows = within(region)
+      .getAllByRole("listitem")
+      .map((row) => row.textContent ?? "");
+    expect(rows.map((text) => text.split(/[:\s]/)[0])).toEqual([
+      "Dia",
+      "Conta",
+      "Diferença",
+      "Conta",
+    ]);
+    expect(rows[1]).toMatch(/^Conta vencida/);
+    expect(rows[3]).toMatch(/^Conta a vencer/);
+  });
+
+  it("#26: a startup check in error is an alert, with a link to Configurações", async () => {
+    healthBody.checks = [
+      { id: "timeZone", status: "ok", message: "Fuso horário do PC: UTC−03:00." },
+      {
+        id: "clock",
+        status: "error",
+        message: "O relógio do PC está atrasado: acerte a data e a hora do Windows.",
+      },
+    ];
+    renderAt("/");
+    const row = (await screen.findByText(/Problema no PC:/)).closest("li")!;
+    expect(row).toHaveTextContent(
+      "Problema no PC: O relógio do PC está atrasado: acerte a data e a hora do Windows.",
+    );
+    expect(within(row).getByRole("link", { name: "Ver detalhes" })).toHaveAttribute(
+      "href",
+      "/configuracoes",
+    );
+    // An OK check is not an alert.
+    expect(screen.queryByText(/Fuso horário/)).toBeNull();
+    expect(screen.queryByText("Tudo em dia")).toBeNull();
+  });
+
+  it("#26: a startup warning (time zone) is a softer alert; the folder warning is not repeated", async () => {
+    healthBody.checks = [
+      {
+        id: "timeZone",
+        status: "warning",
+        message:
+          "O fuso horário do PC (America/Manaus, UTC−04:00) não é o de São Paulo (UTC−03:00).",
+      },
+      { id: "oneDriveFolder", status: "warning", message: "Pasta do OneDrive não configurada." },
+    ];
+    renderAt("/");
+    const row = (await screen.findByText(/Atenção no PC:/)).closest("li")!;
+    expect(row).toHaveTextContent(
+      "Atenção no PC: O fuso horário do PC (America/Manaus, UTC−04:00) não é o de São Paulo (UTC−03:00).",
+    );
+    expect(within(row).getByRole("link", { name: "Ver detalhes" })).toHaveAttribute(
+      "href",
+      "/configuracoes",
+    );
+    // The folder is configured (backup status): its warning is not an extra row.
+    expect(screen.queryByText("Pasta do OneDrive não configurada.")).toBeNull();
+    expect(screen.queryByText("Tudo em dia")).toBeNull();
+  });
+
+  it("FR-27: two bills with the same name have distinct Pagar links (due date)", async () => {
+    alerts = {
+      ...NO_ALERTS,
+      overdueBills: [{ ...LUZ, id: 8, label: "IPTU", dueDate: "2026-11-10" }],
+      dueSoonBills: [{ ...LUZ, id: 9, label: "IPTU", dueDate: "2026-11-20" }],
+    };
+    renderAt("/");
+    expect(
+      await screen.findByRole("link", { name: "Pagar IPTU (vencimento 10/11/2026)" }),
+    ).toHaveAttribute("href", "/despesas-fixas/mes?mes=2026-11&pagar=8");
+    expect(
+      screen.getByRole("link", { name: "Pagar IPTU (vencimento 20/11/2026)" }),
+    ).toHaveAttribute("href", "/despesas-fixas/mes?mes=2026-11&pagar=9");
+  });
+
+  it("FR-27: a failed alerts request is shown, never Tudo em dia", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.startsWith("/api/alerts")) return json({ error: "erro" }, 500);
+        if (url.startsWith("/api/exports/status")) return json(exportStatus);
+        if (url.startsWith("/api/backup/status")) return json(backupStatus);
+        if (url.startsWith("/api/health")) return json(healthBody);
+        return json({ error: "not found" }, 404);
+      }),
+    );
+    renderAt("/");
+    expect(await screen.findByText("Não foi possível verificar os alertas.")).toBeInTheDocument();
+    expect(screen.queryByText("Tudo em dia")).toBeNull();
+  });
+});
+
+describe("FR-27: Início shortcuts", () => {
+  it("FR-27: register a sale, register an expense and close the day", async () => {
+    renderAt("/");
+    const shortcuts = await screen.findByRole("region", { name: "Atalhos" });
+    const links = within(shortcuts).getAllByRole("link");
+    expect(links.map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
+      ["Registrar vendaAlt+2", "/vendas"],
+      ["Registrar despesaAlt+3", "/despesas"],
+      ["Fechar o diaAlt+5", "/fechamento"],
+    ]);
+    // NFR-05: the keyboard shortcut is announced, not only drawn.
+    expect(within(shortcuts).getByRole("link", { name: "Registrar venda" })).toHaveAttribute(
+      "aria-keyshortcuts",
+      "Alt+2",
+    );
+  });
+
+  it("FR-27: the system status moved to Configurações", async () => {
+    renderAt("/");
+    await screen.findByRole("region", { name: "Alertas" });
+    expect(screen.queryByText("Status do sistema")).toBeNull();
   });
 });
 
@@ -140,7 +340,7 @@ describe("#25 / #22: Início shows the state of the backup", () => {
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
         const url = String(input);
-        if (url.startsWith("/api/days/unclosed")) return json({ days: [] });
+        if (url.startsWith("/api/alerts")) return json(NO_ALERTS);
         return json({ error: "erro" }, 500);
       }),
     );
@@ -171,6 +371,7 @@ describe("#25 / #22: Início shows the state of the backup", () => {
       "href",
       "/configuracoes",
     );
+    expect(within(alerts).queryByText("Tudo em dia")).toBeNull();
   });
 
   it("#26/#20: in trial mode, no 'não configurada' prompt and no Configurar link", async () => {
@@ -189,52 +390,37 @@ describe("#25 / #22: Início shows the state of the backup", () => {
     ).toBeInTheDocument();
     expect(within(alerts).queryByText(/não configurada/)).not.toBeInTheDocument();
     expect(within(alerts).queryByRole("link", { name: "Configurar" })).not.toBeInTheDocument();
+    // #26: trial mode is a note, not an alert.
+    expect(within(alerts).getByText("Tudo em dia")).toBeInTheDocument();
   });
 
-  it("#25: the system status shows the time of the last backup", async () => {
+  it("#26/#20: while /api/health has not answered, no 'não configurada' alert (no flash in trial mode)", async () => {
     backupStatus = {
-      configured: true,
-      folder: "C:\\OneDrive\\Color\\_backup-sistema",
-      lastSuccess: { at: "2026-11-18T22:03:00.000Z", file: "color-2026-11-18_1903.db" },
+      configured: false,
+      folder: null,
+      lastSuccess: null,
       lastRestore: null,
       startId: "s1",
     };
-    renderAt("/");
-    expect(await screen.findByText("Último backup")).toBeInTheDocument();
-    expect(await screen.findByText("18/11/2026 19:03")).toBeInTheDocument();
-  });
-});
-
-describe("#26: Início shows the startup checks", () => {
-  it("#26: lists each check with its status", async () => {
-    healthBody.checks = [
-      {
-        id: "timeZone",
-        status: "ok",
-        message: "Fuso horário do PC: UTC−03:00, o mesmo de São Paulo.",
-      },
-      {
-        id: "clock",
-        status: "error",
-        message: "O relógio do PC está atrasado: acerte a data e a hora do Windows.",
-      },
-      { id: "oneDriveFolder", status: "warning", message: "Pasta do OneDrive não configurada." },
-    ];
-    renderAt("/");
-    const list = await screen.findByRole("list", { name: "Verificações" });
-    const items = within(list).getAllByRole("listitem");
-    expect(items).toHaveLength(3);
-    expect(items[0]).toHaveTextContent("OK: Fuso horário do PC: UTC−03:00, o mesmo de São Paulo.");
-    expect(items[1]).toHaveTextContent(
-      "Erro: O relógio do PC está atrasado: acerte a data e a hora do Windows.",
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        // The health probes are still running.
+        if (url.startsWith("/api/health")) return new Promise<Response>(() => {});
+        if (url.startsWith("/api/alerts")) return json(NO_ALERTS);
+        if (url.startsWith("/api/exports/status")) return json(exportStatus);
+        if (url.startsWith("/api/backup/status")) return json(backupStatus);
+        return json({ error: "not found" }, 404);
+      }),
     );
-    expect(items[2]).toHaveTextContent("Atenção: Pasta do OneDrive não configurada.");
-  });
-
-  it("#26: no list when the server sends no checks", async () => {
     renderAt("/");
-    expect(await screen.findByText("Versão")).toBeInTheDocument();
-    expect(screen.queryByRole("list", { name: "Verificações" })).not.toBeInTheDocument();
+    const alerts = await screen.findByRole("region", { name: "Alertas" });
+    // The alerts and the backup status have answered; health has not.
+    await within(alerts).findByRole("list", { hidden: true });
+    await vi.waitFor(() => expect(within(alerts).queryByText("Verificando…")).toBeNull());
+    expect(within(alerts).queryByText(/não configurada/)).toBeNull();
+    expect(within(alerts).queryByText("Tudo em dia")).toBeNull();
   });
 });
 
@@ -258,6 +444,7 @@ describe("FR-30: Início shows the exports that could not be written", () => {
     renderAt("/");
     const alerts = await screen.findByRole("region", { name: "Alertas" });
     const notice = await within(alerts).findByRole("group", { name: "Backup pendente" });
+    expect(within(alerts).queryByText("Tudo em dia")).toBeNull();
     expect(notice).toHaveTextContent(
       "Backup pendente: 1 planilha não foi gravada no OneDrive. Nova tentativa a cada 5 minutos.",
     );
@@ -362,7 +549,7 @@ describe("FR-30: Início shows the exports that could not be written", () => {
   it("FR-30: nothing pending, no notice", async () => {
     renderAt("/");
     await screen.findByRole("region", { name: "Alertas" });
-    await screen.findByText("Nenhum dia anterior pendente de fechamento.");
+    await screen.findByText("Tudo em dia");
     expect(screen.queryByRole("group", { name: "Backup pendente" })).toBeNull();
   });
 });
