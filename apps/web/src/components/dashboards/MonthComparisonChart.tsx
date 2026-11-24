@@ -12,17 +12,7 @@ import {
 } from "recharts";
 import { formatCents, formatDayRange, type MonthComparison } from "@color-bms/core";
 import { categoryColor } from "@/lib/category-colors";
-
-/** Axis ticks are whole reais ("R$ 1.000"); the tooltip shows the exact value in cents. */
-const formatTick = (cents: number) => formatCents(Math.round(cents)).replace(/,00$/, "");
-
-/**
- * Rounded corners at the bar's far end: below zero (a negative Saldo) that is the bottom.
- * Recharts merges a `<Cell>`'s props into its bar, whose `radius` takes the 4 corners, but
- * Cell's type only declares the SVG `radius` (a number), hence the cast where it is used.
- */
-const barRadius = (cents: number): [number, number, number, number] =>
-  cents < 0 ? [0, 0, 3, 3] : [3, 3, 0, 0];
+import { AXIS_TICK, barRadius, formatMoneyTick, TOOLTIP_STYLE } from "./chart-style";
 
 /**
  * FR-24: grouped bars per indicator, the previous period beside this month. Only a picture of
@@ -51,31 +41,20 @@ export function MonthComparisonChart({ comparison }: { comparison: MonthComparis
       >
         <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 8 }} barGap={2}>
           <CartesianGrid vertical={false} stroke="hsl(var(--border))" />
-          <XAxis
-            dataKey="label"
-            tickLine={false}
-            axisLine={false}
-            tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
-          />
+          <XAxis dataKey="label" tickLine={false} axisLine={false} tick={AXIS_TICK} />
           <YAxis
             allowDecimals={false}
-            tickFormatter={formatTick}
+            tickFormatter={formatMoneyTick}
             tickLine={false}
             axisLine={false}
             width={88}
-            tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
+            tick={AXIS_TICK}
           />
           <ReferenceLine y={0} stroke="hsl(var(--border))" />
           <Tooltip
             cursor={{ fill: "hsl(var(--muted))" }}
             formatter={(value) => formatCents(Number(value))}
-            contentStyle={{
-              background: "hsl(var(--popover))",
-              border: "1px solid hsl(var(--border))",
-              borderRadius: 6,
-              color: "hsl(var(--popover-foreground))",
-              fontSize: 13,
-            }}
+            contentStyle={TOOLTIP_STYLE}
           />
           <Legend wrapperStyle={{ fontSize: 13 }} />
           <Bar

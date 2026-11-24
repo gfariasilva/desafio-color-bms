@@ -65,6 +65,11 @@ import {
   monthSummarySchema,
   monthComparisonSchema,
   type MonthComparison,
+  incomeVsExpensesSchema,
+  tabRankingSchema,
+  type IncomeExpenseWindow,
+  type IncomeVsExpenses,
+  type TabRanking,
   type MonthFixedExpensesReport,
   type MonthGeneralExpensesResponse,
   type MonthIncomeResponse,
@@ -243,6 +248,10 @@ export const QUERY_KEYS = {
   monthSummaryReport: ["reports", "monthSummary"],
   /** FR-24: this month × the same days of the previous month (no parameter: today). */
   monthComparison: ["dashboards", "monthComparison"],
+  /** FR-25: followed by the month: ["dashboards", "tabRanking", "2026-10"]. */
+  tabRanking: ["dashboards", "tabRanking"],
+  /** FR-26: followed by the window: ["dashboards", "incomeVsExpenses", 30]. */
+  incomeVsExpenses: ["dashboards", "incomeVsExpenses"],
 } as const;
 
 export const api = {
@@ -364,6 +373,15 @@ export const api = {
     /** FR-24: this month up to today against the same days of the previous month. */
     monthComparison: (): Promise<MonthComparison> =>
       getJson("/api/dashboards/month-comparison", monthComparisonSchema),
+    /** FR-25: the tabs of a month ranked by gross income. */
+    tabRanking: (yearMonth: string): Promise<TabRanking> =>
+      getJson(
+        `/api/dashboards/tab-ranking?month=${encodeURIComponent(yearMonth)}`,
+        tabRankingSchema,
+      ),
+    /** FR-26: daily income × expenses of the last 7 or 30 days. */
+    incomeVsExpenses: (days: IncomeExpenseWindow): Promise<IncomeVsExpenses> =>
+      getJson(`/api/dashboards/income-vs-expenses?days=${days}`, incomeVsExpensesSchema),
   },
 
   /** FR-08: the cash closing of a day; FR-27: the earlier days left open. */

@@ -65,7 +65,7 @@ Ordered backlog for the MVP (spec §9.1). Each item is one small PR / GitHub iss
 | [x] | M5 | [#28](#28--monthly-spreadsheet-export) | Monthly spreadsheet export | FR-29 | #17, #21 |
 | [x] | M5 | [#22](#22--database-backup-and-restore) | Database backup and restore | FR-31, FR-32; RN-13 | #21, #25 |
 | [x] | M6 | [#18](#18--dashboard-this-month-vs-the-previous-one) | Dashboard: this month vs the previous one | FR-24; RN-11 | #17 |
-| [ ] | M6 | [#19](#19--dashboards-tab-ranking-and-income--expenses) | Dashboards: tab ranking and income × expenses | FR-25, FR-26; RN-11 | #16, #17 |
+| [x] | M6 | [#19](#19--dashboards-tab-ranking-and-income--expenses) | Dashboards: tab ranking and income × expenses | FR-25, FR-26; RN-11 | #16, #17 |
 | [ ] | M6 | [#23](#23--home-screen-alerts) | Home screen alerts | FR-27 | #9, #13, #21, #22 |
 | [ ] | M6 | [#24](#24--windows-installer-auto-start-and-deployment-checklist) | Windows installer, auto-start and deployment checklist | FR-34 | #22, #26 |
 
@@ -1210,6 +1210,19 @@ O total do mês anterior completo aparece como referência.
 **Technical notes**
 
 - Tab colors: `categoryColor(order)` so a tab has the same color everywhere.
+
+**Done notes (follow-ups)**
+
+- **No migration.** Core `dashboards/tab-ranking.ts` (`rankingPeriods`, `shareTenths`, `formatShare`, `buildTabRanking`, `tabRankingSchema`) and `dashboards/income-vs-expenses.ts` (`INCOME_EXPENSE_WINDOWS`, `lastDays`, `buildIncomeVsExpenses`, `incomeVsExpensesSchema`). The RN-11 rounding moved into `percentTenths()` (`variation.ts`), shared by the variation and the FR-25 share, and it no longer returns −0.
+- API (read-only, no audit): `GET /api/dashboards/tab-ranking?month=YYYY-MM` (per-tab Σ gross grouped in SQL; a future month → 400 "Escolha um mês até o atual.") and `GET /api/dashboards/income-vs-expenses?days=7|30` (7 by default; anything else → 400 "Escolha 7 ou 30 dias."). Tests check that the ranking's total of a past month equals Relatório Mês – Entradas (FR-20) and that the 30-day totals equal `getPeriodTotals` over the same days.
+- Decisions (approved):
+  - FR-25 period: the current month runs day 1 to today against the same days of the previous month (as FR-24); a past month is compared **whole** with the whole previous month (so 31/08 counts when September is chosen).
+  - % of total in tenths of a percent, half away from zero; "—" when the month's total is ≤ 0. After rounding, the shares may not add up to exactly 100,0%.
+  - Every active tab is listed (also at R$ 0,00), plus inactive tabs with sales in either period ("Inativa" badge). Ties keep the display order.
+  - FR-26: the window ends today (7 days = today and the 6 before). **Diferença = entradas brutas − despesas** (spec), so the card fees are not subtracted; a note says so and points to the Saldo of FR-24.
+- UI: two new sections on `/dashboards` (see design system). FR-26's window is a `NativeSelect` (a filter, design system) rather than the `ChoiceGroup` in the plan: a `ChoiceGroup` numbers its chips ("1 7 dias"), which reads badly here. Owner guide: two new sections. Screenshots in `docs/screenshots/fr-25-26/`.
+- With 9 tabs and 6 chart colors, `categoryColor()` cycles: Serviços de copiadora (8th) has the same color as Carimbos (2nd). This is the existing rule, applied everywhere; a 9-color palette would be a design-system change.
+- E2E: `dashboards.spec.ts` closes the browser context before stopping its own server. Without that, `server.stop()` sometimes hung for 30 s (about 1 run in 8, also before #19): Chromium keeps a pre-opened socket that holds the server's `app.close()`. `restore.spec.ts` has the same `afterEach` pattern. **Follow-up:** the server's SIGTERM shutdown (`main.ts`) can wait up to Node's headers timeout while a browser tab is open; consider `forceCloseConnections` or a timeout there (pilot launcher, #24).
 
 **Acceptance criteria** _(verbatim from spec §4)_
 

@@ -73,6 +73,14 @@ A planilha `Mensal AAAA-MM.xlsx` tem as mesmas contas, em 4 abas: **Entradas**, 
 
 A tabela compara **este mês até hoje** com **os mesmos dias do mês anterior**: no dia 18/11, compara 01–18/11 com 01–18/10. Ela mostra a entrada mensal, as taxas, o total de despesas e o saldo, cada um com a **variação** (ex.: **+8,7%** = 8,7% a mais que no mês anterior). A última coluna traz o mês anterior **completo**, só como referência. **"—"** na variação quer dizer que o mês anterior não teve valor nesses dias; no primeiro mês de uso, aparece "sem dados do mês anterior". O gráfico abaixo da tabela mostra os mesmos números em barras.
 
+## Quais abas vendem mais? (Dashboards, abaixo da comparação)
+
+As abas aparecem da que **mais faturou** para a que menos faturou (entrada bruta, já com os estornos descontados; não é lucro). Para cada aba: o valor, a **% do total** do mês e a **variação** em relação ao mês anterior. No mês atual, compara os mesmos dias (01–18/11 com 01–18/10); num mês passado, compara o mês inteiro com o mês anterior inteiro. Para ver outro mês, troque o campo **Mês**. **"—"** na variação quer dizer que a aba não vendeu nada no período anterior.
+
+## Estou ganhando mais do que gasto? (Dashboards, no fim da página)
+
+O gráfico mostra, **dia a dia**, as entradas (azul) e as despesas (laranja: gerais + fixas pagas, pela data de pagamento). Em **Período**, escolha **Últimos 7 dias** ou **Últimos 30 dias**. Os quadros mostram o total de entradas, o total de despesas e a **diferença**; se a diferença ficar negativa, aparece em vermelho "Gastou mais do que entrou". Dias sem movimento aparecem como zero. Clique em **Ver os valores por dia** para ver os números de cada dia. As taxas de maquininha e as sangrias não entram aqui.
+
 ## Se algo der errado
 
 - **A tela não abre ou mostra erro de conexão:** espere 1 minuto e recarregue (**F5**). Se continuar, abra a pasta `%LOCALAPPDATA%\ColorBMS` (tecle **Win + R**, cole o caminho e tecle Enter) e dê dois cliques em **`iniciar.cmd`**.

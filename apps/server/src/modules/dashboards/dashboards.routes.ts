@@ -1,8 +1,14 @@
 import type { FastifyInstance } from "fastify";
-import { todayCivilDate } from "@color-bms/core";
+import {
+  incomeVsExpensesQuerySchema,
+  TAB_RANKING_FUTURE_MONTH_ERROR,
+  tabRankingQuerySchema,
+  todayCivilDate,
+} from "@color-bms/core";
 import type { Clock } from "../../clock";
 import type { DatabaseConnection } from "../../db/client";
-import { getMonthComparison } from "./dashboards.repository";
+import { parseOr400 } from "../../http/route-helpers";
+import { getIncomeVsExpenses, getMonthComparison, getTabRanking } from "./dashboards.repository";
 
 /** FR-24 to FR-26: the dashboards (read-only). */
 export function registerDashboardRoutes(
@@ -14,4 +20,23 @@ export function registerDashboardRoutes(
   app.get("/api/dashboards/month-comparison", async () =>
     getMonthComparison(db, todayCivilDate(clock())),
   );
+
+  // FR-25: the tabs ranked by gross income in a month (`?month=YYYY-MM`).
+  app.get("/api/dashboards/tab-ranking", async (request, reply) => {
+    const query = parseOr400(tabRankingQuerySchema, request.query, reply);
+    if (!query) return reply;
+    const today = todayCivilDate(clock());
+    // "YYYY-MM" compares correctly as text; no sale can be in the future (RN-15).
+    if (query.month > today.slice(0, 7)) {
+      return reply.code(400).send({ error: TAB_RANKING_FUTURE_MONTH_ERROR });
+    }
+    return getTabRanking(db, query.month, today);
+  });
+
+  // FR-26: daily income × expenses of the last 7 or 30 days (`?days=7|30`, 7 by default).
+  app.get("/api/dashboards/income-vs-expenses", async (request, reply) => {
+    const query = parseOr400(incomeVsExpensesQuerySchema, request.query, reply);
+    if (!query) return reply;
+    return getIncomeVsExpenses(db, todayCivilDate(clock()), query.days);
+  });
 }

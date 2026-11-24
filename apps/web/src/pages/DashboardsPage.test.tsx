@@ -1,8 +1,18 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { buildMonthComparison, type MonthComparison, type MonthSummary } from "@color-bms/core";
+import {
+  buildIncomeVsExpenses,
+  buildMonthComparison,
+  buildTabRanking,
+  INITIAL_SALE_CATEGORIES,
+  type IncomeVsExpenses,
+  type MonthComparison,
+  type MonthSummary,
+  type SaleCategory,
+  type TabRanking,
+} from "@color-bms/core";
 import { AppRoutes, ROUTER_FUTURE } from "@/App";
 
 function renderAt(path: string) {
@@ -65,13 +75,94 @@ const firstMonth = buildMonthComparison({
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 
-function serve(comparison: MonthComparison) {
+/** The RN-12 tabs (ids 1…9, display order). */
+const tabs: SaleCategory[] = INITIAL_SALE_CATEGORIES.map((name, index) => ({
+  id: index + 1,
+  name,
+  order: index + 1,
+  active: true,
+}));
+const tabId = (name: string) => tabs.find((t) => t.name === name)!.id;
+
+/** FR-25, the server test's data: November up to today against 01–18/10. */
+const novemberRanking = buildTabRanking({
+  yearMonth: "2026-11",
+  today: "2026-11-18",
+  tabs: [...tabs, { id: 10, name: "Xerox antiga", order: 10, active: false }],
+  current: [
+    { saleCategoryId: tabId("Toner"), grossCents: 70000 },
+    { saleCategoryId: tabId("Papelaria"), grossCents: 50000 },
+    { saleCategoryId: tabId("Chaveiro"), grossCents: 5000 },
+  ],
+  previous: [
+    { saleCategoryId: tabId("Toner"), grossCents: 100000 },
+    { saleCategoryId: tabId("Papelaria"), grossCents: 30000 },
+    { saleCategoryId: 10, grossCents: 0 },
+  ],
+});
+
+/** FR-25: October, a whole month, against an empty September. */
+const octoberRanking = buildTabRanking({
+  yearMonth: "2026-10",
+  today: "2026-11-18",
+  tabs,
+  current: [
+    { saleCategoryId: tabId("Toner"), grossCents: 100000 },
+    { saleCategoryId: tabId("Papelaria"), grossCents: 30000 },
+    { saleCategoryId: tabId("Chaveiro"), grossCents: 20000 },
+  ],
+  previous: [],
+});
+
+/** FR-26: the last 7 days. */
+const week = buildIncomeVsExpenses({
+  today: "2026-11-18",
+  days: 7,
+  income: [
+    { date: "2026-11-12", cents: 10000 },
+    { date: "2026-11-18", cents: 3000 },
+  ],
+  expenses: [{ date: "2026-11-15", cents: 4000 }],
+});
+
+/** FR-26: the last 30 days (the server test's data). */
+const month30 = buildIncomeVsExpenses({
+  today: "2026-11-18",
+  days: 30,
+  income: [
+    { date: "2026-10-20", cents: 10000 },
+    { date: "2026-11-03", cents: 25000 },
+    { date: "2026-11-18", cents: 3000 },
+  ],
+  expenses: [
+    { date: "2026-11-03", cents: 4000 },
+    { date: "2026-11-10", cents: 18743 },
+  ],
+});
+
+const fetched: string[] = [];
+
+function serve(
+  comparison: MonthComparison,
+  options: {
+    rankings?: Record<string, TabRanking>;
+    charts?: Record<string, IncomeVsExpenses>;
+  } = {},
+) {
+  const rankings = options.rankings ?? { "2026-11": novemberRanking, "2026-10": octoberRanking };
+  const charts = options.charts ?? { "7": week, "30": month30 };
+  fetched.length = 0;
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
+      fetched.push(url);
       if (url === "/api/today") return json({ date: "2026-11-18" });
       if (url === "/api/dashboards/month-comparison") return json(comparison);
+      const ranking = /^\/api\/dashboards\/tab-ranking\?month=(.+)$/.exec(url);
+      if (ranking?.[1] && rankings[ranking[1]]) return json(rankings[ranking[1]]);
+      const chart = /^\/api\/dashboards\/income-vs-expenses\?days=(\d+)$/.exec(url);
+      if (chart?.[1] && charts[chart[1]]) return json(charts[chart[1]]);
       return json({ error: "not found" }, 404);
     }),
   );
@@ -154,5 +245,130 @@ describe("FR-24: Dashboards › Como está este mês comparado ao anterior?", ()
     const balance = within(table).getByRole("row", { name: /^Saldo/ });
     expect(balance).toHaveTextContent("-R$ 400,00");
     expect(within(balance).getByText("Saldo negativo")).toBeVisible();
+  });
+});
+
+describe("FR-25: Dashboards › Quais abas vendem mais?", () => {
+  it("FR-25: tabs in decreasing order of gross income, with % of total and variation (RN-11)", async () => {
+    renderAt("/dashboards");
+    expect(await screen.findByRole("heading", { name: "Quais abas vendem mais?" })).toBeVisible();
+    // The month starts on the server's current month, without stealing the page's focus.
+    expect(await screen.findByLabelText("Mês")).toHaveValue("2026-11");
+    expect(screen.getByLabelText("Mês")).not.toHaveFocus();
+
+    const table = await screen.findByRole("table", { name: "Ranking das abas" });
+    const rows = rowTexts(table);
+    expect(rows[0]).toBe("#AbaEntrada bruta01–18/11% do totalMês anterior01–18/10Variação");
+    expect(rows.slice(1, 4)).toEqual([
+      "1TonerR$ 700,0056,0%R$ 1.000,00−30,0%",
+      "2PapelariaR$ 500,0040,0%R$ 300,00+66,7%",
+      "3ChaveiroR$ 50,004,0%R$ 0,00—",
+    ]);
+    // Every active tab (9) plus the inactive one that had a row, then the total.
+    expect(rows).toHaveLength(12);
+    expect(rows.at(-2)).toBe("10Xerox antigaInativaR$ 0,000,0%R$ 0,00—");
+    expect(rows.at(-1)).toBe("TotalR$ 1.250,00100,0%R$ 1.300,00−3,8%");
+    expect(
+      screen.getByText(
+        /Novembro até hoje \(18\/11\/2026\), comparado com os mesmos dias de outubro/,
+      ),
+    ).toBeVisible();
+    expect(screen.getByText(/não vendeu nada nesses dias do mês anterior/)).toBeVisible();
+    expect(screen.getByText(/maior faturamento \(entrada bruta\), não lucro/)).toBeVisible();
+    expect(
+      screen.getByRole("img", {
+        name: "Gráfico de barras: entrada bruta por aba, novembro de 2026",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("FR-25: choosing another month ranks that month, compared whole with the previous one", async () => {
+    renderAt("/dashboards");
+    const field = await screen.findByLabelText("Mês");
+    await screen.findByRole("table", { name: "Ranking das abas" });
+    fireEvent.change(field, { target: { value: "2026-10" } });
+
+    expect(
+      await screen.findByText(/Outubro completo, comparado com setembro de 2026 completo/),
+    ).toBeVisible();
+    const table = screen.getByRole("table", { name: "Ranking das abas" });
+    expect(rowTexts(table)[0]).toBe(
+      "#AbaEntrada bruta01–31/10% do totalMês anterior01–30/09Variação",
+    );
+    expect(rowTexts(table)[1]).toBe("1TonerR$ 1.000,0066,7%R$ 0,00—");
+    expect(screen.getByText(/sem vendas no mês anterior/)).toBeVisible();
+    expect(fetched).toContain("/api/dashboards/tab-ranking?month=2026-10");
+  });
+
+  it("FR-25: a link with ?mes= opens that month", async () => {
+    renderAt("/dashboards?mes=2026-10");
+    expect(await screen.findByLabelText("Mês")).toHaveValue("2026-10");
+    expect(await screen.findByText(/Outubro completo/)).toBeVisible();
+  });
+});
+
+describe("FR-26: Dashboards › Estou ganhando mais do que gasto?", () => {
+  const figure = (testId: string) => screen.getByTestId(testId).textContent?.replace(/\s+/g, " ");
+
+  it("FR-26: the last 7 days by default, with the period totals and the difference", async () => {
+    renderAt("/dashboards");
+    expect(
+      await screen.findByRole("heading", { name: "Estou ganhando mais do que gasto?" }),
+    ).toBeVisible();
+    expect(screen.getByLabelText("Período")).toHaveValue("7");
+    await screen.findByTestId("period-income");
+    expect(figure("period-income")).toBe("R$ 130,00");
+    expect(figure("period-expenses")).toBe("R$ 40,00");
+    expect(figure("period-difference")).toBe("R$ 90,00");
+    expect(
+      screen.getByRole("img", {
+        name: "Gráfico de barras por dia: entradas brutas × despesas, 12/11 a 18/11",
+      }),
+    ).toBeInTheDocument();
+
+    // The day table (accessible numbers): every day, zero days included, then the total.
+    const table = screen.getByRole("table", { name: "Entradas × despesas por dia" });
+    const rows = rowTexts(table);
+    expect(rows).toHaveLength(1 + 7 + 1);
+    expect(rows[1]).toBe("12/11/2026R$ 100,00R$ 0,00R$ 100,00");
+    expect(rows[2]).toBe("13/11/2026R$ 0,00R$ 0,00R$ 0,00");
+    expect(rows.at(-1)).toBe("TotalR$ 130,00R$ 40,00R$ 90,00");
+  });
+
+  it('FR-26: choosing "30 dias" shows 30 days, and the totals match the sum of the bars', async () => {
+    renderAt("/dashboards");
+    const select = await screen.findByLabelText("Período");
+    fireEvent.change(select, { target: { value: "30" } });
+
+    expect(
+      await screen.findByRole("img", {
+        name: "Gráfico de barras por dia: entradas brutas × despesas, 20/10 a 18/11",
+      }),
+    ).toBeInTheDocument();
+    expect(figure("period-income")).toBe("R$ 380,00");
+    expect(figure("period-expenses")).toBe("R$ 227,43");
+    expect(figure("period-difference")).toBe("R$ 152,57");
+    const rows = rowTexts(screen.getByRole("table", { name: "Entradas × despesas por dia" }));
+    expect(rows).toHaveLength(1 + 30 + 1);
+    expect(rows.at(-1)).toBe("TotalR$ 380,00R$ 227,43R$ 152,57");
+    expect(fetched).toContain("/api/dashboards/income-vs-expenses?days=30");
+  });
+
+  it("FR-26: spending more than earning is red and labelled", async () => {
+    serve(withPrevious, {
+      charts: {
+        "7": buildIncomeVsExpenses({
+          today: "2026-11-18",
+          days: 7,
+          income: [{ date: "2026-11-18", cents: 1000 }],
+          expenses: [{ date: "2026-11-17", cents: 5000 }],
+        }),
+      },
+    });
+    renderAt("/dashboards");
+    const difference = await screen.findByTestId("period-difference");
+    expect(difference).toHaveTextContent("-R$ 40,00");
+    expect(difference).toHaveClass("text-destructive");
+    expect(screen.getByText("Gastou mais do que entrou")).toBeVisible();
   });
 });

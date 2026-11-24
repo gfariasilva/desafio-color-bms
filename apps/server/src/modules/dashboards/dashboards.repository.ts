@@ -1,13 +1,24 @@
-import { and, between, count, eq, sql, type AnyColumn } from "drizzle-orm";
+import { and, between, count, eq, or, sql, type AnyColumn } from "drizzle-orm";
 import {
+  buildIncomeVsExpenses,
   buildMonthComparison,
+  buildTabRanking,
   comparisonPeriods,
+  lastDays,
+  rankingPeriods,
   type CivilDate,
+  type DailyAmountRow,
+  type IncomeExpenseWindow,
+  type IncomeVsExpenses,
   type MonthComparison,
   type PeriodTotals,
+  type TabRanking,
+  type TabTotalRow,
+  type YearMonth,
 } from "@color-bms/core";
 import type { AppDatabase } from "../../db/client";
 import { expenses, sales } from "../../db/schema";
+import { listCategories } from "../categories/categories.repository";
 import { getMonthSummary } from "../reports/month-reports.repository";
 
 /**
@@ -83,4 +94,67 @@ export function getMonthComparison(db: AppDatabase, today: CivilDate): MonthComp
       hasData: previousMonthDays.movementCount > 0,
     },
   });
+}
+
+/** RN-06: Σ gross of the sales and refunds of each tab dated in `from`…`to`. */
+function tabTotals(db: AppDatabase, from: CivilDate, to: CivilDate): TabTotalRow[] {
+  return db
+    .select({ saleCategoryId: sales.saleCategoryId, grossCents: total(sales.grossCents) })
+    .from(sales)
+    .where(between(sales.date, from, to))
+    .groupBy(sales.saleCategoryId)
+    .all();
+}
+
+/**
+ * FR-25: the tabs of `yearMonth` ranked by gross income, against the same period of the
+ * previous month. Throws RangeError for a month after today's (the route answers 400).
+ */
+export function getTabRanking(db: AppDatabase, yearMonth: YearMonth, today: CivilDate): TabRanking {
+  const periods = rankingPeriods(yearMonth, today);
+  return buildTabRanking({
+    yearMonth,
+    today,
+    tabs: listCategories(db, "sale"),
+    current: tabTotals(db, periods.current.from, periods.current.to),
+    previous: tabTotals(db, periods.previous.from, periods.previous.to),
+  });
+}
+
+/**
+ * FR-26: the daily gross income and expenses of the last `days` days. Expenses are the
+ * general ones (RN-08) and the paid fixed ones (RN-09), by payment date, as in
+ * `getPeriodTotals`; the core fills the days without movement with zero.
+ */
+export function getIncomeVsExpenses(
+  db: AppDatabase,
+  today: CivilDate,
+  days: IncomeExpenseWindow,
+): IncomeVsExpenses {
+  const { from, to } = lastDays(today, days);
+  const income: DailyAmountRow[] = db
+    .select({ date: sales.date, cents: total(sales.grossCents) })
+    .from(sales)
+    .where(between(sales.date, from, to))
+    .groupBy(sales.date)
+    .all();
+  const spent = db
+    .select({ date: expenses.paymentDate, cents: total(expenses.amountCents) })
+    .from(expenses)
+    .where(
+      and(
+        between(expenses.paymentDate, from, to),
+        or(
+          eq(expenses.type, "general"),
+          and(eq(expenses.type, "fixed"), eq(expenses.status, "paid")),
+        ),
+      ),
+    )
+    .groupBy(expenses.paymentDate)
+    .all();
+  // `between` already excludes a null payment date (a bill not paid yet).
+  const expenseRows: DailyAmountRow[] = spent.flatMap((row) =>
+    row.date === null ? [] : [{ date: row.date, cents: row.cents }],
+  );
+  return buildIncomeVsExpenses({ today, days, income, expenses: expenseRows });
 }
