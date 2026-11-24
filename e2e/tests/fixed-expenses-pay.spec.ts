@@ -103,6 +103,9 @@ test("#13: convert a CONTA: sangria of a closed day; the closing keeps its count
   await expect(page.getByRole("status")).toContainText(
     "Sangria convertida: Gás E2E paga em 13/11/2026, R$ 89,90 do caixa.",
   );
+  // The status shows before the candidates are refetched: wait until the converted sangria
+  // has left the panel, or its row also matches /Gás E2E/ (strict-mode violation).
+  await expect(panel).toHaveCount(0);
   await expect(page.getByRole("row", { name: /Gás E2E/ })).toContainText("Avulsa");
 
   // RN-07: the day is closed again with the same expected cash and no difference.
