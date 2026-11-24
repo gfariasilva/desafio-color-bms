@@ -67,7 +67,7 @@ Totais por aba e por forma de pagamento, despesas, sangrias e o fechamento. Dura
 
 Escolha o **Mês**. O resumo mostra a entrada mensal, as taxas, as despesas gerais e fixas e o **saldo mensal**. Clique numa linha para ver o relatório dela. Em **Mês – Despesas fixas**, cada conta aparece com o valor pago e a data. Uma conta conta no mês em que foi **paga**: a Luz de outubro paga em novembro aparece em novembro com "ref. 10/2026". As sangrias e as contas pendentes não entram no saldo.
 
-A planilha `Mensal AAAA-MM.xlsx` tem as mesmas contas, em 4 abas: **Entradas**, **Despesas gerais**, **Despesas fixas** e **Resumo**. Na aba Resumo, a linha **Situação** diz se ela é a **versão parcial** (mês aberto: muda a cada dia fechado) ou a **versão final** (gravada quando o mês é fechado em Fechamento › Fechamento do mês). Se o mês for reaberto e fechado de novo, a versão final é substituída.
+A planilha `Mensal AAAA-MM.xlsx` tem as mesmas contas, em 4 abas: **Entradas**, **Despesas gerais**, **Despesas fixas** e **Resumo**. Na aba Resumo, a linha **Situação** diz se ela é a **versão parcial** (mês aberto: muda a cada dia fechado) ou a **versão final** (gravada quando o mês é fechado em Fechamento › Fechamento do mês). A versão parcial também soma os dias do mês ainda abertos (ex.: as vendas de hoje), então pode mudar até esses dias serem fechados. Se o mês for reaberto, a planilha volta a ser a versão parcial; ao fechar o mês de novo, a versão final é substituída. A versão final mostra as contas como estavam no fechamento: uma conta do mês paga depois continua "Pendente" nela (veja o relatório do mês no sistema).
 
 ## Se algo der errado
 

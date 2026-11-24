@@ -12,6 +12,8 @@ import {
   type ExportQueueService,
 } from "../src/modules/export/export-queue.service";
 import { closeDayWithCount } from "./cash-closing-fixture";
+import { createCashWithdrawal } from "./cash-withdrawals-fixture";
+import { fixedEntry, postConvert } from "./fixed-expenses-fixture";
 import { expenseCategoryId, postExpense } from "./expenses-fixture";
 import { createSale, NOW, TODAY, useSalesApp } from "./sales-fixture";
 
@@ -215,19 +217,47 @@ describe("FR-29 / FR-16: the final version when the month is closed", () => {
       "Versão final: mês fechado em 18/11/2026 15:00",
     );
     expect(await valueIn(OCTOBER_FILE(), "Resumo", "Entrada mensal (bruta)")).toBe(25);
-    // The app's own hook (the backup, #22) still runs after the export.
+    // The app's own hook (the backup, #22) still runs.
     expect(ctx.monthClosedCalls).toEqual(["2026-10"]);
+  });
+
+  it("FR-16: the app's hook (the backup, #22) runs before the export is written", async () => {
+    let fileWhenHookRan: boolean | null = null;
+    ctx.afterMonthClosed = () => {
+      fileWhenHookRan = fs.existsSync(OCTOBER_FILE());
+    };
+    await closeOctober();
+    await vi.waitFor(() => expect(ctx.monthClosedCalls).toEqual(["2026-10"]));
+    await settled();
+    expect(fileWhenHookRan).toBe(false);
+    expect(fs.existsSync(OCTOBER_FILE())).toBe(true);
+  });
+
+  it("FR-16: a failing hook still writes the final file", async () => {
+    ctx.afterMonthClosed = () => {
+      throw new Error("backup failed");
+    };
+    await closeOctober();
+    await vi.waitFor(() =>
+      expect(monthlyRows()).toEqual([{ reference: "2026-10", status: "done", attempts: 1 }]),
+    );
+    expect(await valueIn(OCTOBER_FILE(), "Resumo", "Situação")).toMatch(/^Versão final/);
   });
 
   it("FR-29: a month reopened, corrected and closed again overwrites the final file", async () => {
     await saleAndClose("2026-10-10", 2500);
     await closeOctober();
     await vi.waitFor(() => expect(ctx.monthClosedCalls).toEqual(["2026-10"]));
+    await settled();
 
-    // Reopening the month queues nothing (FR-17).
+    // FR-17: reopening the month rewrites the file as the partial version.
     const reopenMonth = await post("/api/months/2026-10/reopen", { reason: "Venda esquecida" });
     expect(reopenMonth.statusCode, reopenMonth.body).toBe(200);
-    expect(monthlyRows()).toHaveLength(2);
+    await vi.waitFor(() => expect(monthlyRows()).toHaveLength(3));
+    await settled();
+    expect(await valueIn(OCTOBER_FILE(), "Resumo", "Situação")).toBe(
+      "Versão parcial: mês aberto, atualizada em 18/11/2026 15:00",
+    );
 
     const reopenDay = await post("/api/days/2026-10-10/reopen", { reason: "Venda esquecida" });
     expect(reopenDay.statusCode, reopenDay.body).toBe(200);
@@ -249,11 +279,37 @@ describe("FR-29 / FR-16: the final version when the month is closed", () => {
     };
     await closeOctober();
     await vi.waitFor(() => expect(ctx.monthClosedCalls).toEqual(["2026-10"]));
+    await settled();
     const month = ctx.connection.sqlite
       .prepare("select status from months where year_month = '2026-10'")
       .get() as { status: string };
     expect(month.status).toBe("closed");
     expect(monthlyRows()).toEqual([{ reference: "2026-10", status: "failed", attempts: 1 }]);
+  });
+});
+
+describe("FR-29: other day closings", () => {
+  it("#13: converting a CONTA: sangria of a closed day rewrites the month's file", async () => {
+    const day = "2026-11-10";
+    await createSale(ctx, { date: day, grossCents: 50000 });
+    const conta = await createCashWithdrawal(ctx, {
+      date: day,
+      amountCents: 18743,
+      note: "CONTA: Luz outubro",
+    });
+    await closeDayWithCount(ctx, day, { openingCashCents: 0, countedCashCents: 31257 });
+    await settled();
+    expect(await valueIn(NOVEMBER_FILE(), "Despesas fixas", "Total pago no mês", 4)).toBe(0);
+
+    const luz = await fixedEntry(ctx, "Luz");
+    const response = await postConvert(ctx, conta.id, {
+      target: "existing",
+      fixedExpenseId: luz.id,
+    });
+    expect(response.statusCode, response.body).toBe(200);
+    await settled();
+    // The re-closing (afterDayClosed) wrote the month again, with the bill paid (RN-09).
+    expect(await valueIn(NOVEMBER_FILE(), "Despesas fixas", "Total pago no mês", 4)).toBe(187.43);
   });
 });
 

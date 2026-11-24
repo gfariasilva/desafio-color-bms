@@ -11,12 +11,16 @@ import { closeMonth, getMonthClosing, reopenMonth } from "./month-closing.reposi
  */
 export type OnMonthClosed = (yearMonth: YearMonth) => void | Promise<void>;
 
+/** Runs after a month is reopened (FR-17): the monthly spreadsheet goes back to partial (FR-29). */
+export type OnMonthReopened = (yearMonth: YearMonth) => void | Promise<void>;
+
 /** FR-16: close a month; FR-17: reopen it; and the data of the "Fechamento do mês" section. */
 export function registerMonthClosingRoutes(
   app: FastifyInstance,
   { db }: DatabaseConnection,
   clock: Clock,
   onMonthClosed: OnMonthClosed,
+  onMonthReopened: OnMonthReopened = () => {},
 ): void {
   app.get("/api/months/:yearMonth/closing", async (request, reply) => {
     const params = parseOr400(monthParamsSchema, request.params, reply);
@@ -48,10 +52,19 @@ export function registerMonthClosingRoutes(
     if (!params) return reply;
     const input = parseOr400(reopenMonthInputSchema, request.body, reply);
     if (!input) return reply;
+    let reopened;
     try {
-      return reopenMonth(db, params.yearMonth, input, clock());
+      reopened = reopenMonth(db, params.yearMonth, input, clock());
     } catch (error) {
       return sendError(reply, error);
     }
+    // After the commit, not awaited, like the closing's hook.
+    const { yearMonth } = params;
+    void Promise.resolve()
+      .then(() => onMonthReopened(yearMonth))
+      .catch((error: unknown) => {
+        request.log.error({ err: error, yearMonth }, "onMonthReopened failed");
+      });
+    return reopened;
   });
 }
